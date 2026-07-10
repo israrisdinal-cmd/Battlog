@@ -1,0 +1,1101 @@
+<html lang="id"><head>
+<link rel="manifest" href="./manifest.json">
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker terdaftar!', reg))
+        .catch(err => console.log('Service Worker gagal:', err));
+    });
+  }
+</script>
+<style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
+</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>EV Log - Vehicle Tracker</title>
+<meta name="theme-color" content="#0a1328">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{--bg:#0a1328;--card:#111d35;--line:#1e2d4a;--blue:#2b8cff;--green:#7dffb7}
+  *{font-family:'Inter',system-ui,sans-serif;box-sizing:border-box}
+  body{background:var(--bg);color:#dbe8ff;margin:0;padding-bottom: 100px;}
+  .max-w-2xl {max-width: 42rem; margin-left: auto; margin-right: auto; padding-left: 1rem; padding-right: 1rem; padding-top: 1.25rem;}
+  .flex {display: flex;}
+  .items-center {align-items: center;}
+  .justify-between {justify-content: space-between;}
+  .mb-4 {margin-bottom: 1rem;}
+  .mb-3 {margin-bottom: 0.75rem;}
+  .mb-2 {margin-bottom: 0.5rem;}
+  .mt-3 {margin-top: 0.75rem;}
+  .gap-2 {gap: 0.5rem;}
+  .gap-3 {gap: 0.75rem;}
+  .grid {display: grid;}
+  .grid-cols-2 {grid-template-columns: repeat(2, minmax(0, 1fr));}
+  .grid-cols-3 {grid-template-columns: repeat(3, minmax(0, 1fr));}
+  .w-full {width: 100%;}
+  .space-y-3 > * + * {margin-top: 0.75rem;}
+  .space-y-4 > * + * {margin-top: 1rem;}
+  
+  .maka-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:1rem;margin-bottom:1rem;position:relative;}
+  .maka-input{background:#0f1f36;border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:#eaf2ff;width:100%;font-size:15px;transition: border-color 0.2s;}
+  .maka-input:focus{outline:none;border-color:var(--blue)}
+  .maka-label{font-size:12px;color:#8aa0c6;margin-bottom:6px;display:block;font-weight:600}
+  .btn-primary{background:linear-gradient(180deg,#2b8cff,#1a6fd8);color:#fff;font-weight:700;border-radius:14px;padding:14px;border:0;cursor:pointer;width:100%;font-size:15px;text-align:center;}
+  .btn-ghost{background:#13223d;border:1px solid var(--line);color:#a8c0e8;border-radius:14px;padding:14px;cursor:pointer;font-size:15px;}
+  .view{display:none}.view.active{display:block}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:rgba(10,19,40,.98);backdrop-filter:blur(14px);border-top:1px solid var(--line);z-index:9999;padding-bottom:env(safe-area-inset-bottom,0)}
+  .nav-item{flex:1;text-align:center;padding:14px 6px 18px;color:#6b7fa2;font-size:11px;font-weight:600;background:none;border:0;cursor:pointer}
+  .nav-item.active{color:var(--blue)}
+  .nav-item svg{margin:0 auto 4px;display:block}
+  
+  .calc-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px dashed rgba(125,255,183,.12);font-size:14px;color:#9ab8e6}
+  .calc-row strong{color:#eaf6ff;text-align:right}
+  
+  .pill{background:#0f1f36;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:#8aa0c6;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .pill.active{background:rgba(43,140,255,.15);color:#6fb2ff;border-color:#2b5a9a}
+  .pill-danger{background:rgba(255,77,77,0.15);border:1px solid #ff4d4d;border-radius:999px;padding:6px 12px;font-size:12px;color:#ff6b6b;cursor:pointer;border:0;}
+  .pill-danger:hover{background:rgba(255,77,77,0.25)}
+  
+  .pill-maps {background: rgba(43,140,255,.2); border: 1px solid var(--blue); color: #6fb2ff; cursor: pointer;}
+  .pill-maps:hover {background: rgba(43, 140, 255, 0.35);}
+  
+  .custom-addon{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:14px;color:#6b7fa2;font-weight:600;pointer-events:none}
+  .relative {position: relative;}
+
+  /* Toast Notification Style */
+  #toast-container {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 10000; display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+  }
+  .maka-toast {
+    background: #ff4d4d; color: #fff; padding: 12px 24px; border-radius: 12px;
+    font-size: 13px; font-weight: 600; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    opacity: 0; transform: translateY(-20px); transition: all 0.3s ease;
+  }
+  .maka-toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+<div class="max-w-2xl">
+
+  <header class="flex items-center justify-between mb-4">
+    <div>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.3</span></h1>
+      <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="bukaPeta()" class="pill pill-maps" title="Buka Peta Fast Charging">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="view-dasbor" class="view active">
+    <div class="maka-card" style="background: linear-gradient(135deg, #112240 0%, #111d35 100%); border-color: rgba(43, 140, 255, 0.3);">
+      <div class="flex items-center justify-between">
+        <div>
+          <div style="font-size:12px; font-weight:700; color:#6fb2ff; letter-spacing:0.05em; text-transform:uppercase;">Estimasi Jarak Tempuh (100% → 30%)</div>
+          <div id="estimasi_note" style="font-size:11px; color:#8aa0c6; margin-top:2px;">Menghitung rata-rata dari data pemakaian harianmu</div>
+        </div>
+        <div id="stat_estimasi" style="font-size:26px; font-weight:900; text-align:right; color: #7dffb7; text-shadow: 0 0 12px rgba(125,255,183,0.3);">– km</div>
+      </div>
+    </div>
+
+    <div class="maka-card" style="background: linear-gradient(180deg, #0e192f 0%, #0b1424 100%); border: 1px solid #1a2f52;">
+      <div class="flex justify-between items-center" style="font-size:10px; color:#5e759e; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px; padding-left:0.5rem; padding-right:0.5rem;">
+        <span>Dashboard Kluster</span>
+        <span style="color:#7dffb7">● Online</span>
+      </div>
+      
+      <div class="relative w-full flex style-flex" style="flex-direction:column; justify-content:center; align-items:center; padding-top:1rem; padding-bottom:1rem;">
+        <canvas id="speedoCanvas" width="320" height="150"></canvas>
+        
+        <div style="margin-top: -12px; background: #070e1a; border: 1px solid #162847; padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #8aa0c6; letter-spacing: 0.5px;">
+          MIN: <span id="speedo_min" style="color:#7dffb7; font-family: monospace;">–</span> | MAX: <span id="speedo_max" style="color:#ff4d4d; font-family: monospace;">–</span> Wh/km
+        </div>
+      </div>
+    </div>
+
+    <div class="maka-card">
+      <div class="flex gap-2 mb-3" style="font-size:12px;">
+        <button class="pill active" data-period="harian" onclick="setPeriod('harian',this)">Harian</button>
+        <button class="pill" data-period="mingguan" onclick="setPeriod('mingguan',this)">Mingguan</button>
+        <button class="pill" data-period="bulanan" onclick="setPeriod('bulanan',this)">Bulanan</button>
+      </div>
+      <div id="chartWrap"><canvas id="usageChart" height="196" style="display: block; box-sizing: border-box; height: 196px; width: 100%;" width="327"></canvas></div>
+    </div>
+    
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Total Jarak</div><div id="stat_jarak" style="font-size:22px; font-weight:800;">0 km</div></div>
+      <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Efisiensi (Rata-rata)</div><div id="stat_whkm" style="font-size:22px; font-weight:800;">– Wh/km</div></div>
+      <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya Rumah</div><div id="stat_biaya_rumah" style="font-size:22px; font-weight:800;">Rp 0</div></div>
+      <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya SPKLU / SPB LU</div><div id="stat_biaya_spklu" style="font-size:22px; font-weight:800;">Rp 0</div></div>
+    </div>
+    <button onclick="switchView('catat')" class="btn-primary" style="margin-top:0.75rem;">→ Buka Catat</button>
+  </div>
+
+  <div id="view-catat" class="view">
+    <form id="entryForm" onsubmit="return false" class="space-y-4">
+      <div class="maka-card space-y-4" style="margin-bottom:0;">
+        <div style="background: rgba(43, 140, 255, 0.05); padding: 12px; border-radius: 12px; border: 1px dashed rgba(43, 140, 255, 0.2);">
+          <label class="maka-label" style="color: #6fb2ff;">Kapasitas Baterai Kendaraan</label>
+          <div class="relative">
+            <input type="number" id="f_cap_kwh" class="maka-input" style="padding-right: 3.5rem;" placeholder="Contoh: 4.0 atau 17.3" step="0.1" min="0.1">
+            <span class="custom-addon">kWh</span>
+          </div>
+        </div>
+
+        <div><label class="maka-label">Tanggal</label><input type="date" id="f_tanggal" class="maka-input"></div>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="maka-label">Km Awal</label>
+            <input type="number" id="f_km_awal" class="maka-input" placeholder="0">
+          </div>
+          <div>
+            <label class="maka-label">Km Akhir</label>
+            <input type="number" id="f_km_akhir" class="maka-input" placeholder="0">
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="maka-label" style="font-size:11px; white-space:nowrap;">Baterai Awal %</label>
+            <input type="number" id="f_batt_awal" class="maka-input" placeholder="100" min="0" max="100">
+          </div>
+          <div>
+            <label class="maka-label" style="font-size:11px; white-space:nowrap;">Baterai Akhir %</label>
+            <input type="number" id="f_batt_akhir" class="maka-input" placeholder="0" min="0" max="100">
+          </div>
+          <div>
+            <label class="maka-label" style="font-size:11px; white-space:nowrap;">Setelah Cas %</label>
+            <input type="number" id="f_batt_setelah" class="maka-input" placeholder="100" min="0" max="100">
+          </div>
+        </div>
+      </div>
+      
+      <div class="maka-card space-y-3" style="margin-bottom:0;">
+        <div>
+          <label class="maka-label">Tarif Listrik (Rp/kWh)</label>
+          <div class="flex gap-2">
+            <select id="f_tarif_preset" class="maka-input" style="flex:1">
+              <option value="1444">Rumah – 1.444</option>
+              <option value="2466">SPKLU – 2.466</option>
+              <option value="0">Gratis / Kantor – 0</option>
+            </select>
+            <input type="number" id="f_tarif" class="maka-input" value="1444" style="width:130px">
+          </div>
+        </div>
+        <div><label class="maka-label">Total Bayar (Rp) – kosongkan untuk auto</label><input type="number" id="f_biaya" class="maka-input" placeholder="otomatis dari tarif"></div>
+        <div><label class="maka-label">Lokasi</label>
+          <div style="position:relative">
+            <input type="text" id="f_lokasi" class="maka-input" placeholder="Rumah / SPKLU …" autocomplete="off">
+            <div id="lokasi_suggest" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:6px;background:#0f1f36;border:1px solid #1e2d4a;border-radius:12px;z-index:50;overflow:hidden"></div>
+          </div>
+        </div>
+        
+        <div class="relative">
+          <label class="maka-label">Spesifikasi Charger</label>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="relative">
+              <input type="number" id="f_custom_v" class="maka-input" style="padding-right: 2.5rem;" placeholder="Voltase" min="0">
+              <span class="custom-addon">V</span>
+            </div>
+            <div class="relative">
+              <input type="number" id="f_custom_ah" class="maka-input" style="padding-right: 3rem;" placeholder="Ampere" min="0">
+              <span class="custom-addon">Ah</span>
+            </div>
+          </div>
+          <input type="hidden" id="f_charger" value="">
+        </div>
+
+        <div class="flex items-center gap-2" style="padding-top: 6px; padding-bottom: 2px;">
+          <input type="checkbox" id="f_notif_status" checked style="width:18px; height:18px; accent-color: var(--blue); cursor:pointer;">
+          <label for="f_notif_status" style="font-size:13px; color:#9ab8e6; cursor:pointer; font-weight:600;">Kirim Notifikasi Telegram</label>
+        </div>
+      </div>
+      
+      <div class="maka-card shadow-inner" style="background:#0d1f1a; border-color:rgba(125,255,183,.15); margin-bottom:0;">
+        <div id="calc_title_kwh" style="font-size:11px; font-weight:700; letter-spacing:0.05em; color:#7dffb7; margin-bottom:0.5rem;">HITUNG OTOMATIS</div>
+        <div class="calc-row"><span>Jarak Tempuh</span><strong id="c_jarak">–</strong></div>
+        <div class="calc-row"><span>Energi Terpakai</span><strong id="c_energi">–</strong></div>
+        <div class="calc-row"><span>Efisiensi</span><strong id="c_whkm">–</strong></div>
+        <div class="calc-row"><span>Energi Diisi</span><strong id="c_diisi">–</strong></div>
+        <div class="calc-row"><span>Estimasi Biaya</span><strong id="c_biaya" style="color:#7dffb7">–</strong></div>
+        <div class="calc-row"><span>Durasi Charging</span><strong id="c_durasi">–</strong></div>
+        <div class="calc-row" style="border-bottom:none"><span>Jam Selesai</span><strong id="c_jam_selesai" style="color:#7dffb7">–</strong></div>
+      </div>
+      
+      <div class="flex gap-3">
+        <button id="saveBtn" onclick="saveEntry()" type="button" class="btn-primary" style="flex:1;">Simpan Catatan</button>
+        <button type="button" onclick="resetForm()" class="btn-ghost">Reset</button>
+      </div>
+      <button id="cancelEditBtn" onclick="cancelEdit();switchView('riwayat')" type="button" class="btn-ghost w-full" style="display:none">Batal Edit</button>
+    </form>
+  </div>
+
+  <div id="view-riwayat" class="view">
+    <div style="position: sticky; top: 0; background: var(--bg); z-index: 40; padding-top: 2px; padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 12px;">
+      <div class="maka-card shadow-xl" style="margin-bottom:0;">
+        <div class="flex items-center justify-between mb-2">
+          <div style="font-weight:700; font-size:14px; color:#6fb2ff; letter-spacing:0.02em;">Ringkas Pemakaian</div>
+          <div class="flex gap-1" style="font-size:11px;">
+            <button class="pill active" onclick="setRingkas('mingguan',this)" data-r="mingguan">Mingguan</button>
+            <button class="pill" onclick="setRingkas('bulanan',this)" data-r="bulanan">Bulanan</button>
+            <button class="pill" onclick="setRingkas('tahunan',this)" data-r="tahunan">Tahunan</button>
+          </div>
+        </div>
+        <div id="ringkasBox" style="font-size:12px; color:#9ab8e6; max-h:160px; overflow-y:auto; class-space-y-1">Belum ada data.</div>
+      </div>
+      
+      <div class="flex items-center justify-between mt-3" style="padding-left:0.25rem; padding-right:0.25rem;">
+        <h2 style="font-weight:700; font-size:16px; margin:0;">Daftar Catatan</h2>
+        <input id="searchBox" oninput="renderList()" placeholder="Cari catatan…" class="maka-input" style="width:140px; padding:7px 11px; font-size:12px;">
+      </div>
+    </div>
+
+    <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
+  </div>
+
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • Multi-User Universal Mode Active</footer>
+</div>
+
+<nav class="bottom-nav">
+  <div class="max-w-2xl flex" style="padding-top:0; padding-bottom:0; margin-top:0;">
+    <button type="button" class="nav-item active" onclick="switchView('dasbor')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="14" width="7" height="7" rx="1.6"></rect><rect x="3" y="14" width="7" height="7" rx="1.6"></rect></svg>
+      Dasbor
+    </button>
+    <button type="button" class="nav-item" onclick="switchView('catat')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+      Catat
+    </button>
+    <button type="button" class="nav-item" onclick="switchView('riwayat')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><circle cx="4" cy="6" r="1.5"></circle><circle cx="4" cy="12" r="1.5"></circle><circle cx="4" cy="18" r="1.5"></circle></svg>
+      Riwayat
+    </button>
+  </div>
+</nav>
+
+<script>
+const LS_KEY = 'maka_log_v1';
+let entries = [];
+try { entries = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch(e){}
+let editId = null;
+let usageChart = null;
+
+// ==========================================
+// UTILITY: PENGECEKAN KATEGORI SPKLU
+// ==========================================
+function isSpklu(e) {
+  if (!e) return false;
+  const tarifStr = String(e.tarif ?? '');
+  const lokasiStr = (e.lokasi || '').toLowerCase();
+  return tarifStr === '2466' || lokasiStr.includes('spklu') || lokasiStr.includes('spblu');
+}
+
+// ==========================================
+// FITUR BARU: AUTO-CLEANUP DATA (> 1 TAHUN)
+// ==========================================
+function cleanupOldData() {
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const filtered = entries.filter(e => new Date(e.tanggal) >= oneYearAgo);
+  if (filtered.length !== entries.length) {
+    entries = filtered;
+    localStorage.setItem(LS_KEY, JSON.stringify(entries));
+  }
+}
+cleanupOldData();
+
+// ==========================================
+// FITUR BARU: SANITASI LOKASI (TITLE CASE)
+// ==========================================
+function sanitizeLocation(loc) {
+  if (!loc) return "";
+  return loc.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const API_BASE = 'https://maka-cavalry-bot.israrisdinal.workers.dev';
+const DEFAULT_CHAT_ID = '1190249363';
+
+let API_CHAT_ID = localStorage.getItem('maka_chat_id') || DEFAULT_CHAT_ID;
+
+if (window.Telegram && window.Telegram.WebApp) {
+  const webapp = window.Telegram.WebApp;
+  webapp.ready();
+  webapp.expand();
+
+  if (webapp.initDataUnsafe && webapp.initDataUnsafe.user) {
+    const user = webapp.initDataUnsafe.user;
+    const tg_id = String(user.id || '');
+    const firstName = user.first_name || 'Driver';
+
+    if (tg_id) {
+      API_CHAT_ID = tg_id;
+      localStorage.setItem('maka_chat_id', tg_id);
+      
+      const userDisplay = document.getElementById('user-display');
+      if (userDisplay) userDisplay.textContent = `User: ${firstName} (${tg_id})`;
+    }
+  } else {
+    const userDisplay = document.getElementById('user-display');
+    if (userDisplay) userDisplay.textContent = `User: Mode Browser Offline`;
+  }
+}
+
+function showToast(message, type = 'error') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'maka-toast';
+  toast.style.background = type === 'error' ? '#ff4d4d' : '#2b8cff';
+  toast.textContent = message;
+  container.appendChild(toast);
+  
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+function bukaPeta() {
+  window.open("https://goo.gl/maps/NnLBbg1efPnP4f4f7?g_st=aw", "_blank");
+}
+
+function switchView(name){
+  try {
+    document.querySelectorAll('.view').forEach(v=> v.classList.remove('active'));
+    const el = document.getElementById('view-' + name);
+    if(!el){ showToast('View tidak ditemukan: '+name, 'error'); return; }
+    el.classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n=>{
+      const oc = n.getAttribute('onclick') || '';
+      n.classList.toggle('active', oc.includes("'"+name+"'"));
+    });
+    window.scrollTo(0,0);
+    if(name==='riwayat') { renderRingkas(); renderList(); }
+    if(name==='dasbor') { renderDasbor(); if(usageChart) setTimeout(()=>{try{usageChart.resize()}catch(e){}},50); }
+  } catch(err){ showToast('switchView error: '+err.message, 'error'); }
+}
+
+function readForm(){
+  const g = id => document.getElementById(id);
+  const v_tarif = parseFloat(g('f_tarif').value);
+  const v_cap = parseFloat(g('f_cap_kwh').value) || 4.0;
+  
+  return {
+    cap_kwh: v_cap,
+    tanggal: g('f_tanggal').value || new Date().toISOString().slice(0,10),
+    km_awal: parseFloat(g('f_km_awal').value) || 0,
+    km_akhir: parseFloat(g('f_km_akhir').value) || 0,
+    batt_awal: parseFloat(g('f_batt_awal').value) || 0,
+    batt_akhir: parseFloat(g('f_batt_akhir').value) || 0,
+    batt_setelah: parseFloat(g('f_batt_setelah').value) || 100,
+    tarif: isNaN(v_tarif) ? 1444 : v_tarif,
+    biaya: g('f_biaya').value !== "" ? parseFloat(g('f_biaya').value) : null,
+    lokasi: sanitizeLocation(g('f_lokasi').value),
+    charger: g('f_charger') ? g('f_charger').value.trim() : '',
+    notif_status: g('f_notif_status') ? g('f_notif_status').checked : true
+  };
+}
+
+function calcEntry(e){
+  const current_cap = Number(e.cap_kwh) || 4.0;
+  const jarak = Math.max(0, (Number(e.km_akhir)||0) - (Number(e.km_awal)||0));
+  const batt_used_pct = Math.max(0, (Number(e.batt_awal)||0) - (Number(e.batt_akhir)||0));
+  const energi_terpakai = (batt_used_pct/100) * current_cap;
+  const wh_per_km = jarak > 0 ? (energi_terpakai * 1000 / jarak) : 0;
+  
+  let targetCas = Number(e.batt_setelah) || 100;
+  const batt_charged_pct = Math.max(0, targetCas - (Number(e.batt_akhir)||0));
+  const energi_diisi = (batt_charged_pct/100) * current_cap;
+  
+  let biaya = 0;
+  if (e.biaya !== null && e.biaya !== undefined) {
+    biaya = Number(e.biaya);
+  } else {
+    biaya = energi_diisi * (Number(e.tarif) || 0);
+  }
+  return { jarak:+jarak.toFixed(2), energi_terpakai, wh_per_km, energi_diisi, biaya, targetCas };
+}
+
+function updateLiveCalc(){
+  try{
+    const e = readForm(); const c = calcEntry(e);
+    const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+    
+    const titleEl = document.getElementById('calc_title_kwh');
+    if(titleEl) titleEl.textContent = `HITUNG OTOMATIS (BATASAN ${e.cap_kwh} kWh)`;
+
+    set('c_jarak', c.jarak ? c.jarak + ' km' : '–');
+    set('c_energi', c.energi_terpakai ? c.energi_terpakai.toFixed(3) + ' kWh' : '–');
+    set('c_whkm', c.wh_per_km ? Math.round(c.wh_per_km) + ' Wh/km' : '–');
+    set('c_diisi', c.energi_diisi ? c.energi_diisi.toFixed(3) + ' kWh' : '–');
+    set('c_biaya', fmtRp(c.biaya));
+
+    if (e.charger && e.batt_akhir < c.targetCas) {
+      const regexCharger = /(\d+)\s*v\s*(\d+)\s*ah/i;
+      const kecocokan = e.charger.match(regexCharger);
+      if (kecocokan) {
+        const volt = Number(kecocokan[1]) || 0;
+        const ampere = Number(kecocokan[2]) || 0;
+        const sisaPersenHarusDiisi = Math.max(0, c.targetCas - e.batt_akhir);
+        
+        const energiDibutuhkanWh = sisaPersenHarusDiisi * ((e.cap_kwh * 1000) / 100); 
+        const dayaChargerWatt = volt * ampere;
+        
+        if (dayaChargerWatt > 0) {
+          const faktorBMS = (e.cap_kwh >= 10.0) ? 1.1 : (ampere > 10 ? 1.38 : 1.15);
+          
+          const estimasiDurasiJam = (energiDibutuhkanWh / dayaChargerWatt) * faktorBMS;
+          const totalMenit = Math.round(estimasiDurasiJam * 60);
+          const jam = Math.floor(totalMenit / 60);
+          const menit = totalMenit % 60;
+          
+          set('c_durasi', `${jam > 0 ? jam + ' jam ' : ''}${menit} menit`);
+          
+          const sekarang = new Date();
+          sekarang.setMinutes(sekarang.getMinutes() + totalMenit);
+          const jamSelesaiStr = String(sekarang.getHours()).padStart(2, '0') + ':' + String(sekarang.getMinutes()).padStart(2, '0');
+          set('c_jam_selesai', jamSelesaiStr + ' ke ' + c.targetCas + '%');
+        } else { set('c_durasi', '–'); set('c_jam_selesai', '–'); }
+      } else { set('c_durasi', '–'); set('c_jam_selesai', '–'); }
+    } else { set('c_durasi', 'Tidak mengecas'); set('c_jam_selesai', '–'); }
+  }catch(e){}
+}
+
+async function saveEntry(){
+  const e = readForm();
+  if(e.km_akhir < e.km_awal){ showToast('Km Akhir harus >= Km Awal', 'error'); return; }
+  
+  localStorage.setItem('universal_cap_kwh', e.cap_kwh);
+  localStorage.setItem('universal_custom_v', document.getElementById('f_custom_v').value);
+  localStorage.setItem('universal_custom_ah', document.getElementById('f_custom_ah').value);
+
+  const currentId = editId || Date.now().toString();
+  const entryData = { id: currentId, ...e };
+  if(entryData.biaya === null) delete entryData.biaya;
+
+  if(editId){ 
+    const i = entries.findIndex(x=>x.id===editId); 
+    if(i>=0) entries[i] = entryData; 
+    editId=null;
+    document.getElementById('f_cap_kwh').disabled = false; // Buka kunci input setelah update
+    document.getElementById('saveBtn').textContent='Simpan Catatan';
+    document.getElementById('cancelEditBtn').style.display='none';
+    showToast('Catatan berhasil diperbarui!', 'success');
+  } else { 
+    entries.unshift(entryData); 
+    showToast('Catatan berhasil disimpan!', 'success');
+  }
+  localStorage.setItem(LS_KEY, JSON.stringify(entries));
+  
+  const calc = calcEntry(e);
+  let jamSelesaiKirim = null;
+
+  if (e.charger && e.batt_akhir < calc.targetCas) {
+    const regexCharger = /(\d+)\s*v\s*(\d+)\s*ah/i;
+    const kecocokan = e.charger.match(regexCharger);
+    if (kecocokan) {
+      const volt = Number(kecocokan[1]) || 0;
+      const ampere = Number(kecocokan[2]) || 0;
+      const sisaPersenHarusDiisi = Math.max(0, calc.targetCas - e.batt_akhir);
+      const energiDibutuhkanWh = sisaPersenHarusDiisi * ((e.cap_kwh * 1000) / 100); 
+      const dayaChargerWatt = volt * ampere;
+      
+      if (dayaChargerWatt > 0) {
+        const faktorBMS = (e.cap_kwh >= 10.0) ? 1.1 : (ampere > 10 ? 1.4 : 1.15);
+        
+        const estimasiDurasiJam = (energiDibutuhkanWh / dayaChargerWatt) * faktorBMS;
+        const totalMenit = Math.round(estimasiDurasiJam * 60);
+        const targetWaktuEksekusi = Date.now() + (totalMenit * 60 * 1000);
+        
+        const sekarang = new Date();
+        sekarang.setMinutes(sekarang.getMinutes() + totalMenit);
+        const jamSelesaiStr = String(sekarang.getHours()).padStart(2, '0') + ':' + String(sekarang.getMinutes()).padStart(2, '0');
+        
+        jamSelesaiKirim = jamSelesaiStr + ' ke ' + calc.targetCas + '%';
+        
+        const teksNotifikasiPenuh = `⚡ Pengisian Baterai Selesai!\n\nPengisian dari ${e.batt_akhir}% ke ${calc.targetCas}% telah selesai Silakan cabut charger!!`;
+        
+        if (e.notif_status) {
+          fetch(API_BASE + '/schedule-remind', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: API_CHAT_ID, 
+              waktuEksekusi: targetWaktuEksekusi,
+              pesan: teksNotifikasiPenuh,
+              batt_akhir: e.batt_akhir,      
+              batt_setelah: calc.targetCas,
+              jam_selesai: jamSelesaiKirim     
+            })
+          }).catch(err => console.error('Gagal kirim jadwal pengingat:', err));
+        }
+      }
+    }
+  }
+
+  resetForm(); 
+  renderAll(); 
+  switchView('dasbor');
+
+  apiPost({...entryData, batt_setelah: calc.targetCas}, jamSelesaiKirim).then(ok => {
+    if(ok && e.lokasi) saveLokasiToHistory(e.lokasi);
+  }).catch(err => console.log('Bg Sync error:', err));
+}
+
+function resetForm(){
+  document.getElementById('entryForm').reset();
+  document.getElementById('f_tanggal').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f_tarif').value = 1444;
+  document.getElementById('f_tarif_preset').value = '1444';
+  
+  document.getElementById('f_cap_kwh').value = localStorage.getItem('universal_cap_kwh') || '4.0';
+  document.getElementById('f_cap_kwh').disabled = false; // Pastikan form tidak terkunci saat reset
+  document.getElementById('f_custom_v').value = localStorage.getItem('universal_custom_v') || '';
+  document.getElementById('f_custom_ah').value = localStorage.getItem('universal_custom_ah') || '';
+  
+  if (document.getElementById('f_notif_status')) {
+    document.getElementById('f_notif_status').checked = true;
+  }
+  
+  const v = document.getElementById('f_custom_v').value;
+  const ah = document.getElementById('f_custom_ah').value;
+  document.getElementById('f_charger').value = (v && ah) ? `${v}v ${ah}ah` : '';
+  
+  editId=null;
+  document.getElementById('saveBtn').textContent='Simpan Catatan';
+  document.getElementById('cancelEditBtn').style.display='none';
+  updateLiveCalc();
+}
+
+function startEdit(id){
+  const e = entries.find(x=>x.id===id); if(!e) return;
+  editId=id;
+  const s=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v??''; };
+  s('f_tanggal',e.tanggal); s('f_km_awal',e.km_awal); s('f_km_akhir',e.km_akhir);
+  s('f_batt_awal',e.batt_awal); s('f_batt_akhir',e.batt_akhir); s('f_batt_setelah',e.batt_setelah);
+  
+  const t = e.tarif ?? 1444;
+  s('f_tarif', t);
+  const preset = document.getElementById('f_tarif_preset');
+  if(preset) {
+    preset.value = t === 1444 ? '1444' : (t === 2466 ? '2466' : (t === 0 ? '0' : '1444'));
+  }
+  
+  s('f_biaya',e.biaya??''); s('f_lokasi',e.lokasi);
+  s('f_cap_kwh', e.cap_kwh || 4.0);
+  document.getElementById('f_cap_kwh').disabled = true; // Kunci input kapasitas saat edit data lama
+  
+  if (document.getElementById('f_notif_status')) {
+    document.getElementById('f_notif_status').checked = e.notif_status !== false;
+  }
+  
+  const hc = document.getElementById('f_charger');
+  if(hc) {
+    const val = e.charger || '';
+    hc.value = val;
+    const regexCharger = /(\d+)\s*v\s*(\d+)\s*ah/i;
+    const match = val.match(regexCharger);
+    if(match){
+      s('f_custom_v', match[1]);
+      s('f_custom_ah', match[2]);
+    } else {
+      s('f_custom_v', '');
+      s('f_custom_ah', '');
+    }
+  }
+
+  document.getElementById('saveBtn').textContent='Update Catatan';
+  document.getElementById('cancelEditBtn').style.display='block';
+  switchView('catat'); updateLiveCalc();
+}
+
+function cancelEdit(){ editId=null; resetForm(); }
+
+function deleteEntry(id){ 
+  if(!confirm('Hapus catatan ini?')) return; 
+  entries=entries.filter(x=>x.id!==id); 
+  localStorage.setItem(LS_KEY, JSON.stringify(entries)); 
+  renderAll(); 
+  prefillTripStart(true); // Sinkronisasi ulang form setelah data dihapus
+  showToast('Catatan dihapus', 'success');
+}
+
+function renderList(){
+  const q=(document.getElementById('searchBox').value||'').toLowerCase();
+  const box=document.getElementById('listBox');
+  const list = entries.filter(e=>!q|| ((e.charger||'')+' '+(e.lokasi||'')).toLowerCase().includes(q));
+  if(!list.length){ box.innerHTML='<div class="maka-card text-[#6b7fa2] text-sm">Belum ada catatan.</div>'; return; }
+  box.innerHTML=list.map(e=>{ const c=calcEntry(e);
+    return `<div class="maka-card">
+      <div class="flex justify-between text-[12px] text-[#8aa0c6] mb-1"><span>${e.tanggal}</span><span>${c.jarak} km • ${Math.round(c.wh_per_km)||0} Wh/km</span></div>
+      <div class="font-semibold mb-1">${e.lokasi||'–'} <span style="color:#7dffb7"> ${fmtRp(c.biaya)}</span></div>
+      <div class="text-[13px] text-[#9ab8e6] mb-2">Spesifikasi: Kapasitas ${e.cap_kwh || 4.0} kWh • Charger ${e.charger||'–'}</div>
+      <div class="flex gap-2 text-[12px]">
+        <button onclick="startEdit('${e.id}')" class="pill">Edit</button>
+        <button onclick="deleteEntry('${e.id}')" class="pill-danger">Hapus</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let ringkasMode='mingguan';
+function setRingkas(mode,btn){ ringkasMode=mode; document.querySelectorAll('[data-r]').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active'); renderRingkas(); }
+
+function renderRingkas(){
+  const box=document.getElementById('ringkasBox'); if(!box) return;
+  if(!entries.length){ box.innerHTML='<div class="text-[#6b7fa2] text-center py-2">Belum ada data pemakaian.</div>'; return; }
+  const groups={};
+  entries.forEach(e=>{ const d=new Date(e.tanggal); let key;
+    if(ringkasMode==='mingguan'){ key=`${d.getFullYear()}-W${getWeek(d)}`; }
+    else if(ringkasMode==='bulanan'){ key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+    else { key=`${d.getFullYear()}`; }
+    (groups[key] ||= []).push(e);
+  });
+  
+  const rows=Object.keys(groups).sort().reverse().slice(0,8).map(k=>{
+    let jarak=0, energi=0, biayaRumah=0, biayaSpklu=0;
+    groups[k].forEach(e=>{ 
+      const c=calcEntry(e); 
+      jarak+=c.jarak; 
+      energi+=c.energi_terpakai; 
+      if(isSpklu(e)){
+        biayaSpklu+=c.biaya;
+      } else {
+        biayaRumah+=c.biaya;
+      }
+    });
+    const avgWhKm = jarak > 0 ? Math.round((energi * 1000) / jarak) : 0;
+    return `<div style="padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+      <div style="display:flex;justify-content:space-between;font-weight:600;color:#eaf2ff">
+        <span>${k}</span>
+        <span>${Math.round(jarak)} km • ${energi.toFixed(2)} kWh • ${avgWhKm} Wh/km</span>
+      </div>
+      <div style="display:flex;justify-content:flex-end;font-size:11px;color:#8aa0c6;margin-top:2px;gap:8px">
+        <span>Rumah: <span style="color:#dbe8ff">${fmtRp(biayaRumah)}</span></span>
+        <span>|</span>
+        <span>SPKLU/SPBLU: <span style="color:#7dffb7">${fmtRp(biayaSpklu)}</span></span>
+      </div>
+    </div>`;
+  }).join('');
+  box.innerHTML = rows || 'Belum ada data.';
+}
+
+function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil((((t-yearStart)/86400000)+1)/7); }
+
+function renderDasbor(){
+  let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
+  let movingWh = 0, movingN = 0;
+  let lastCap = 4.0;
+  
+  let movingWhList = [];
+  
+  entries.forEach((e, idx)=>{ 
+    const c=calcEntry(e); 
+    jarak+=c.jarak; 
+    lastCap = e.cap_kwh || 4.0;
+    if(isSpklu(e)){
+      biayaSpklu+=c.biaya;
+    } else {
+      biayaRumah+=c.biaya;
+    }
+    if(c.wh_per_km){ 
+      wh+=c.wh_per_km; 
+      n++; 
+      
+      if(movingN < 20) { 
+        movingWh += c.wh_per_km; 
+        movingN++; 
+        movingWhList.push(c.wh_per_km);
+      }
+    }
+  });
+  
+  const avgWhKmGlobal = n ? (wh / n) : 0;
+  const avgWhKmMoving = movingN ? (movingWh / movingN) : 0;
+  const estimasiJarak = avgWhKmMoving > 0 ? ((0.7 * lastCap * 1000) / avgWhKmMoving) : 0;
+
+  document.getElementById('stat_jarak').textContent = Math.round(jarak)+' km';
+  document.getElementById('stat_whkm').textContent = n ? Math.round(avgWhKmGlobal)+' Wh/km' : '– Wh/km';
+  document.getElementById('stat_biaya_rumah').textContent = fmtRp(biayaRumah);
+  document.getElementById('stat_biaya_spklu').textContent = fmtRp(biayaSpklu);
+  
+  const estimasiEl = document.getElementById('stat_estimasi');
+  const noteEl = document.getElementById('estimasi_note');
+  if(estimasiJarak > 0) {
+    estimasiEl.textContent = Math.round(estimasiJarak)+' km';
+    noteEl.textContent = `Rentang 100% → 30% berdasarkan ${movingN} catatan terakhir`;
+  } else { estimasiEl.textContent = '– km'; noteEl.textContent = `Baterai Rentang 100% → 30% (Menunggu data)`; }
+  
+  const currentEfisiensi20 = Math.round(avgWhKmMoving);
+  
+  drawModernDigitalCluster(currentEfisiensi20);
+  
+  const minDisplay = document.getElementById('speedo_min');
+  const maxDisplay = document.getElementById('speedo_max');
+  if(movingWhList.length > 0) {
+    const minVal = Math.round(Math.min(...movingWhList));
+    const maxVal = Math.round(Math.max(...movingWhList));
+    if(minDisplay) minDisplay.textContent = minVal;
+    if(maxDisplay) maxDisplay.textContent = maxVal;
+  } else {
+    if(minDisplay) minDisplay.textContent = '–';
+    if(maxDisplay) maxDisplay.textContent = '–';
+  }
+
+  renderChart();
+}
+
+function drawModernDigitalCluster(currentWhKm) {
+  const canvas = document.getElementById('speedoCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height - 25;
+  const radius = 95;
+  
+  const startAngle = Math.PI * 1.05; 
+  const endAngle = Math.PI * 1.95;   
+  const totalAngle = endAngle - startAngle;
+  
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#1e2d4a';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+  ctx.stroke();
+  
+  let themeColor = '#2b8cff'; 
+  if (currentWhKm > 0 && currentWhKm <= 30) {
+    themeColor = '#7dffb7'; 
+  } else if (currentWhKm >= 31 && currentWhKm <= 40) {
+    themeColor = '#2b8cff'; 
+  } else if (currentWhKm >= 41) {
+    themeColor = '#ff4d4d'; 
+  }
+  
+  if(currentWhKm > 0) {
+    const clampedVal = Math.min(Math.max(currentWhKm, 0), 80);
+    const activeEndAngle = startAngle + (totalAngle * (clampedVal / 80));
+    
+    ctx.save();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = themeColor;
+    ctx.shadowColor = themeColor;
+    ctx.shadowBlur = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, startAngle, activeEndAngle);
+    ctx.stroke();
+    ctx.restore();
+  }
+  
+  ctx.fillStyle = '#5e759e';
+  ctx.font = '700 10px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  
+  const xStartText = centerX + Math.cos(startAngle) * (radius - 14);
+  const yStartText = centerY + Math.sin(startAngle) * (radius - 14);
+  ctx.fillText("0", xStartText, yStartText + 3);
+  
+  const xEndText = centerX + Math.cos(endAngle) * (radius - 14);
+  const yEndText = centerY + Math.sin(endAngle) * (radius - 14);
+  ctx.fillText("80", xEndText, yEndText + 3);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 48px Inter, sans-serif';
+  const displayVal = currentWhKm > 0 ? currentWhKm : 0;
+  ctx.fillText(displayVal, centerX, centerY - 25);
+  
+  ctx.fillStyle = '#8aa0c6';
+  ctx.font = '700 11px Inter, sans-serif';
+  ctx.letterSpacing = '1px';
+  ctx.fillText("WH / KM", centerX, centerY + 12);
+  ctx.letterSpacing = '0px'; 
+  
+  const barW = 120;
+  const barH = 5;
+  const barX = centerX - (barW / 2);
+  const barY = centerY + 24;
+  
+  ctx.fillStyle = '#152542';
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barW, barH, 3);
+  ctx.fill();
+  
+  if(currentWhKm > 0) {
+    const pct = Math.min(Math.max((80 - currentWhKm) / 80, 0.05), 1);
+    ctx.fillStyle = themeColor;
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW * pct, barH, 3);
+    ctx.fill();
+  }
+}
+
+let chartPeriod='harian';
+function setPeriod(p,btn){ chartPeriod=p; document.querySelectorAll('[data-period]').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active'); renderChart(); }
+function renderChart(){
+  try{
+    const ctx = document.getElementById('usageChart'); if(!ctx) return;
+    if(typeof Chart === 'undefined'){ document.getElementById('chartWrap').innerHTML = '<div style="color:#6b7fa2;font-size:13px;padding:40px 0;text-align:center">Chart offline</div>'; return; }
+    
+    const groups={};
+    entries.forEach(e=>{ const d=new Date(e.tanggal); let key;
+      if(chartPeriod==='harian') key=e.tanggal;
+      else if(chartPeriod==='mingguan') key=`${d.getFullYear()}-W${getWeek(d)}`;
+      else key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const c=calcEntry(e); 
+      groups[key] ||= { jarak: 0, energi: 0 };
+      groups[key].jarak += c.jarak;
+      groups[key].energi += c.energi_terpakai;
+    });
+    const labels = Object.keys(groups).sort().slice(-8);
+    const data = labels.map(k=>{ const g = groups[k]; return g.jarak > 0 ? Math.round((g.energi * 1000) / g.jarak) : 0; });
+    
+    if(usageChart) {
+      usageChart.data.labels = labels;
+      usageChart.data.datasets[0].data = data;
+      usageChart.update();
+    } else {
+      const chartCtx = ctx.getContext('2d');
+      const gradient = chartCtx.createLinearGradient(0, 0, 0, 200);
+      gradient.addColorStop(0, 'rgba(43, 140, 255, 1)');   
+      gradient.addColorStop(1, 'rgba(43, 140, 255, 0.05)'); 
+
+      usageChart = new Chart(ctx, {
+        type: 'bar', data: {
+          labels, datasets: [{
+            label: 'Efisiensi (Wh/km)', data, backgroundColor: gradient, borderColor: '#2b8cff', borderWidth: 1, borderRadius: 8, borderSkipped: 'bottom', hoverBackgroundColor: 'rgba(107, 178, 255, 1)', barPercentage: 0.6
+          }]
+        }, options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(30, 45, 74, 0.5)', drawBorder: false }, ticks: { color: '#8aa0c6', font: { size: 11 } } }, 
+            x: { grid: { display: false }, ticks: { color: '#8aa0c6', font: { size: 11 } } }
+          }
+        }
+      });
+    }
+  } catch(e) { console.log('chart err', e); }
+}
+function fmtRp(n){ return 'Rp ' + Math.round(n).toLocaleString('id-ID'); }
+function renderAll(){ renderDasbor(); renderRingkas(); renderList(); }
+
+async function apiPost(entry, jamSelesaiDinamis=null){
+  if(!API_BASE.includes('workers.dev')) return false;
+  try{
+    const chat_id = API_CHAT_ID; 
+    
+    let jam_selesai = jamSelesaiDinamis;
+    if(!jam_selesai) {
+      const jamSelesaiEl = document.getElementById('c_jam_selesai');
+      jam_selesai = (jamSelesaiEl && jamSelesaiEl.textContent !== '–') ? jamSelesaiEl.textContent : null;
+    }
+
+    const res = await fetch(API_BASE + '/api/log', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({...entry, chat_id, jam_selesai}) 
+    });
+    return res.ok;
+  }catch(e){ return false; }
+}
+
+const LOKASI_KEY = 'maka_log_v1_lokasi_history'; 
+function getLokasiHistory(){ try { return JSON.parse(localStorage.getItem(LOKASI_KEY) || '[]'); } catch(e){ return []; } }
+function saveLokasiToHistory(loc){
+  loc = (loc||'').trim(); if(!loc) return;
+  let fontHist = getLokasiHistory().filter(x => x.toLowerCase() !== loc.toLowerCase());
+  fontHist.unshift(loc); fontHist = fontHist.slice(0, 10); localStorage.setItem(LOKASI_KEY, JSON.stringify(fontHist));
+}
+function renderLokasiSuggest(filter=''){
+  const box = document.getElementById('lokasi_suggest'); const input = document.getElementById('f_lokasi'); if(!box || !input) return;
+  let fontHist = getLokasiHistory(); if(filter) { const f = filter.toLowerCase(); fontHist = fontHist.filter(x => x.toLowerCase().includes(f)); }
+  fontHist = fontHist.slice(0,3); if(!fontHist.length){ box.style.display='none'; return; }
+  box.innerHTML = fontHist.map(h => `<div class="lokasi-opt" data-v="${h.replace(/"/g,'"')}" style="padding:12px 14px;cursor:pointer;color:#dbe8ff;font-size:14px;border-bottom:1px solid #1e2d4a">${h}</div>`).join('');
+  box.style.display = 'block';
+  box.querySelectorAll('.lokasi-opt').forEach(el => {
+    el.onclick = () => { input.value = el.dataset.v; box.style.display = 'none'; updateLiveCalc(); };
+    el.onmouseenter = () => el.style.background = '#13223d'; el.onmouseleave = () => el.style.background = '';
+  });
+}
+
+function prefillTripStart(force){
+  if(typeof editId !== 'undefined' && editId) return;
+  const last = (typeof entries !== 'undefined' && entries[0]) ? entries[0] : null; if(!last) return;
+  const kmEl = document.getElementById('f_km_awal'); const battEl = document.getElementById('f_batt_awal');
+  if(kmEl && (force || !kmEl.value || Number(kmEl.value)===0)){ if(last.km_akhir != null) kmEl.value = last.km_akhir; }
+  if(battEl && (force || !battEl.value)){ const batt = (Number(last.batt_setelah) > 0 ? last.batt_setelah : last.batt_akhir); if(batt != null) battEl.value = batt; }
+}
+
+document.getElementById('f_tanggal').value = new Date().toISOString().slice(0,10);
+document.addEventListener('input', e=>{ if(e.target.closest('#entryForm')) updateLiveCalc(); }, true);
+document.addEventListener('change', e=>{ if(e.target.closest('#entryForm')) updateLiveCalc(); }, true);
+document.getElementById('f_tarif_preset').addEventListener('change', ev=>{
+  const v=ev.target.value; document.getElementById('f_tarif').value=v; updateLiveCalc();
+});
+document.getElementById('f_tarif').addEventListener('input', ()=>{
+  const preset=document.getElementById('f_tarif_preset'); const val=document.getElementById('f_tarif').value;
+  if(preset) preset.value = val==='1444' ? '1444' : val==='2466' ? '2466' : val==='0' ? '0' : '1444';
+  updateLiveCalc();
+});
+
+(function initFormHelpers(){
+  const input = document.getElementById('f_lokasi'); const box = document.getElementById('lokasi_suggest'); if(!input) return;
+  let fontHist = getLokasiHistory();
+  if(fontHist.length === 0 && typeof entries !== 'undefined' && entries.length){
+    const seen = new Set();
+    entries.forEach(e => {
+      const loc = (e.lokasi||'').trim();
+      if(loc && !seen.has(loc.toLowerCase())){ seen.add(loc.toLowerCase()); fontHist.push(loc); }
+    });
+    if(fontHist.length) localStorage.setItem(LOKASI_KEY, JSON.stringify(fontHist));
+  }
+  fontHist = getLokasiHistory(); if(!input.value && fontHist[0]) input.value = fontHist[0];
+  
+  input.addEventListener('focus', () => renderLokasiSuggest(input.value));
+  input.addEventListener('input', () => renderLokasiSuggest(input.value));
+  document.addEventListener('click', (e) => { if(!e.target.closest('#f_lokasi') && !e.target.closest('#lokasi_suggest')){ if(box) box.style.display = 'none'; } });
+
+  const hiddenC = document.getElementById('f_charger');
+  const customV = document.getElementById('f_custom_v');
+  const customAh = document.getElementById('f_custom_ah');
+  
+  const chargerBox = document.createElement('div');
+  chargerBox.id = 'charger_suggest';
+  chargerBox.style = 'display:none; position:absolute; left:0; right:0; background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; z-index:50; overflow:hidden; margin-top:6px;';
+  customAh.parentElement.parentElement.appendChild(chargerBox);
+
+  function getChargerHistory() {
+    try { return JSON.parse(localStorage.getItem('maka_charger_history') || '[]'); } catch(e) { return []; }
+  }
+
+  function saveChargerToHistory(v, ah) {
+    if(!v || !ah) return;
+    const item = `${v}v ${ah}ah`;
+    let fontHist = getChargerHistory().filter(x => x.toLowerCase() !== item.toLowerCase());
+    fontHist.unshift(item);
+    fontHist = fontHist.slice(0, 5); 
+    localStorage.setItem('maka_charger_history', JSON.stringify(fontHist));
+  }
+
+  function renderChargerSuggest() {
+    const fontHist = getChargerHistory();
+    if(!fontHist.length) { chargerBox.style.display = 'none'; return; }
+    
+    chargerBox.innerHTML = `<div style="padding:8px 14px; font-size:11px; color:#8aa0c6; font-weight:bold; border-bottom:1px solid #1e2d4a; background:#112240;">PILIH CHARGER TERSEDIA:</div>` + 
+    fontHist.map(h => `<div class="charger-opt" data-v="${h}" style="padding:12px 14px; cursor:pointer; color:#7dffb7; font-size:14px; border-bottom:1px solid #1e2d4a">${h.toUpperCase()}</div>`).join('');
+    chargerBox.style.display = 'block';
+    
+    chargerBox.querySelectorAll('.charger-opt').forEach(el => {
+      el.onclick = () => {
+        const match = el.dataset.v.match(/(\d+)v\s*(\d+)ah/i);
+        if(match) {
+          customV.value = match[1];
+          customAh.value = match[2];
+          hiddenC.value = el.dataset.v;
+          chargerBox.style.display = 'none';
+          updateLiveCalc();
+        }
+      };
+      el.onmouseenter = () => el.style.background = '#13223d';
+      el.onmouseleave = () => el.style.background = '';
+    });
+  }
+
+  function sinkronisasiCustom() {
+    const v = customV.value.trim();
+    const ah = customAh.value.trim();
+    if(v && ah) {
+      hiddenC.value = `${v}v ${ah}ah`;
+    } else {
+      hiddenC.value = '';
+    }
+    updateLiveCalc();
+  }
+
+  if(customV && customAh) {
+    customV.addEventListener('input', sinkronisasiCustom);
+    customAh.addEventListener('input', sinkronisasiCustom);
+    customV.addEventListener('focus', renderChargerSuggest);
+    customAh.addEventListener('focus', renderChargerSuggest);
+  }
+
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('#f_custom_v') && !e.target.closest('#f_custom_ah') && !e.target.closest('#charger_suggest')){
+      chargerBox.style.display = 'none';
+    }
+  });
+
+  const originalSaveEntry = saveEntry;
+  saveEntry = async function() {
+    const v = customV.value.trim();
+    const ah = customAh.value.trim();
+    if(v && ah) {
+      saveChargerToHistory(v, ah);
+    }
+    return originalSaveEntry.apply(this, arguments);
+  };
+
+  if(typeof resetForm !== 'undefined'){
+    const _resetForm = resetForm;
+    resetForm = function(){
+      const keepLoc = input.value || getLokasiHistory()[0] || ''; 
+      _resetForm(); 
+      if(keepLoc) input.value = keepLoc; 
+      prefillTripStart(true); 
+      updateLiveCalc(); 
+    };
+  }
+  if(typeof switchView !== 'undefined'){
+    const _switchView = switchView;
+    switchView = function(name){ const r = _switchView.apply(this, arguments); if(name === 'catat'){ setTimeout(() => { prefillTripStart(false); updateLiveCalc(); }, 30); } return r; };
+  }
+  
+  document.getElementById('f_cap_kwh').value = localStorage.getItem('universal_cap_kwh') || '4.0';
+  document.getElementById('f_custom_v').value = localStorage.getItem('universal_custom_v') || '';
+  document.getElementById('f_custom_ah').value = localStorage.getItem('universal_custom_ah') || '';
+  sinkronisasiCustom();
+
+  setTimeout(() => { prefillTripStart(false); updateLiveCalc(); }, 100); 
+})();
+
+renderAll(); updateLiveCalc(); switchView('dasbor');
+</script>
+</body></html>
