@@ -464,34 +464,76 @@ function getCalibratedBmsFactor() {
 }
 
 function kalibrasiSohMover() {
-  let sohHistory = [];
-  // FACTORY_SPEC harus konstan, jangan ambil dari universal_cap_kwh yang bisa berubah
-  const FACTORY_SPEC = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
-  const CHARGING_EFF = 0.88; // efisiensi charger ke baterai (rugi panas BMS)
-  // urutkan terbaru dulu biar slice 15 = 15 trip terbaru
-  const sortedEntries = [...entries].sort((a,b) => new Date(b.tanggal||0) - new Date(a.tanggal||0));
+  // SOH v4 - HANYA hitung cycle dalam: batt_akhir <=35% -> batt_setelah >=99% (100%)
+  // sesuai request: cas dibawah 35% sampai 100%, sisanya abaikan
+  const SOH_KEY_LOCAL = 'maka_soh_history';
+  const FACTORY_SPEC_KWH = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
+  const FACTORY_RANGE_KM = parseFloat(localStorage.getItem('factory_range_km')) || 115;
+  const FACTORY_KM_PER_PCT = FACTORY_RANGE_KM / 100;
 
-  sortedEntries.forEach(e => {
-    const battAkhir = parseFloat(e.batt_akhir) || 0;
-    const battSetelah = parseFloat(e.batt_setelah) || 0;
-    const battChargedPct = battSetelah - battAkhir;
+  if (typeof entries === 'undefined' || !entries.length) {
+    localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify([]));
+    return;
+  }
 
-    // Hitung SOH dari energi CHARGING, bukan dari wh_per_km (yang circular)
-    if (battChargedPct >= 30) {
-      const c = calcEntry(e);
-      if (c.energi_diisi > 0) {
-        const energiMasukBaterai = c.energi_diisi * CHARGING_EFF;
-        const kapasitasNyataKwh = energiMasukBaterai / (battChargedPct / 100);
-        const temporarySoh = (kapasitasNyataKwh / FACTORY_SPEC) * 100;
-        if (temporarySoh >= 50 && temporarySoh <= 102) {
-          sohHistory.push(kapasitasNyataKwh);
-        }
+  let allKmPerPct = [];
+  let allChargeCaps = []; // untuk validasi silang
+
+  [...entries].forEach(e => {
+    const battAwal = parseFloat(e.batt_awal)||0;
+    const battAkhir = parseFloat(e.batt_akhir)||0;
+    const battSetelah = parseFloat(e.batt_setelah)||0;
+    const jarak = (parseFloat(e.km_akhir)||0) - (parseFloat(e.km_awal)||0);
+    const deltaDischarge = battAwal - battAkhir;
+    const deltaCharge = battSetelah - battAkhir;
+
+    // FILTER UTAMA: cas dari bawah 35% sampai 100%
+    const isDeepCharge = (battAkhir <= 35 && battSetelah >= 99);
+    // FILTER TAMBAHAN: trip-nya juga harus dalam (dipakai dari full ke low) biar km_per_% valid
+    // kalau trip-nya cuma 100%->80% tapi cas-nya dari 30%->100%, km_per_% nya tetap tidak mewakili full cycle
+    // jadi kita wajibkan deltaDischarge >= 50 juga
+    const isDeepDischarge = (deltaDischarge >= 50 && jarak > 10);
+
+    if (isDeepCharge && isDeepDischarge) {
+      const kmPerPct = jarak / deltaDischarge;
+      if (kmPerPct >= 0.5 && kmPerPct <= 2.2) {
+        allKmPerPct.push(kmPerPct);
+        // simpan juga kapasitas versi charge untuk cross-check (opsional)
+        const capEst = (kmPerPct * FACTORY_SPEC_KWH) / FACTORY_KM_PER_PCT;
+        allChargeCaps.push(capEst);
       }
     }
   });
 
-  sohHistory = sohHistory.slice(0, 15);
-  localStorage.setItem(SOH_KEY, JSON.stringify(sohHistory));
+  // baseline dari 30% data tertua yang memenuhi filter dalam ini
+  const sortedOldest = [...entries].sort((a,b) => new Date(a.tanggal||0) - new Date(b.tanggal||0));
+  let oldestValid = [];
+  sortedOldest.forEach(e => {
+    const battAwal = parseFloat(e.batt_awal)||0;
+    const battAkhir = parseFloat(e.batt_akhir)||0;
+    const battSetelah = parseFloat(e.batt_setelah)||0;
+    const jarak = (parseFloat(e.km_akhir)||0) - (parseFloat(e.km_awal)||0);
+    const deltaDischarge = battAwal - battAkhir;
+    const isDeepCharge = (battAkhir <= 35 && battSetelah >= 99);
+    const isDeepDischarge = (deltaDischarge >= 50 && jarak > 10);
+    if (isDeepCharge && isDeepDischarge) {
+      const v = jarak / deltaDischarge;
+      if (v >= 0.5 && v <= 2.2) oldestValid.push(v);
+    }
+  });
+
+  let baselineKmPerPct = FACTORY_KM_PER_PCT;
+  if (oldestValid.length >= 1) {
+    const take = Math.max(1, Math.floor(oldestValid.length * 0.5));
+    const firstPart = oldestValid.slice(0, take);
+    baselineKmPerPct = firstPart.reduce((a,b)=>a+b,0) / firstPart.length;
+  }
+  localStorage.setItem('maka_soh_baseline', baselineKmPerPct.toFixed(4));
+  localStorage.setItem('maka_soh_total_samples', allKmPerPct.length.toString());
+
+  let sohHistoryKwh = allKmPerPct.map(kmPerPct => (kmPerPct * FACTORY_SPEC_KWH) / FACTORY_KM_PER_PCT);
+  // pakai SEMUA yang lolos filter, tidak di-slice
+  localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(sohHistoryKwh));
 }
 
 function updateLiveCalc(){
@@ -912,29 +954,34 @@ function renderDasbor(){
     noteEl.textContent = `Rentang 100% → 30% berdasarkan ${movingN} catatan terakhir`;
   } else { estimasiEl.textContent = '– km'; noteEl.textContent = `Baterai Rentang 100% → 30% (Menunggu data)`; }
   
-  try {
+        try {
     const sohHistory = JSON.parse(localStorage.getItem(SOH_KEY) || '[]');
     const statSohEl = document.getElementById('stat_soh');
     const sohProgressEl = document.getElementById('soh_progress');
     const sohNoteEl = document.getElementById('soh_note');
     const FACTORY_SPEC = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
-    
-    if (sohHistory.length >= 3) { 
+    const FACTORY_RANGE = parseFloat(localStorage.getItem('factory_range_km')) || 115;
+    const baseline = parseFloat(localStorage.getItem('maka_soh_baseline')) || (FACTORY_RANGE/100);
+    const totalSamples = parseInt(localStorage.getItem('maka_soh_total_samples')||'0',10);
+
+    if (sohHistory.length >= 1) { 
       const totalKwhTerhitung = sohHistory.reduce((acc, val) => acc + val, 0);
       const rataRataKwhNyata = totalKwhTerhitung / sohHistory.length;
       const persentaseSoh = (rataRataKwhNyata / FACTORY_SPEC) * 100;
+      const clamped = Math.min(Math.max(persentaseSoh, 50), 100);
       
-      statSohEl.textContent = persentaseSoh.toFixed(1) + '%';
-      sohProgressEl.style.width = Math.min(persentaseSoh, 100) + '%';
-      sohNoteEl.textContent = `Kapasitas nyata saat ini ~${rataRataKwhNyata.toFixed(2)} kWh dari spek ${FACTORY_SPEC} kWh (Sampel: ${sohHistory.length} charge)`;
+      statSohEl.textContent = clamped.toFixed(1) + '%';
+      sohProgressEl.style.width = clamped + '%';
+      const avgKmPerPct = (rataRataKwhNyata * (FACTORY_RANGE/FACTORY_SPEC)) / 100;
+      sohNoteEl.textContent = `Deep Cycle ${totalSamples} trip | ~${rataRataKwhNyata.toFixed(2)} kWh | ${avgKmPerPct.toFixed(2)} km/% (Baseline: ${baseline.toFixed(2)}) | Filter: batt ≤35% → 100%`;
       
-      if(persentaseSoh >= 90) statSohEl.style.color = '#7dffb7';
-      else if(persentaseSoh >= 80) statSohEl.style.color = '#2b8cff';
+      if(clamped >= 95) statSohEl.style.color = '#7dffb7';
+      else if(clamped >= 85) statSohEl.style.color = '#2b8cff';
       else statSohEl.style.color = '#ff4d4d';
     } else {
-      statSohEl.textContent = 'Menunggu Data';
+      statSohEl.textContent = 'Menunggu Data Deep Cycle';
       sohProgressEl.style.width = '0%';
-      sohNoteEl.textContent = `Butuh minimal 3 riwayat charge ≥30% untuk hitung SOH valid`;
+      sohNoteEl.textContent = `Butuh minimal 1 catatan dengan batt_akhir ≤35% dicas sampai 100% & jarak >10km (dipakai ≥50%)`;
     }
   } catch(err){}
 
