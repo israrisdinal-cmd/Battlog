@@ -314,7 +314,7 @@
 <script>
 const LS_KEY = 'maka_log_v1';
 const BMS_KEY = 'maka_bms_history'; 
-const SOH_KEY = 'maka_soh_history'; // KEY BARU: Menyimpan riwayat kapasitas nyata untuk SoH
+const SOH_KEY = 'maka_soh_history'; 
 let entries = [];
 try { entries = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch(e){}
 let editId = null;
@@ -463,39 +463,29 @@ function getCalibratedBmsFactor() {
   return null;
 }
 
-// FUNGSI BARU: RE-KALIBRASI SOH BERDASARKAN SELURUH LOG DATA YG VALID (DIPICU SAAT SAVE/DELETE/LOAD)
 function kalibrasiSohMover() {
   let sohHistory = [];
   let factoryCap = parseFloat(localStorage.getItem('universal_cap_kwh')) || 4.0;
-
-  // Filter dan scan seluruh entries untuk mencari data perjalanan dinamis yang valid untuk SoH
-  // Kita urutkan dari yang terlama ke terbaru (entries awal di bwh, unshift di atas, jadi kita reverse saat loop)
   const sortedEntries = [...entries].reverse();
 
   sortedEntries.forEach(e => {
     const deltaBatt = (parseFloat(e.batt_awal) || 0) - (parseFloat(e.batt_akhir) || 0);
     const jarak = (parseFloat(e.km_akhir) || 0) - (parseFloat(e.km_awal) || 0);
     
-    // Syarat ketat: Pengurangan baterai minimal 30% dan jarak valid
     if (deltaBatt >= 30 && jarak > 0) {
       const c = calcEntry(e);
       if (c.wh_per_km > 0) {
-        // Kapasitas Nyata (Wh) = (Jarak * Wh/km) / (DeltaPersen / 100)
         const kapasitasNyataWh = (jarak * c.wh_per_km) / (deltaBatt / 100);
         const kapasitasNyataKwh = kapasitasNyataWh / 1000;
-        
-        // Hitung persentase SoH sementara untuk trip ini
         const temporarySoh = (kapasitasNyataKwh / factoryCap) * 100;
         
-        // Buang data ekstrem (Abaikan typo/eror input di luar rentang 50% - 105%)
         if (temporarySoh >= 50 && temporarySoh <= 105) {
-          sohHistory.unshift(kapasitasNyataKwh); // Masukkan kapasitas nyata kwh ke tumpukan teratas
+          sohHistory.unshift(kapasitasNyataKwh);
         }
       }
     }
   });
 
-  // Ambil maksimal 15 riwayat valid terbaru untuk mengunci tren performa hari ini
   sohHistory = sohHistory.slice(0, 15);
   localStorage.setItem(SOH_KEY, JSON.stringify(sohHistory));
 }
@@ -558,8 +548,15 @@ async function saveEntry(){
   localStorage.setItem('universal_custom_v', document.getElementById('f_custom_v').value);
   localStorage.setItem('universal_custom_ah', document.getElementById('f_custom_ah').value);
 
+  // Ambil teks estimasi jam selesai yang sedang aktif di form hitung otomatis
+  const jamSelesaiEl = document.getElementById('c_jam_selesai');
+  let estSelesaiTeks = null;
+  if (jamSelesaiEl && jamSelesaiEl.textContent !== '–' && !jamSelesaiEl.textContent.includes('Tidak mengecas')) {
+    estSelesaiTeks = jamSelesaiEl.textContent.replace('⚙️ ', '').split(' ke ')[0];
+  }
+
   const currentId = editId || Date.now().toString();
-  const entryData = { id: currentId, ...e };
+  const entryData = { id: currentId, ...e, estimasi_selesai: estSelesaiTeks };
   if(entryData.biaya === null) delete entryData.biaya;
 
   if(editId){ 
@@ -578,7 +575,6 @@ async function saveEntry(){
   }
   localStorage.setItem(LS_KEY, JSON.stringify(entries));
   
-  // Trigger hitung ulang engine SoH saat data berubah
   kalibrasiSohMover();
 
   const calc = calcEntry(e);
@@ -710,7 +706,6 @@ function deleteEntry(id){
   entries=entries.filter(x=>x.id!==id); 
   localStorage.setItem(LS_KEY, JSON.stringify(entries)); 
   
-  // Trigger hitung ulang engine SoH saat data dihapus
   kalibrasiSohMover();
 
   renderAll(); 
@@ -800,6 +795,9 @@ function renderList(){
     const hasCharger = e.charger && e.batt_akhir < c.targetCas;
     const jamSaved = e.waktu_selesai_riil || '';
     
+    // Format tampilan teks estimasi jika terekam di dalam data lokal catatan
+    const infoEstimasiTeks = e.estimasi_selesai ? ` <span style="color:#8aa0c6;">(Est: ${e.estimasi_selesai})</span>` : '';
+
     const bmsComponent = hasCharger ? `
       <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #1e2d4a; display:flex; align-items:center; gap:8px;">
         <span style="font-size:11px; color:#8aa0c6; font-weight:600;">Jam Selesai Cas Riil:</span>
@@ -813,7 +811,7 @@ function renderList(){
     return `<div class="maka-card">
       <div class="flex justify-between text-[12px] text-[#8aa0c6] mb-1"><span>${e.tanggal}</span><span>${c.jarak} km • ${Math.round(c.wh_per_km)||0} Wh/km</span></div>
       <div class="font-semibold mb-1">${e.lokasi||'–'} <span style="color:#7dffb7"> ${fmtRp(c.biaya)}</span></div>
-      <div class="text-[13px] text-[#9ab8e6] mb-2">Spesifikasi: Kapasitas ${e.cap_kwh || 4.0} kWh • Charger ${e.charger||'–'}</div>
+      <div class="text-[13px] text-[#9ab8e6] mb-2">Spesifikasi: Kapasitas ${e.cap_kwh || 4.0} kWh • Charger ${e.charger||'–'}${infoEstimasiTeks}</div>
       <div class="flex gap-2 text-[12px]">
         <button onclick="startEdit('${e.id}')" class="pill">Edit</button>
         <button onclick="deleteEntry('${e.id}')" class="pill-danger">Hapus</button>
@@ -871,7 +869,6 @@ function renderDasbor(){
   let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
   let movingWh = 0, movingN = 0;
   let lastCap = 4.0;
-  
   let movingWhList = [];
   
   entries.forEach((e, idx)=>{ 
@@ -911,14 +908,13 @@ function renderDasbor(){
     noteEl.textContent = `Rentang 100% → 30% berdasarkan ${movingN} catatan terakhir`;
   } else { estimasiEl.textContent = '– km'; noteEl.textContent = `Baterai Rentang 100% → 30% (Menunggu data)`; }
   
-  // LOGIKA OUTPUT SOH ESTIMATOR DI UI DASBOR
   try {
     const sohHistory = JSON.parse(localStorage.getItem(SOH_KEY) || '[]');
     const statSohEl = document.getElementById('stat_soh');
     const sohProgressEl = document.getElementById('soh_progress');
     const sohNoteEl = document.getElementById('soh_note');
     
-    if (sohHistory.length >= 3) { // Minimal 3 data sampel tersaring agar grafik stabil tidak melompat
+    if (sohHistory.length >= 3) { 
       const totalKwhTerhitung = sohHistory.reduce((acc, val) => acc + val, 0);
       const rataRataKwhNyata = totalKwhTerhitung / sohHistory.length;
       const persentaseSoh = (rataRataKwhNyata / lastCap) * 100;
@@ -927,7 +923,6 @@ function renderDasbor(){
       sohProgressEl.style.width = Math.min(persentaseSoh, 100) + '%';
       sohNoteEl.textContent = `Kapasitas nyata saat ini ~${rataRataKwhNyata.toFixed(2)} kWh (Sampel: ${sohHistory.length} trip terakhir)`;
       
-      // Ubah warna indikator teks berdasarkan kesehatan baterai
       if(persentaseSoh >= 90) statSohEl.style.color = '#7dffb7';
       else if(persentaseSoh >= 80) statSohEl.style.color = '#2b8cff';
       else statSohEl.style.color = '#ff4d4d';
@@ -1100,7 +1095,6 @@ async function apiPost(entry, jamSelesaiDinamis=null){
   if(!API_BASE.includes('workers.dev')) return false;
   try{
     const chat_id = API_CHAT_ID; 
-    
     let jam_selesai = jamSelesaiDinamis;
     if(!jam_selesai) {
       const jamSelesaiEl = document.getElementById('c_jam_selesai');
@@ -1275,7 +1269,6 @@ document.getElementById('f_tarif').addEventListener('input', ()=>{
   setTimeout(() => { prefillTripStart(false); updateLiveCalc(); }, 100); 
 })();
 
-// Inisialisasi awal engine SoH berdasarkan log history yang sudah ada saat aplikasi dimuat pertama kali
 kalibrasiSohMover();
 renderAll(); updateLiveCalc(); switchView('dasbor');
 </script>
