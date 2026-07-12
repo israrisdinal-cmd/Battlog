@@ -103,15 +103,34 @@
 
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.4</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.5</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
+      <button onclick="toggleSohSettings()" class="pill" style="border-color:#2b5a9a;" title="Atur Spek Pabrik Baterai">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
       <button onclick="bukaPeta()" class="pill pill-maps" title="Buka Peta Fast Charging">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
       </button>
     </div>
   </header>
+
+  <div id="soh_settings_panel" class="maka-card" style="display:none; border-color:#2b5a9a;">
+    <div style="font-size:13px; font-weight:800; color:#6fb2ff; margin-bottom:8px;">⚙️ Spek Pabrik Baterai (untuk hitung SOH)</div>
+    <div style="font-size:11px; color:#8aa0c6; margin-bottom:10px; line-height:1.5;">Isi sesuai spesifikasi ASLI kendaraanmu saat baru (bukan kapasitas saat ini). Ini dipakai sebagai patokan 100% SOH. Wajib diisi supaya hasil SOH akurat — kalau dikosongkan, sistem cuma pakai default 4.0 kWh / 115 km yang bisa saja salah untuk kendaraanmu.</div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="maka-label">Kapasitas Pabrik (kWh)</label>
+        <input type="number" id="f_factory_cap" class="maka-input" placeholder="Contoh: 4.0" step="0.1" min="0.1">
+      </div>
+      <div>
+        <label class="maka-label">Jarak Tempuh Pabrik 100%-0% (km)</label>
+        <input type="number" id="f_factory_range" class="maka-input" placeholder="Contoh: 115" step="1" min="1">
+      </div>
+    </div>
+    <button onclick="saveFactorySpec()" class="btn-primary" style="margin-top:12px;">Simpan Spek Pabrik</button>
+  </div>
 
   <div id="view-dasbor" class="view active">
     <div class="maka-card" style="background: linear-gradient(135deg, #112240 0%, #111d35 100%); border-color: rgba(43, 140, 255, 0.3);">
@@ -131,7 +150,7 @@
         <div style="width:100%; background:#0f1f36; height:6px; border-radius:999px; overflow:hidden; border:1px solid var(--line);">
           <div id="soh_progress" style="width:0%; background:linear-gradient(90deg, #2b8cff, #7dffb7); height:100%; transition: width 0.5s ease;"></div>
         </div>
-        <div id="soh_note" style="font-size:10px; color:#5e759e; margin-top:5px;">Mengukur degradasi nyata berdasarkan 15 riwayat trip terakhir.</div>
+        <div id="soh_note" style="font-size:10px; color:#5e759e; margin-top:5px;">Mengukur degradasi nyata berdasarkan seluruh riwayat deep-cycle yang valid.</div>
       </div>
     </div>
 
@@ -463,9 +482,55 @@ function getCalibratedBmsFactor() {
   return null;
 }
 
+function toggleSohSettings() {
+  const panel = document.getElementById('soh_settings_panel');
+  const willShow = panel.style.display === 'none';
+  panel.style.display = willShow ? 'block' : 'none';
+  if (willShow) {
+    const capEl = document.getElementById('f_factory_cap');
+    const rangeEl = document.getElementById('f_factory_range');
+    const savedCap = localStorage.getItem('factory_cap_kwh');
+    const savedRange = localStorage.getItem('factory_range_km');
+    if (savedCap) {
+      capEl.value = savedCap;
+    } else if (typeof entries !== 'undefined' && entries.length) {
+      // auto-seed dari kapasitas yang pernah diisi user di entry, lebih relevan dari default 4.0
+      const firstWithCap = [...entries].reverse().find(e => Number(e.cap_kwh) > 0);
+      if (firstWithCap) capEl.value = firstWithCap.cap_kwh;
+    }
+    if (savedRange) rangeEl.value = savedRange;
+  }
+}
+
+function saveFactorySpec() {
+  const cap = parseFloat(document.getElementById('f_factory_cap').value);
+  const range = parseFloat(document.getElementById('f_factory_range').value);
+  if (!cap || cap <= 0 || !range || range <= 0) {
+    showToast('Isi kapasitas & jarak pabrik dengan angka valid dulu ya.', 'error');
+    return;
+  }
+  localStorage.setItem('factory_cap_kwh', cap.toString());
+  localStorage.setItem('factory_range_km', range.toString());
+  document.getElementById('soh_settings_panel').style.display = 'none';
+  kalibrasiSohMover();
+  updateLiveCalc();
+  showToast('Spek pabrik disimpan. SOH dihitung ulang.', 'success');
+}
+
 function kalibrasiSohMover() {
   // SOH v4 - HANYA hitung cycle dalam: batt_akhir <=35% -> batt_setelah >=99% (100%)
   // sesuai request: cas dibawah 35% sampai 100%, sisanya abaikan
+
+  // FIX BUG: factory_cap_kwh/factory_range_km sebelumnya tidak pernah bisa diisi lewat UI,
+  // jadi SOH selalu dihitung terhadap default 4.0 kWh / 115 km walau kendaraan usernya beda.
+  // Sekarang ada panel setting (gear icon di header). Sebagai jaring pengaman tambahan,
+  // kalau user belum pernah set spek pabrik, auto-seed kapasitas dari cap_kwh yang pernah
+  // dia isi sendiri di entry (lebih relevan daripada default generik 4.0 kWh).
+  if (!localStorage.getItem('factory_cap_kwh') && typeof entries !== 'undefined' && entries.length) {
+    const firstWithCap = [...entries].reverse().find(e => Number(e.cap_kwh) > 0);
+    if (firstWithCap) localStorage.setItem('factory_cap_kwh', firstWithCap.cap_kwh.toString());
+  }
+
   const SOH_KEY_LOCAL = 'maka_soh_history';
   const FACTORY_SPEC_KWH = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
   const FACTORY_RANGE_KM = parseFloat(localStorage.getItem('factory_range_km')) || 115;
@@ -1323,5 +1388,9 @@ document.getElementById('f_tarif').addEventListener('input', ()=>{
 
 kalibrasiSohMover();
 renderAll(); updateLiveCalc(); switchView('dasbor');
+
+if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' && entries.length >= 3) {
+  setTimeout(() => showToast('Atur spek pabrik baterai (ikon ⚙️ di kanan atas) supaya hitungan SOH akurat.', 'error'), 800);
+}
 </script>
 </body></html>
