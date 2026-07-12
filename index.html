@@ -103,7 +103,7 @@
 
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.5</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.6</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
@@ -117,19 +117,22 @@
   </header>
 
   <div id="soh_settings_panel" class="maka-card" style="display:none; border-color:#2b5a9a;">
-    <div style="font-size:13px; font-weight:800; color:#6fb2ff; margin-bottom:8px;">⚙️ Spek Pabrik Baterai (untuk hitung SOH)</div>
-    <div style="font-size:11px; color:#8aa0c6; margin-bottom:10px; line-height:1.5;">Isi sesuai spesifikasi ASLI kendaraanmu saat baru (bukan kapasitas saat ini). Ini dipakai sebagai patokan 100% SOH. Wajib diisi supaya hasil SOH akurat — kalau dikosongkan, sistem cuma pakai default 4.0 kWh / 115 km yang bisa saja salah untuk kendaraanmu.</div>
+    <div style="font-size:13px; font-weight:800; color:#6fb2ff; margin-bottom:8px;">⚙️ Pengaturan Kendaraan</div>
+    <div style="font-size:11px; color:#8aa0c6; margin-bottom:10px; line-height:1.5;">Kapasitas baterai dipakai untuk SEMUA hitungan (energi, biaya, durasi cas, & SOH) — tidak perlu diisi ulang tiap catat trip.</div>
     <div class="grid grid-cols-2 gap-3">
       <div>
-        <label class="maka-label">Kapasitas Pabrik (kWh)</label>
-        <input type="number" id="f_factory_cap" class="maka-input" placeholder="Contoh: 4.0" step="0.1" min="0.1">
+        <label class="maka-label">Kapasitas Baterai (kWh)</label>
+        <input type="number" id="f_factory_cap" class="maka-input" placeholder="Contoh: 4.0 atau 17.3" step="0.1" min="0.1">
       </div>
       <div>
-        <label class="maka-label">Jarak Tempuh Pabrik 100%-0% (km)</label>
+        <label class="maka-label">Jarak Tempuh Klaim Pabrik (km)</label>
         <input type="number" id="f_factory_range" class="maka-input" placeholder="Contoh: 115" step="1" min="1">
       </div>
     </div>
-    <button onclick="saveFactorySpec()" class="btn-primary" style="margin-top:12px;">Simpan Spek Pabrik</button>
+    <div style="font-size:10.5px; color:#5e759e; margin-top:8px; line-height:1.5; background:#0f1f36; border:1px solid var(--line); border-radius:10px; padding:8px 10px;">
+      ⚠️ Catatan soal jarak tempuh: angka pabrik biasanya dites di kecepatan konstan ~30 km/h — jauh lebih irit dari pemakaian nyata (macet, ngebut, tanjakan, dll), jadi TIDAK dipakai sebagai patokan utama SOH. Angka ini cuma cadangan sementara sebelum sistem punya cukup riwayat trip nyata milikmu sendiri. Begitu ada riwayat deep-cycle awal, SOH otomatis dibandingkan ke performa nyata kendaraanmu, bukan ke klaim pabrik.
+    </div>
+    <button onclick="saveFactorySpec()" class="btn-primary" style="margin-top:12px;">Simpan Pengaturan</button>
   </div>
 
   <div id="view-dasbor" class="view active">
@@ -190,12 +193,12 @@
   <div id="view-catat" class="view">
     <form id="entryForm" onsubmit="return false" class="space-y-4">
       <div class="maka-card space-y-4" style="margin-bottom:0;">
-        <div style="background: rgba(43, 140, 255, 0.05); padding: 12px; border-radius: 12px; border: 1px dashed rgba(43, 140, 255, 0.2);">
-          <label class="maka-label" style="color: #6fb2ff;">Kapasitas Baterai Kendaraan</label>
-          <div class="relative">
-            <input type="number" id="f_cap_kwh" class="maka-input" style="padding-right: 3.5rem;" placeholder="Contoh: 4.0 atau 17.3" step="0.1" min="0.1">
-            <span class="custom-addon">kWh</span>
+        <div style="background: rgba(43, 140, 255, 0.05); padding: 12px; border-radius: 12px; border: 1px dashed rgba(43, 140, 255, 0.2); display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <div>
+            <label class="maka-label" style="color: #6fb2ff; margin-bottom:2px;">Kapasitas Baterai Kendaraan</label>
+            <div id="cap_kwh_display" style="font-size:16px; font-weight:800; color:#eaf2ff;">4.0 kWh</div>
           </div>
+          <button type="button" onclick="toggleSohSettings()" class="pill" style="border-color:#2b5a9a; flex-shrink:0;">⚙️ Ubah</button>
         </div>
 
         <div><label class="maka-label">Tanggal</label><input type="date" id="f_tanggal" class="maka-input"></div>
@@ -433,7 +436,19 @@ function switchView(name){
 function readForm(){
   const g = id => document.getElementById(id);
   const v_tarif = parseFloat(g('f_tarif').value);
-  const v_cap = parseFloat(g('f_cap_kwh').value) || 4.0;
+
+  // Kapasitas baterai sekarang diambil dari Pengaturan (bukan input manual tiap catat),
+  // sesuai request user supaya tidak diisi berulang-ulang.
+  // Saat EDIT catatan lama, kapasitas ASLI catatan itu dipertahankan (tidak ditimpa nilai
+  // setting saat ini), supaya histori biaya/energi lama tidak berubah retroaktif kalau
+  // suatu saat kamu ganti baterai / update angka di setting.
+  let v_cap;
+  if (typeof editId !== 'undefined' && editId && typeof entries !== 'undefined') {
+    const orig = entries.find(x => x.id === editId);
+    v_cap = (orig && Number(orig.cap_kwh) > 0) ? Number(orig.cap_kwh) : (parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0);
+  } else {
+    v_cap = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
+  }
   
   return {
     cap_kwh: v_cap,
@@ -482,6 +497,13 @@ function getCalibratedBmsFactor() {
   return null;
 }
 
+function renderCapDisplay(overrideVal) {
+  const el = document.getElementById('cap_kwh_display');
+  if (!el) return;
+  const val = overrideVal || parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
+  el.textContent = Number(val).toFixed(1) + ' kWh';
+}
+
 function toggleSohSettings() {
   const panel = document.getElementById('soh_settings_panel');
   const willShow = panel.style.display === 'none';
@@ -512,13 +534,14 @@ function saveFactorySpec() {
   localStorage.setItem('factory_cap_kwh', cap.toString());
   localStorage.setItem('factory_range_km', range.toString());
   document.getElementById('soh_settings_panel').style.display = 'none';
+  renderCapDisplay();
   kalibrasiSohMover();
   updateLiveCalc();
-  showToast('Spek pabrik disimpan. SOH dihitung ulang.', 'success');
+  showToast('Pengaturan disimpan. SOH & kalkulasi dihitung ulang.', 'success');
 }
 
 function kalibrasiSohMover() {
-  // SOH v4 - HANYA hitung cycle dalam: batt_akhir <=35% -> batt_setelah >=99% (100%)
+  // SOH v6 - HANYA hitung cycle dalam: batt_akhir <=35% -> batt_setelah >=99% (100%)
   // sesuai request: cas dibawah 35% sampai 100%, sisanya abaikan
 
   // FIX BUG: factory_cap_kwh/factory_range_km sebelumnya tidak pernah bisa diisi lewat UI,
@@ -538,67 +561,61 @@ function kalibrasiSohMover() {
 
   if (typeof entries === 'undefined' || !entries.length) {
     localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify([]));
+    localStorage.setItem('maka_soh_baseline_is_fallback', '1');
     return;
   }
 
-  let allKmPerPct = [];
-  let allChargeCaps = []; // untuk validasi silang
-
-  [...entries].forEach(e => {
+  const isDeepValid = (e) => {
     const battAwal = parseFloat(e.batt_awal)||0;
     const battAkhir = parseFloat(e.batt_akhir)||0;
     const battSetelah = parseFloat(e.batt_setelah)||0;
     const jarak = (parseFloat(e.km_akhir)||0) - (parseFloat(e.km_awal)||0);
     const deltaDischarge = battAwal - battAkhir;
-    const deltaCharge = battSetelah - battAkhir;
-
-    // FILTER UTAMA: cas dari bawah 35% sampai 100%
     const isDeepCharge = (battAkhir <= 35 && battSetelah >= 99);
-    // FILTER TAMBAHAN: trip-nya juga harus dalam (dipakai dari full ke low) biar km_per_% valid
-    // kalau trip-nya cuma 100%->80% tapi cas-nya dari 30%->100%, km_per_% nya tetap tidak mewakili full cycle
-    // jadi kita wajibkan deltaDischarge >= 50 juga
     const isDeepDischarge = (deltaDischarge >= 50 && jarak > 10);
+    if (!isDeepCharge || !isDeepDischarge) return null;
+    const kmPerPct = jarak / deltaDischarge;
+    if (kmPerPct < 0.5 || kmPerPct > 2.2) return null;
+    return kmPerPct;
+  };
 
-    if (isDeepCharge && isDeepDischarge) {
-      const kmPerPct = jarak / deltaDischarge;
-      if (kmPerPct >= 0.5 && kmPerPct <= 2.2) {
-        allKmPerPct.push(kmPerPct);
-        // simpan juga kapasitas versi charge untuk cross-check (opsional)
-        const capEst = (kmPerPct * FACTORY_SPEC_KWH) / FACTORY_KM_PER_PCT;
-        allChargeCaps.push(capEst);
-      }
-    }
+  let allKmPerPct = [];
+  [...entries].forEach(e => {
+    const v = isDeepValid(e);
+    if (v !== null) allKmPerPct.push(v);
   });
 
-  // baseline dari 30% data tertua yang memenuhi filter dalam ini
+  // BASELINE SOH v6: dulu baseline "sendiri" ini cuma dihitung untuk ditampilkan saja,
+  // tapi %SOH tetap selalu dibagi ke FACTORY_KM_PER_PCT (klaim pabrik). Itu bias sistematis:
+  // pabrik biasanya tes jarak tempuh di kecepatan konstan ~30 km/h (kondisi sangat irit),
+  // sementara pemakaian nyata (macet, ngebut, nanjak, dll) WAJAR menghasilkan km/% lebih
+  // rendah dari klaim itu walau baterai 100% sehat — jadi SOH akan selalu tampak "cacat"
+  // sejak hari pertama kalau dibandingkan ke klaim pabrik.
+  // FIX: sekarang baseline 100% SOH = performa nyata kendaraan ini sendiri di riwayat
+  // deep-cycle paling awal (jadi baseline dan data terbaru sama-sama kondisi berkendara
+  // nyata, apple-to-apple). Klaim pabrik cuma dipakai sebagai fallback SEMENTARA sebelum
+  // ada cukup riwayat sendiri.
   const sortedOldest = [...entries].sort((a,b) => new Date(a.tanggal||0) - new Date(b.tanggal||0));
   let oldestValid = [];
   sortedOldest.forEach(e => {
-    const battAwal = parseFloat(e.batt_awal)||0;
-    const battAkhir = parseFloat(e.batt_akhir)||0;
-    const battSetelah = parseFloat(e.batt_setelah)||0;
-    const jarak = (parseFloat(e.km_akhir)||0) - (parseFloat(e.km_awal)||0);
-    const deltaDischarge = battAwal - battAkhir;
-    const isDeepCharge = (battAkhir <= 35 && battSetelah >= 99);
-    const isDeepDischarge = (deltaDischarge >= 50 && jarak > 10);
-    if (isDeepCharge && isDeepDischarge) {
-      const v = jarak / deltaDischarge;
-      if (v >= 0.5 && v <= 2.2) oldestValid.push(v);
-    }
+    const v = isDeepValid(e);
+    if (v !== null) oldestValid.push(v);
   });
 
+  const hasOwnBaseline = oldestValid.length >= 1;
   let baselineKmPerPct = FACTORY_KM_PER_PCT;
-  if (oldestValid.length >= 1) {
+  if (hasOwnBaseline) {
     const take = Math.max(1, Math.floor(oldestValid.length * 0.5));
     const firstPart = oldestValid.slice(0, take);
     baselineKmPerPct = firstPart.reduce((a,b)=>a+b,0) / firstPart.length;
   }
   localStorage.setItem('maka_soh_baseline', baselineKmPerPct.toFixed(4));
+  localStorage.setItem('maka_soh_baseline_is_fallback', hasOwnBaseline ? '0' : '1');
   localStorage.setItem('maka_soh_total_samples', allKmPerPct.length.toString());
 
-  let sohHistoryKwh = allKmPerPct.map(kmPerPct => (kmPerPct * FACTORY_SPEC_KWH) / FACTORY_KM_PER_PCT);
-  // pakai SEMUA yang lolos filter, tidak di-slice
-  localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(sohHistoryKwh));
+  // Simpan rasio km/% mentah (bukan kWh) supaya %SOH dihitung relatif ke baseline
+  // (sendiri atau fallback pabrik), independen dari asumsi konversi kWh.
+  localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(allKmPerPct));
 }
 
 function updateLiveCalc(){
@@ -655,7 +672,6 @@ async function saveEntry(){
   const e = readForm();
   if(e.km_akhir < e.km_awal){ showToast('Km Akhir harus >= Km Awal', 'error'); return; }
   
-  localStorage.setItem('universal_cap_kwh', e.cap_kwh);
   localStorage.setItem('universal_custom_v', document.getElementById('f_custom_v').value);
   localStorage.setItem('universal_custom_ah', document.getElementById('f_custom_ah').value);
 
@@ -674,9 +690,12 @@ async function saveEntry(){
     const i = entries.findIndex(x=>x.id===editId); 
     if(i>=0) {
       if(entries[i].waktu_selesai_riil) entryData.waktu_selesai_riil = entries[i].waktu_selesai_riil;
+      // BUG FIX: sebelumnya baris ini tidak ada, jadi perubahan hasil edit tidak
+      // pernah benar-benar tersimpan ke array entries (data lama tetap dipakai)
+      // meskipun toast "berhasil diperbarui" muncul.
+      entries[i] = entryData;
     } 
     editId=null;
-    document.getElementById('f_cap_kwh').disabled = false; 
     document.getElementById('saveBtn').textContent='Simpan Catatan';
     document.getElementById('cancelEditBtn').style.display='none';
     showToast('Catatan berhasil diperbarui!', 'success');
@@ -749,10 +768,9 @@ function resetForm(){
   document.getElementById('f_tarif').value = 1444;
   document.getElementById('f_tarif_preset').value = '1444';
   
-  document.getElementById('f_cap_kwh').value = localStorage.getItem('universal_cap_kwh') || '4.0';
-  document.getElementById('f_cap_kwh').disabled = false; 
   document.getElementById('f_custom_v').value = localStorage.getItem('universal_custom_v') || '';
   document.getElementById('f_custom_ah').value = localStorage.getItem('universal_custom_ah') || '';
+  renderCapDisplay();
   
   if (document.getElementById('f_notif_status')) {
     document.getElementById('f_notif_status').checked = true;
@@ -783,8 +801,7 @@ function startEdit(id){
   }
   
   s('f_biaya',e.biaya??''); s('f_lokasi',e.lokasi);
-  s('f_cap_kwh', e.cap_kwh || 4.0);
-  document.getElementById('f_cap_kwh').disabled = true; 
+  renderCapDisplay(e.cap_kwh || 4.0);
   
   if (document.getElementById('f_notif_status')) {
     document.getElementById('f_notif_status').checked = e.notif_status !== false;
@@ -979,13 +996,15 @@ function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.ge
 function renderDasbor(){
   let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
   let movingWh = 0, movingN = 0;
-  let lastCap = 4.0;
+  // BUG FIX: sebelumnya lastCap ditimpa di tiap iterasi forEach, dan karena entries
+  // tersimpan terbaru-lebih-dulu (unshift), nilai akhirnya justru dari entri PALING LAMA,
+  // bukan yang terbaru. Sekarang diambil langsung dari entries[0] (entri terbaru).
+  let lastCap = (entries[0] && entries[0].cap_kwh) || 4.0;
   let movingWhList = [];
   
   entries.forEach((e, idx)=>{ 
     const c=calcEntry(e); 
     jarak+=c.jarak; 
-    lastCap = e.cap_kwh || 4.0;
     if(isSpklu(e)){
       biayaSpklu+=c.biaya;
     } else {
@@ -1020,25 +1039,29 @@ function renderDasbor(){
   } else { estimasiEl.textContent = '– km'; noteEl.textContent = `Baterai Rentang 100% → 30% (Menunggu data)`; }
   
         try {
-    const sohHistory = JSON.parse(localStorage.getItem(SOH_KEY) || '[]');
+    const sohHistory = JSON.parse(localStorage.getItem(SOH_KEY) || '[]'); // array rasio km/%
     const statSohEl = document.getElementById('stat_soh');
     const sohProgressEl = document.getElementById('soh_progress');
     const sohNoteEl = document.getElementById('soh_note');
     const FACTORY_SPEC = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
     const FACTORY_RANGE = parseFloat(localStorage.getItem('factory_range_km')) || 115;
     const baseline = parseFloat(localStorage.getItem('maka_soh_baseline')) || (FACTORY_RANGE/100);
+    const isFallback = localStorage.getItem('maka_soh_baseline_is_fallback') === '1';
     const totalSamples = parseInt(localStorage.getItem('maka_soh_total_samples')||'0',10);
 
     if (sohHistory.length >= 1) { 
-      const totalKwhTerhitung = sohHistory.reduce((acc, val) => acc + val, 0);
-      const rataRataKwhNyata = totalKwhTerhitung / sohHistory.length;
-      const persentaseSoh = (rataRataKwhNyata / FACTORY_SPEC) * 100;
+      const avgKmPerPct = sohHistory.reduce((acc, val) => acc + val, 0) / sohHistory.length;
+      // FIX: %SOH sekarang relatif ke baseline (riwayat nyata sendiri jika ada, atau
+      // fallback klaim pabrik sementara jika belum ada) — bukan selalu ke klaim pabrik.
+      const persentaseSoh = (avgKmPerPct / baseline) * 100;
       const clamped = Math.min(Math.max(persentaseSoh, 50), 100);
+      // rata-rata kWh cuma informasi tambahan (konversi pakai kapasitas dari setting)
+      const rataRataKwhNyata = (avgKmPerPct * FACTORY_SPEC) / (FACTORY_RANGE/100);
       
       statSohEl.textContent = clamped.toFixed(1) + '%';
       sohProgressEl.style.width = clamped + '%';
-      const avgKmPerPct = (rataRataKwhNyata * (FACTORY_RANGE/FACTORY_SPEC)) / 100;
-      sohNoteEl.textContent = `Deep Cycle ${totalSamples} trip | ~${rataRataKwhNyata.toFixed(2)} kWh | ${avgKmPerPct.toFixed(2)} km/% (Baseline: ${baseline.toFixed(2)}) | Filter: batt ≤35% → 100%`;
+      const sumberBaseline = isFallback ? 'klaim pabrik, sementara' : 'riwayat awalmu sendiri';
+      sohNoteEl.textContent = `Deep Cycle ${totalSamples} trip | ~${rataRataKwhNyata.toFixed(2)} kWh | ${avgKmPerPct.toFixed(2)} km/% (Baseline: ${baseline.toFixed(2)} km/%, ${sumberBaseline})`;
       
       if(clamped >= 95) statSohEl.style.color = '#7dffb7';
       else if(clamped >= 85) statSohEl.style.color = '#2b8cff';
@@ -1375,13 +1398,13 @@ document.getElementById('f_tarif').addEventListener('input', ()=>{
   }
   if(typeof switchView !== 'undefined'){
     const _switchView = switchView;
-    switchView = function(name){ const r = _switchView.apply(this, arguments); if(name === 'catat'){ setTimeout(() => { prefillTripStart(false); updateLiveCalc(); }, 30); } return r; };
+    switchView = function(name){ const r = _switchView.apply(this, arguments); if(name === 'catat'){ setTimeout(() => { prefillTripStart(false); if(!editId) renderCapDisplay(); updateLiveCalc(); }, 30); } return r; };
   }
   
-  document.getElementById('f_cap_kwh').value = localStorage.getItem('universal_cap_kwh') || '4.0';
   document.getElementById('f_custom_v').value = localStorage.getItem('universal_custom_v') || '';
   document.getElementById('f_custom_ah').value = localStorage.getItem('universal_custom_ah') || '';
   sinkronisasiCustom();
+  renderCapDisplay();
 
   setTimeout(() => { prefillTripStart(false); updateLiveCalc(); }, 100); 
 })();
