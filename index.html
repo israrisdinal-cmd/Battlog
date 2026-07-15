@@ -486,9 +486,17 @@ function calcEntry(e){
   return { jarak:+jarak.toFixed(2), energi_terpakai, wh_per_km, energi_diisi, biaya, targetCas };
 }
 
-function getCalibratedBmsFactor() {
+function getCalibratedBmsFactor(chargerSpec) {
+  if (!chargerSpec) return null;
+  const keySpec = chargerSpec.toLowerCase().replace(/\s+/g, '');
   try {
-    const history = JSON.parse(localStorage.getItem(BMS_KEY) || '[]');
+    const data = localStorage.getItem(BMS_KEY);
+    if (!data) return null;
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed)) {
+      return null; // Abaikan jika format lama masih berupa Array tunggal
+    }
+    const history = parsed[keySpec] || [];
     if (history.length > 0) {
       const total = history.reduce((acc, val) => acc + val, 0);
       return total / history.length;
@@ -509,6 +517,7 @@ function toggleSohSettings() {
   const willShow = panel.style.display === 'none';
   panel.style.display = willShow ? 'block' : 'none';
   if (willShow) {
+    const keySpec = document.getElementById('f_charger').value;
     const capEl = document.getElementById('f_factory_cap');
     const rangeEl = document.getElementById('f_factory_range');
     const savedCap = localStorage.getItem('factory_cap_kwh');
@@ -623,7 +632,7 @@ function updateLiveCalc(){
         const dayaChargerWatt = volt * ampere;
         
         if (dayaChargerWatt > 0) {
-          let faktorBMS = getCalibratedBmsFactor();
+          let faktorBMS = getCalibratedBmsFactor(e.charger);
           let prefixNote = "⚙️ ";
           if (!faktorBMS) {
             faktorBMS = (e.cap_kwh >= 10.0) ? 1.1 : (ampere > 10 ? 1.38 : 1.15);
@@ -716,7 +725,7 @@ async function saveEntry(){
       const dayaChargerWatt = volt * ampere;
       
       if (dayaChargerWatt > 0) {
-        let faktorBMS = getCalibratedBmsFactor() || ((e.cap_kwh >= 10.0) ? 1.1 : (ampere > 10 ? 1.4 : 1.15));
+        let faktorBMS = getCalibratedBmsFactor(e.charger) || ((e.cap_kwh >= 10.0) ? 1.1 : (ampere > 10 ? 1.4 : 1.15));
         
         const estimasiDurasiJam = (energiDibutuhkanWh / dayaChargerWatt) * faktorBMS;
         const totalMenit = Math.round(estimasiDurasiJam * 60);
@@ -899,13 +908,26 @@ function simpanKoreksiBms(id) {
   entries[idx].waktu_selesai_riil = jamRiil;
   localStorage.setItem(LS_KEY, JSON.stringify(entries));
 
-  let bmsHistory = [];
-  try { bmsHistory = JSON.parse(localStorage.getItem(BMS_KEY) || '[]'); } catch(e){}
-  bmsHistory.unshift(faktorBmsAktual);
-  bmsHistory = bmsHistory.slice(0, 5);
-  localStorage.setItem(BMS_KEY, JSON.stringify(bmsHistory));
+  const keySpec = e.charger.toLowerCase().replace(/\s+/g, '');
+  let bmsHistoryMap = {};
+  try {
+    const data = localStorage.getItem(BMS_KEY);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (!Array.isArray(parsed)) {
+        bmsHistoryMap = parsed;
+      }
+    }
+  } catch(e){}
 
-  showToast(`BMS Berhasil Dikoreksi! Faktor saat ini: ${faktorBmsAktual.toFixed(2)}`, 'success');
+  let chargerHistory = bmsHistoryMap[keySpec] || [];
+  chargerHistory.unshift(faktorBmsAktual);
+  chargerHistory = chargerHistory.slice(0, 5);
+
+  bmsHistoryMap[keySpec] = chargerHistory;
+  localStorage.setItem(BMS_KEY, JSON.stringify(bmsHistoryMap));
+
+  showToast(`BMS Berhasil Dikoreksi! Faktor saat ini (${e.charger.toUpperCase()}): ${faktorBmsAktual.toFixed(2)}`, 'success');
   renderList();
   updateLiveCalc();
 }
