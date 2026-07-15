@@ -437,11 +437,6 @@ function readForm(){
   const g = id => document.getElementById(id);
   const v_tarif = parseFloat(g('f_tarif').value);
 
-  // Kapasitas baterai sekarang diambil dari Pengaturan (bukan input manual tiap catat),
-  // sesuai request user supaya tidak diisi berulang-ulang.
-  // Saat EDIT catatan lama, kapasitas ASLI catatan itu dipertahankan (tidak ditimpa nilai
-  // setting saat ini), supaya histori biaya/energi lama tidak berubah retroaktif kalau
-  // suatu saat kamu ganti baterai / update angka di setting.
   let v_cap;
   if (typeof editId !== 'undefined' && editId && typeof entries !== 'undefined') {
     const orig = entries.find(x => x.id === editId);
@@ -516,7 +511,6 @@ function toggleSohSettings() {
     if (savedCap) {
       capEl.value = savedCap;
     } else if (typeof entries !== 'undefined' && entries.length) {
-      // auto-seed dari kapasitas yang pernah diisi user di entry, lebih relevan dari default 4.0
       const firstWithCap = [...entries].reverse().find(e => Number(e.cap_kwh) > 0);
       if (firstWithCap) capEl.value = firstWithCap.cap_kwh;
     }
@@ -541,14 +535,6 @@ function saveFactorySpec() {
 }
 
 function kalibrasiSohMover() {
-  // SOH v6 - HANYA hitung cycle dalam: batt_akhir <=35% -> batt_setelah >=99% (100%)
-  // sesuai request: cas dibawah 35% sampai 100%, sisanya abaikan
-
-  // FIX BUG: factory_cap_kwh/factory_range_km sebelumnya tidak pernah bisa diisi lewat UI,
-  // jadi SOH selalu dihitung terhadap default 4.0 kWh / 115 km walau kendaraan usernya beda.
-  // Sekarang ada panel setting (gear icon di header). Sebagai jaring pengaman tambahan,
-  // kalau user belum pernah set spek pabrik, auto-seed kapasitas dari cap_kwh yang pernah
-  // dia isi sendiri di entry (lebih relevan daripada default generik 4.0 kWh).
   if (!localStorage.getItem('factory_cap_kwh') && typeof entries !== 'undefined' && entries.length) {
     const firstWithCap = [...entries].reverse().find(e => Number(e.cap_kwh) > 0);
     if (firstWithCap) localStorage.setItem('factory_cap_kwh', firstWithCap.cap_kwh.toString());
@@ -585,16 +571,6 @@ function kalibrasiSohMover() {
     if (v !== null) allKmPerPct.push(v);
   });
 
-  // BASELINE SOH v6: dulu baseline "sendiri" ini cuma dihitung untuk ditampilkan saja,
-  // tapi %SOH tetap selalu dibagi ke FACTORY_KM_PER_PCT (klaim pabrik). Itu bias sistematis:
-  // pabrik biasanya tes jarak tempuh di kecepatan konstan ~30 km/h (kondisi sangat irit),
-  // sementara pemakaian nyata (macet, ngebut, nanjak, dll) WAJAR menghasilkan km/% lebih
-  // rendah dari klaim itu walau baterai 100% sehat — jadi SOH akan selalu tampak "cacat"
-  // sejak hari pertama kalau dibandingkan ke klaim pabrik.
-  // FIX: sekarang baseline 100% SOH = performa nyata kendaraan ini sendiri di riwayat
-  // deep-cycle paling awal (jadi baseline dan data terbaru sama-sama kondisi berkendara
-  // nyata, apple-to-apple). Klaim pabrik cuma dipakai sebagai fallback SEMENTARA sebelum
-  // ada cukup riwayat sendiri.
   const sortedOldest = [...entries].sort((a,b) => new Date(a.tanggal||0) - new Date(b.tanggal||0));
   let oldestValid = [];
   sortedOldest.forEach(e => {
@@ -613,8 +589,6 @@ function kalibrasiSohMover() {
   localStorage.setItem('maka_soh_baseline_is_fallback', hasOwnBaseline ? '0' : '1');
   localStorage.setItem('maka_soh_total_samples', allKmPerPct.length.toString());
 
-  // Simpan rasio km/% mentah (bukan kWh) supaya %SOH dihitung relatif ke baseline
-  // (sendiri atau fallback pabrik), independen dari asumsi konversi kWh.
   localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(allKmPerPct));
 }
 
@@ -668,6 +642,9 @@ function updateLiveCalc(){
   }catch(e){}
 }
 
+// ====================================================================
+// PERBAIKAN 2: Mempertahankan Waktu Pembuatan Log Asli Saat Proses Edit
+// ====================================================================
 async function saveEntry(){
   const e = readForm();
   if(e.km_akhir < e.km_awal){ showToast('Km Akhir harus >= Km Awal', 'error'); return; }
@@ -675,13 +652,13 @@ async function saveEntry(){
   localStorage.setItem('universal_custom_v', document.getElementById('f_custom_v').value);
   localStorage.setItem('universal_custom_ah', document.getElementById('f_custom_ah').value);
 
-  // Ambil teks estimasi jam selesai yang sedang aktif di form hitung otomatis
   const jamSelesaiEl = document.getElementById('c_jam_selesai');
   let estSelesaiTeks = null;
   if (jamSelesaiEl && jamSelesaiEl.textContent !== '–' && !jamSelesaiEl.textContent.includes('Tidak mengecas')) {
     estSelesaiTeks = jamSelesaiEl.textContent.replace('⚙️ ', '').split(' ke ')[0];
   }
 
+  // Mengunci ID agar tidak berubah jika dalam mode edit
   const currentId = editId || Date.now().toString();
   const entryData = { id: currentId, ...e, estimasi_selesai: estSelesaiTeks };
   if(entryData.biaya === null) delete entryData.biaya;
@@ -690,9 +667,6 @@ async function saveEntry(){
     const i = entries.findIndex(x=>x.id===editId); 
     if(i>=0) {
       if(entries[i].waktu_selesai_riil) entryData.waktu_selesai_riil = entries[i].waktu_selesai_riil;
-      // BUG FIX: sebelumnya baris ini tidak ada, jadi perubahan hasil edit tidak
-      // pernah benar-benar tersimpan ke array entries (data lama tetap dipakai)
-      // meskipun toast "berhasil diperbarui" muncul.
       entries[i] = entryData;
     } 
     editId=null;
@@ -923,7 +897,6 @@ function renderList(){
     const hasCharger = e.charger && e.batt_akhir < c.targetCas;
     const jamSaved = e.waktu_selesai_riil || '';
     
-    // Format tampilan teks estimasi jika terekam di dalam data lokal catatan
     const infoEstimasiTeks = e.estimasi_selesai ? ` <span style="color:#8aa0c6;">(Est: ${e.estimasi_selesai})</span>` : '';
 
     const bmsComponent = hasCharger ? `
@@ -996,9 +969,6 @@ function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.ge
 function renderDasbor(){
   let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
   let movingWh = 0, movingN = 0;
-  // BUG FIX: sebelumnya lastCap ditimpa di tiap iterasi forEach, dan karena entries
-  // tersimpan terbaru-lebih-dulu (unshift), nilai akhirnya justru dari entri PALING LAMA,
-  // bukan yang terbaru. Sekarang diambil langsung dari entries[0] (entri terbaru).
   let lastCap = (entries[0] && entries[0].cap_kwh) || 4.0;
   let movingWhList = [];
   
@@ -1038,8 +1008,8 @@ function renderDasbor(){
     noteEl.textContent = `Rentang 100% → 30% berdasarkan ${movingN} catatan terakhir`;
   } else { estimasiEl.textContent = '– km'; noteEl.textContent = `Baterai Rentang 100% → 30% (Menunggu data)`; }
   
-        try {
-    const sohHistory = JSON.parse(localStorage.getItem(SOH_KEY) || '[]'); // array rasio km/%
+  try {
+    const sohHistory = JSON.parse(localStorage.getItem(SOH_KEY) || '[]'); 
     const statSohEl = document.getElementById('stat_soh');
     const sohProgressEl = document.getElementById('soh_progress');
     const sohNoteEl = document.getElementById('soh_note');
@@ -1051,11 +1021,8 @@ function renderDasbor(){
 
     if (sohHistory.length >= 1) { 
       const avgKmPerPct = sohHistory.reduce((acc, val) => acc + val, 0) / sohHistory.length;
-      // FIX: %SOH sekarang relatif ke baseline (riwayat nyata sendiri jika ada, atau
-      // fallback klaim pabrik sementara jika belum ada) — bukan selalu ke klaim pabrik.
       const persentaseSoh = (avgKmPerPct / baseline) * 100;
       const clamped = Math.min(Math.max(persentaseSoh, 50), 100);
-      // rata-rata kWh cuma informasi tambahan (konversi pakai kapasitas dari setting)
       const rataRataKwhNyata = (avgKmPerPct * FACTORY_SPEC) / (FACTORY_RANGE/100);
       
       statSohEl.textContent = clamped.toFixed(1) + '%';
@@ -1277,15 +1244,25 @@ function prefillTripStart(force){
   if(battEl && (force || !battEl.value)){ const batt = (Number(last.batt_setelah) > 0 ? last.batt_setelah : last.batt_akhir); if(batt != null) battEl.value = batt; }
 }
 
+// ====================================================================
+// PERBAIKAN 1: Pengaturan Event Listener Supaya Dropdown Mengubah Tarif Listrik
+// ====================================================================
 document.getElementById('f_tanggal').value = new Date().toISOString().slice(0,10);
-document.addEventListener('input', e=>{ if(e.target.closest('#entryForm')) updateLiveCalc(); }, true);
-document.addEventListener('change', e=>{ if(e.target.closest('#entryForm')) updateLiveCalc(); }, true);
+
+// Diubah menjadi mode bubbling (false) agar dropdown tidak terblokir
+document.addEventListener('input', e=>{ if(e.target.closest('#entryForm')) updateLiveCalc(); }, false);
+document.addEventListener('change', e=>{ if(e.target.closest('#entryForm')) updateLiveCalc(); }, false);
+
 document.getElementById('f_tarif_preset').addEventListener('change', ev=>{
-  const v=ev.target.value; document.getElementById('f_tarif').value=v; updateLiveCalc();
+  const v=ev.target.value; 
+  document.getElementById('f_tarif').value=v; 
+  updateLiveCalc();
 });
+
 document.getElementById('f_tarif').addEventListener('input', ()=>{
-  const preset=document.getElementById('f_tarif_preset'); const val=document.getElementById('f_tarif').value;
-  if(preset) preset.value = val==='1444' ? '1444' : val==='2466' ? '2466' : val==='0' ? '0' : '1444';
+  const preset=document.getElementById('f_tarif_preset'); 
+  const val=document.getElementById('f_tarif').value;
+  if(preset) preset.value = (val==='1444' || val==='2466' || val==='0') ? val : '1444';
   updateLiveCalc();
 });
 
