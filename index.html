@@ -632,7 +632,13 @@ function updateLiveCalc(){
           
           set('c_durasi', `${jam > 0 ? jam + ' jam ' : ''}${menit} menit`);
           
-          const sekarang = new Date();
+          // Deteksi apakah sedang mengedit data lama yang punya timestamp pembuatan terkunci
+          let waktuDasar = Date.now();
+          if (editId) {
+            waktuDasar = Number(editId); 
+          }
+          
+          const sekarang = new Date(waktuDasar);
           sekarang.setMinutes(sekarang.getMinutes() + totalMenit);
           const jamSelesaiStr = String(sekarang.getHours()).padStart(2, '0') + ':' + String(sekarang.getMinutes()).padStart(2, '0');
           set('c_jam_selesai', prefixNote + jamSelesaiStr + ' ke ' + c.targetCas + '%');
@@ -643,7 +649,7 @@ function updateLiveCalc(){
 }
 
 // ====================================================================
-// PERBAIKAN 2: Mempertahankan Waktu Pembuatan Log Asli Saat Proses Edit
+// KUNCI UTAMA: Memastikan waktu pembuatan tidak berubah saat edit
 // ====================================================================
 async function saveEntry(){
   const e = readForm();
@@ -658,14 +664,30 @@ async function saveEntry(){
     estSelesaiTeks = jamSelesaiEl.textContent.replace('⚙️ ', '').split(' ke ')[0];
   }
 
-  // Mengunci ID agar tidak berubah jika dalam mode edit
+  // Penguncian ID Timestamp & waktu_dibuat secara permanen
   const currentId = editId || Date.now().toString();
-  const entryData = { id: currentId, ...e, estimasi_selesai: estSelesaiTeks };
+  
+  let waktuAsliDibuat = currentId; 
+  if(editId) {
+    const origData = entries.find(x => x.id === editId);
+    if(origData && origData.waktu_dibuat_asli) {
+      waktuAsliDibuat = origData.waktu_dibuat_asli; 
+    }
+  }
+
+  const entryData = { 
+    id: currentId, 
+    ...e, 
+    estimasi_selesai: estSelesaiTeks,
+    waktu_dibuat_asli: waktuAsliDibuat 
+  };
+  
   if(entryData.biaya === null) delete entryData.biaya;
 
   if(editId){ 
     const i = entries.findIndex(x=>x.id===editId); 
     if(i>=0) {
+      // Menjaga data internal riil agar tidak terhapus
       if(entries[i].waktu_selesai_riil) entryData.waktu_selesai_riil = entries[i].waktu_selesai_riil;
       entries[i] = entryData;
     } 
@@ -699,9 +721,11 @@ async function saveEntry(){
         
         const estimasiDurasiJam = (energiDibutuhkanWh / dayaChargerWatt) * faktorBMS;
         const totalMenit = Math.round(estimasiDurasiJam * 60);
-        const targetWaktuEksekusi = Date.now() + (totalMenit * 60 * 1000);
         
-        const sekarang = new Date();
+        // Target eksekusi dihitung secara fleksibel berbasis waktu awal catatan dibuat
+        const targetWaktuEksekusi = Number(waktuAsliDibuat) + (totalMenit * 60 * 1000);
+        
+        const sekarang = new Date(Number(waktuAsliDibuat));
         sekarang.setMinutes(sekarang.getMinutes() + totalMenit);
         const jamSelesaiStr = String(sekarang.getHours()).padStart(2, '0') + ':' + String(sekarang.getMinutes()).padStart(2, '0');
         
@@ -853,7 +877,8 @@ function simpanKoreksiBms(id) {
   let faktorBmsAwal = (e.cap_kwh >= 10.0) ? 1.1 : (ampere > 10 ? 1.38 : 1.15);
   let durasiPrediksiMenit = Math.round((energiDibutuhkanWh / dayaChargerWatt) * faktorBmsAwal * 60);
   
-  const waktuLogDibuat = new Date(Number(e.id));
+  // Menggunakan waktu asal dibuat yang sudah terkunci untuk basis perhitungan durasi riil
+  const waktuLogDibuat = new Date(Number(e.waktu_dibuat_asli || e.id));
   const waktuSelesaiRiilObj = new Date(waktuLogDibuat.getTime());
   waktuSelesaiRiilObj.setHours(hSelesai, mSelesai, 0, 0);
   
@@ -1244,12 +1269,8 @@ function prefillTripStart(force){
   if(battEl && (force || !battEl.value)){ const batt = (Number(last.batt_setelah) > 0 ? last.batt_setelah : last.batt_akhir); if(batt != null) battEl.value = batt; }
 }
 
-// ====================================================================
-// PERBAIKAN 1: Pengaturan Event Listener Supaya Dropdown Mengubah Tarif Listrik
-// ====================================================================
 document.getElementById('f_tanggal').value = new Date().toISOString().slice(0,10);
 
-// Diubah menjadi mode bubbling (false) agar dropdown tidak terblokir
 document.addEventListener('input', e=>{ if(e.target.closest('#entryForm')) updateLiveCalc(); }, false);
 document.addEventListener('change', e=>{ if(e.target.closest('#entryForm')) updateLiveCalc(); }, false);
 
