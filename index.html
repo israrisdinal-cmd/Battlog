@@ -162,7 +162,6 @@
       </div>
     </div>
 
-    <!-- BOX AI DIAGNOSTIK UTAMA -->
     <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%);">
       <div style="font-size:11px; font-weight:700; color:var(--blue); margin-bottom:6px; letter-spacing: 0.5px;">🤖 AI DIAGNOSTIK SISTEM PAKAR</div>
       <div id="ai-insight-box" style="font-size:13px; color:#eaf2ff; line-height:1.4;">Menganalisis data kendaraan lokal...</div>
@@ -413,7 +412,8 @@ function showToast(message, type = 'error') {
   }
   const toast = document.createElement('div');
   toast.className = 'maka-toast';
-  toast.style.background = type === 'error' ? '#ff4d4d' : '#2b8cff';
+  toast.style.background = type === 'error' ? '#ff4d4d' : (type === 'warning' ? '#ffdd53' : '#2b8cff');
+  if (type === 'warning') toast.style.color = '#0a1328';
   toast.textContent = message;
   container.appendChild(toast);
   
@@ -608,7 +608,6 @@ function kalibrasiSohMover() {
   localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(allKmPerPct));
 }
 
-/* 🤖 RUMUS AI 1: LINEAR MOVING WEIGHTED AVERAGE FOR Wh/km */
 function hitungPrediksiAIWhKm() {
   const validEntries = entries.filter(e => {
     const c = calcEntry(e);
@@ -617,7 +616,6 @@ function hitungPrediksiAIWhKm() {
   
   if (validEntries.length === 0) return 0;
   
-  // Ambil maksimal 5 catatan paling baru, lalu balik agar indeks 0 adalah yang paling lama di antara 5 tersebut
   const listTerakhir = validEntries.slice(0, 5).reverse();
   
   let totalBobot = 0;
@@ -625,7 +623,7 @@ function hitungPrediksiAIWhKm() {
   
   listTerakhir.forEach((e, idx) => {
     const c = calcEntry(e);
-    const bobot = idx + 1; // Semakin baru catatannya, bobot pengalinya semakin besar (1 sampai 5)
+    const bobot = idx + 1; 
     totalWhKmBerbobot += (c.wh_per_km * bobot);
     totalBobot += bobot;
   });
@@ -633,13 +631,12 @@ function hitungPrediksiAIWhKm() {
   return totalWhKmBerbobot / totalBobot;
 }
 
-/* 🤖 RUMUS AI 2: RULE-BASED SYSTEM DIAGNOSTICS & INSIGHT GENERATOR */
 function perbaruiAIInsightDasbor(avgWhKmMoving) {
   const boxAI = document.getElementById('ai-insight-box');
   if (!boxAI) return;
   
   if (!entries.length || avgWhKmMoving === 0) {
-    boxAI.innerHTML = "💡 <strong>Sistem Pakar AI:</strong> Menunggu data trip terkumpul untuk memulai pemodelan gaya berkendara.";
+    boxAI.innerHTML = "💡 <strong>Analisis AI:</strong> Siap memantau pergerakan daya! Masukkan data trip awalmu untuk mengaktifkan pemodelan gaya berkendara.";
     return;
   }
 
@@ -649,24 +646,28 @@ function perbaruiAIInsightDasbor(avgWhKmMoving) {
   
   const wh = Math.round(avgWhKmMoving);
 
-  if (wh < 26) {
-    status = "SUPER ECO (Sangat Efisien)";
-    warnaIndikator = "#7dffb7";
-    saranTeknis = "Manajemen puntiran gas luar biasa halus. Arus discharge baterai stabil rendah, sangat membantu menjaga temperatur internal cell tetap adem.";
-  } else if (wh >= 26 && wh <= 38) {
-    status = "NORMAL OPERASIONAL (Ideal)";
-    warnaIndikator = "#2b8cff";
-    saranTeknis = "Konsumsi daya normal harian. Distribusi energi seimbang antara torsi dinamo dan jarak tempuh. Kelistrikan motor dalam kondisi prima.";
+  if (wh >= 0 && wh <= 28) {
+    status = "🍀 ECO SANGAT EFISIEN (0 - 28 Wh/km)";
+    warnaIndikator = "#7dffb7"; 
+    saranTeknis = "Gokil, urut gasnya halus banget! Manajemen torsi dinamo super efisien membuat pasokan arus konstan tanpa lonjakan mendadak (*discharge spike*). Temperatur internal cell baterai dijamin adem, risiko degradasi dini berkurang drastis. Pertahankan ritme berkendara mantap seperti ini!";
+  } else if (wh >= 29 && wh <= 35) {
+    status = "💎 RITME NORMAL IDEAL (29 - 35 Wh/km)";
+    warnaIndikator = "#2b8cff"; 
+    saranTeknis = "Performa harian yang sangat seimbang. Penyaluran daya ke motor sinkron dengan medan jalanan, aman untuk komputasi jarak tempuh jangka panjang. Kelistrikan motor bekerja di efisiensi termal terbaiknya. Sangat andal untuk melibas rute perkotaan.";
+  } else if (wh >= 36 && wh <= 40) {
+    status = "⚡ MODERAT / AGAK BOROS (36 - 40 Wh/km)";
+    warnaIndikator = "#ffdd53"; 
+    saranTeknis = "Daya baterai mulai tersedot lebih cepat dari biasanya. Kondisi ini lumrah terjadi kalau sering membawa beban ekstra, berhadapan dengan macet parah (*stop & go*), atau tekanan angin ban kurang optimal. Coba urut gas pelan-pelan saat motor mulai bergerak dari posisi berhenti.";
   } else {
-    status = "HIGH DISCHARGE (Boros/Agresif)";
-    warnaIndikator = "#ff4d4d";
-    saranTeknis = "Arus baterai terkuras deras. Rekomendasi: Kurangi akselerasi mendadak dari posisi berhenti, cek tekanan angin ban, atau kurangi beban berlebih.";
+    status = "⚠️ HIGH DISCHARGE / AGRESIF (41 - 80 Wh/km)";
+    warnaIndikator = "#ff4d4d"; 
+    saranTeknis = "Baterai dikuras deras! Indikasi gaya berkendara agresif, tarikan gas spontan, atau rute tanjakan ekstrem yang memaksa dinamo menyedot arus puncak (*peak current*). Tarikan yang terlalu instan berulang kali memicu panas berlebih di sel baterai. Yuk, lebih santai urut gasnya demi keawetan kapasitas bateraimu.";
   }
 
   boxAI.innerHTML = `
-    <div style="font-weight: 800; font-size:14px; color:${warnaIndikator}; margin-bottom:2px;">${status}</div>
-    <div style="font-size:12px; color:#a8c0e8; font-family: sans-serif; line-height:1.4;">
-       Prediksi laju konsumsi berbasis pembobotan 5 trip terakhir saat ini adalah <strong>${wh} Wh/km</strong>. ${saranTeknis}
+    <div style="font-weight: 800; font-size:14px; color:${warnaIndikator}; margin-bottom:4px;">${status}</div>
+    <div style="font-size:12.5px; color:#eaf2ff; font-family: sans-serif; line-height:1.45;">
+       Prediksi konsumsi berbasis pembobotan 5 trip terakhirmu berada di angka <strong>${wh} Wh/km</strong>. ${saranTeknis}
     </div>
   `;
 }
@@ -753,7 +754,7 @@ async function saveEntry(){
     id: currentId, 
     ...e, 
     estimasi_selesai: estSelesaiTeks,
-    waktu_dibuat_asli: waktuAsliDibuat 
+    waktu_dibuat_asli: waktuAsliDibuat
   };
   
   if(entryData.biaya === null) delete entryData.biaya;
@@ -911,7 +912,6 @@ function deleteEntry(id){
   showToast('Catatan deleted', 'success');
 }
 
-/* 🤖 RUMUS AI 3: CUMULATIVE MOVING CALIBRATION WITH SMOOTHING FACTOR (0.7 : 0.3) */
 function simpanKoreksiBms(id) {
   const inputEl = document.getElementById(`time_riil_${id}`);
   if(!inputEl) return;
@@ -964,7 +964,6 @@ function simpanKoreksiBms(id) {
     durasiRiilMenit = durasiPrediksiMenit; 
   }
 
-  // Menghitung faktor aktual dari pengisian saat ini
   const faktorBmsAktual = durasiRiilMenit / durasiIdealMenit;
 
   if(faktorBmsAktual < 0.8 || faktorBmsAktual > 2.5) {
@@ -985,12 +984,11 @@ function simpanKoreksiBms(id) {
     }
   } catch(e){}
 
-  // Pembobotan AI: 70% Faktor Lama Terkalibrasi + 30% Faktor Baru Terdeteksi
   const faktorAIKombinasi = (faktorBmsLama * 0.7) + (faktorBmsAktual * 0.3);
 
   let chargerHistory = bmsHistoryMap[keySpec] || [];
   chargerHistory.unshift(faktorAIKombinasi);
-  chargerHistory = chargerHistory.slice(0, 5); // Simpan riwayat pembobotan stabil
+  chargerHistory = chargerHistory.slice(0, 5); 
 
   bmsHistoryMap[keySpec] = chargerHistory;
   localStorage.setItem(BMS_KEY, JSON.stringify(bmsHistoryMap));
@@ -1099,11 +1097,7 @@ function renderDasbor(){
   });
   
   const avgWhKmGlobal = n ? (wh / n) : 0;
-  
-  // Membaca hasil rumus pembobotan AI bergerak
   const avgWhKmMovingAI = hitungPrediksiAIWhKm();
-  
-  // Estimasi jangkauan baterai dari 100% sisa hingga batas aman 30% (70% kapasitas terpakai) berdasarkan AI Wh/km
   const estimasiJarakAI = avgWhKmMovingAI > 0 ? ((0.7 * lastCap * 1000) / avgWhKmMovingAI) : 0;
 
   document.getElementById('stat_jarak').textContent = Math.round(jarak)+' km';
@@ -1150,10 +1144,7 @@ function renderDasbor(){
     }
   } catch(err){}
 
-  // Gambar Cluster Dashboard menggunakan Angka Bergerak AI
   drawModernDigitalCluster(Math.round(avgWhKmMovingAI));
-  
-  // Eksekusi pembaruan Kartu Sistem Pakar AI di Dasbor
   perbaruiAIInsightDasbor(avgWhKmMovingAI);
   
   const minDisplay = document.getElementById('speedo_min');
@@ -1194,11 +1185,13 @@ function drawModernDigitalCluster(currentWhKm) {
   ctx.stroke();
   
   let themeColor = '#2b8cff'; 
-  if (currentWhKm > 0 && currentWhKm <= 26) {
+  if (currentWhKm >= 0 && currentWhKm <= 28) {
     themeColor = '#7dffb7'; 
-  } else if (currentWhKm > 26 && currentWhKm <= 38) {
+  } else if (currentWhKm >= 29 && currentWhKm <= 35) {
     themeColor = '#2b8cff'; 
-  } else if (currentWhKm > 38) {
+  } else if (currentWhKm >= 36 && currentWhKm <= 40) {
+    themeColor = '#ffdd53'; 
+  } else if (currentWhKm > 40) {
     themeColor = '#ff4d4d'; 
   }
   
