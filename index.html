@@ -108,7 +108,7 @@
 
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.6</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.6 Smart AI</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
@@ -144,7 +144,7 @@
     <div class="maka-card" style="background: linear-gradient(135deg, #112240 0%, #111d35 100%); border-color: rgba(43, 140, 255, 0.3);">
       <div class="flex items-center justify-between">
         <div>
-          <div style="font-size:12px; font-weight:700; color:#6fb2ff; letter-spacing:0.05em; text-transform:uppercase;">Estimasi Jarak Tempuh (100% → 30%)</div>
+          <div style="font-size:12px; font-weight:700; color:#6fb2ff; letter-spacing:0.05em; text-transform:uppercase;">Estimasi Jarak Tempuh AI (100% → 30%)</div>
           <div id="estimasi_note" style="font-size:11px; color:#8aa0c6; margin-top:2px;">Menghitung rata-rata dari data pemakaian harianmu</div>
         </div>
         <div id="stat_estimasi" style="font-size:26px; font-weight:900; text-align:right; color: #7dffb7; text-shadow: 0 0 12px rgba(125,255,183,0.3);">– km</div>
@@ -160,6 +160,12 @@
         </div>
         <div id="soh_note" style="font-size:10px; color:#5e759e; margin-top:5px;">Mengukur degradasi nyata berdasarkan seluruh riwayat deep-cycle yang valid.</div>
       </div>
+    </div>
+
+    <!-- BOX AI DIAGNOSTIK UTAMA -->
+    <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%);">
+      <div style="font-size:11px; font-weight:700; color:var(--blue); margin-bottom:6px; letter-spacing: 0.5px;">🤖 AI DIAGNOSTIK SISTEM PAKAR</div>
+      <div id="ai-insight-box" style="font-size:13px; color:#eaf2ff; line-height:1.4;">Menganalisis data kendaraan lokal...</div>
     </div>
 
     <div class="maka-card" style="background: linear-gradient(180deg, #0e192f 0%, #0b1424 100%); border: 1px solid #1a2f52;">
@@ -283,8 +289,8 @@
         <div class="calc-row"><span>Efisiensi</span><strong id="c_whkm">–</strong></div>
         <div class="calc-row"><span>Energi Diisi</span><strong id="c_diisi">–</strong></div>
         <div class="calc-row"><span>Estimasi Biaya</span><strong id="c_biaya" style="color:#7dffb7">–</strong></div>
-        <div class="calc-row"><span>Durasi Charging</span><strong id="c_durasi">–</strong></div>
-        <div class="calc-row" style="border-bottom:none"><span>Jam Selesai</span><strong id="c_jam_selesai" style="color:#7dffb7">–</strong></div>
+        <div class="calc-row"><span>Durasi Charging AI</span><strong id="c_durasi">–</strong></div>
+        <div class="calc-row" style="border-bottom:none"><span>Jam Selesai AI</span><strong id="c_jam_selesai" style="color:#7dffb7">–</strong></div>
       </div>
       
       <div class="flex gap-3">
@@ -318,7 +324,7 @@
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
 
-  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • Multi-User Universal Mode Active</footer>
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • Multi-User Universal AI Mode Active</footer>
 </div>
 
 <nav class="bottom-nav">
@@ -493,9 +499,7 @@ function getCalibratedBmsFactor(chargerSpec) {
     const data = localStorage.getItem(BMS_KEY);
     if (!data) return null;
     const parsed = JSON.parse(data);
-    if (Array.isArray(parsed)) {
-      return null; // Abaikan jika format lama masih berupa Array tunggal
-    }
+    if (Array.isArray(parsed)) return null;
     const history = parsed[keySpec] || [];
     if (history.length > 0) {
       const total = history.reduce((acc, val) => acc + val, 0);
@@ -517,14 +521,12 @@ function toggleSohSettings() {
   const willShow = panel.style.display === 'none';
   panel.style.display = willShow ? 'block' : 'none';
   if (willShow) {
-    const keySpec = document.getElementById('f_charger').value;
     const capEl = document.getElementById('f_factory_cap');
     const rangeEl = document.getElementById('f_factory_range');
     const savedCap = localStorage.getItem('factory_cap_kwh');
     const savedRange = localStorage.getItem('factory_range_km');
-    if (savedCap) {
-      capEl.value = savedCap;
-    } else if (typeof entries !== 'undefined' && entries.length) {
+    if (savedCap) capEl.value = savedCap;
+    else if (typeof entries !== 'undefined' && entries.length) {
       const firstWithCap = [...entries].reverse().find(e => Number(e.cap_kwh) > 0);
       if (firstWithCap) capEl.value = firstWithCap.cap_kwh;
     }
@@ -604,6 +606,69 @@ function kalibrasiSohMover() {
   localStorage.setItem('maka_soh_total_samples', allKmPerPct.length.toString());
 
   localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(allKmPerPct));
+}
+
+/* 🤖 RUMUS AI 1: LINEAR MOVING WEIGHTED AVERAGE FOR Wh/km */
+function hitungPrediksiAIWhKm() {
+  const validEntries = entries.filter(e => {
+    const c = calcEntry(e);
+    return c.wh_per_km > 0;
+  });
+  
+  if (validEntries.length === 0) return 0;
+  
+  // Ambil maksimal 5 catatan paling baru, lalu balik agar indeks 0 adalah yang paling lama di antara 5 tersebut
+  const listTerakhir = validEntries.slice(0, 5).reverse();
+  
+  let totalBobot = 0;
+  let totalWhKmBerbobot = 0;
+  
+  listTerakhir.forEach((e, idx) => {
+    const c = calcEntry(e);
+    const bobot = idx + 1; // Semakin baru catatannya, bobot pengalinya semakin besar (1 sampai 5)
+    totalWhKmBerbobot += (c.wh_per_km * bobot);
+    totalBobot += bobot;
+  });
+  
+  return totalWhKmBerbobot / totalBobot;
+}
+
+/* 🤖 RUMUS AI 2: RULE-BASED SYSTEM DIAGNOSTICS & INSIGHT GENERATOR */
+function perbaruiAIInsightDasbor(avgWhKmMoving) {
+  const boxAI = document.getElementById('ai-insight-box');
+  if (!boxAI) return;
+  
+  if (!entries.length || avgWhKmMoving === 0) {
+    boxAI.innerHTML = "💡 <strong>Sistem Pakar AI:</strong> Menunggu data trip terkumpul untuk memulai pemodelan gaya berkendara.";
+    return;
+  }
+
+  let status = "";
+  let warnaIndikator = "";
+  let saranTeknis = "";
+  
+  const wh = Math.round(avgWhKmMoving);
+
+  if (wh < 26) {
+    status = "SUPER ECO (Sangat Efisien)";
+    warnaIndikator = "#7dffb7";
+    saranTeknis = "Manajemen puntiran gas luar biasa halus. Arus discharge baterai stabil rendah, sangat membantu menjaga temperatur internal cell tetap adem.";
+  } else if (wh >= 26 && wh <= 38) {
+    status = "NORMAL OPERASIONAL (Ideal)";
+    warnaIndikator = "#2b8cff";
+    saranTeknis = "Konsumsi daya normal harian. Distribusi energi seimbang antara torsi dinamo dan jarak tempuh. Kelistrikan motor dalam kondisi prima.";
+  } else {
+    status = "HIGH DISCHARGE (Boros/Agresif)";
+    warnaIndikator = "#ff4d4d";
+    saranTeknis = "Arus baterai terkuras deras. Rekomendasi: Kurangi akselerasi mendadak dari posisi berhenti, cek tekanan angin ban, atau kurangi beban berlebih.";
+  }
+
+  boxAI.innerHTML = `
+    <div style="font-weight: 800; font-size:14px; color:${warnaIndikator}; margin-bottom:2px;">${status}</div>
+    <div style="font-size:12px; color:#a8c0e8; font-family: sans-serif; line-height:1.4;">
+       Prediksi laju konsumsi berbasis pembobotan 5 trip terakhir saat ini adalah <strong>${wh} Wh/km</strong>. ${saranTeknis}
+    </div>
+  `;
 }
 
 function updateLiveCalc(){
@@ -846,6 +911,7 @@ function deleteEntry(id){
   showToast('Catatan deleted', 'success');
 }
 
+/* 🤖 RUMUS AI 3: CUMULATIVE MOVING CALIBRATION WITH SMOOTHING FACTOR (0.7 : 0.3) */
 function simpanKoreksiBms(id) {
   const inputEl = document.getElementById(`time_riil_${id}`);
   if(!inputEl) return;
@@ -881,8 +947,8 @@ function simpanKoreksiBms(id) {
   const [hSelesai, mSelesai] = jamRiil.split(':').map(Number);
   let durasiRiilMenit = 0;
   
-  let faktorBmsAwal = (e.cap_kwh >= 10.0) ? 1.1 : (ampere > 10 ? 1.38 : 1.15);
-  let durasiPrediksiMenit = Math.round((energiDibutuhkanWh / dayaChargerWatt) * faktorBmsAwal * 60);
+  let faktorBmsLama = getCalibratedBmsFactor(e.charger) || ((e.cap_kwh >= 10.0) ? 1.1 : (ampere > 10 ? 1.38 : 1.15));
+  let durasiPrediksiMenit = Math.round((energiDibutuhkanWh / dayaChargerWatt) * faktorBmsLama * 60);
   
   const waktuLogDibuat = new Date(Number(e.waktu_dibuat_asli || e.id));
   const waktuSelesaiRiilObj = new Date(waktuLogDibuat.getTime());
@@ -898,6 +964,7 @@ function simpanKoreksiBms(id) {
     durasiRiilMenit = durasiPrediksiMenit; 
   }
 
+  // Menghitung faktor aktual dari pengisian saat ini
   const faktorBmsAktual = durasiRiilMenit / durasiIdealMenit;
 
   if(faktorBmsAktual < 0.8 || faktorBmsAktual > 2.5) {
@@ -914,20 +981,21 @@ function simpanKoreksiBms(id) {
     const data = localStorage.getItem(BMS_KEY);
     if (data) {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed)) {
-        bmsHistoryMap = parsed;
-      }
+      if (!Array.isArray(parsed)) bmsHistoryMap = parsed;
     }
   } catch(e){}
 
+  // Pembobotan AI: 70% Faktor Lama Terkalibrasi + 30% Faktor Baru Terdeteksi
+  const faktorAIKombinasi = (faktorBmsLama * 0.7) + (faktorBmsAktual * 0.3);
+
   let chargerHistory = bmsHistoryMap[keySpec] || [];
-  chargerHistory.unshift(faktorBmsAktual);
-  chargerHistory = chargerHistory.slice(0, 5);
+  chargerHistory.unshift(faktorAIKombinasi);
+  chargerHistory = chargerHistory.slice(0, 5); // Simpan riwayat pembobotan stabil
 
   bmsHistoryMap[keySpec] = chargerHistory;
   localStorage.setItem(BMS_KEY, JSON.stringify(bmsHistoryMap));
 
-  showToast(`BMS Berhasil Dikoreksi! Faktor saat ini (${e.charger.toUpperCase()}): ${faktorBmsAktual.toFixed(2)}`, 'success');
+  showToast(`AI Kelistrikan Berhasil Belajar! Faktor Terkalibrasi Baru (${e.charger.toUpperCase()}): ${faktorAIKombinasi.toFixed(2)}`, 'success');
   renderList();
   updateLiveCalc();
 }
@@ -941,14 +1009,14 @@ function renderList(){
     const hasCharger = e.charger && e.batt_akhir < c.targetCas;
     const jamSaved = e.waktu_selesai_riil || '';
     
-    const infoEstimasiTeks = e.estimasi_selesai ? ` <span style="color:#8aa0c6;">(Est: ${e.estimasi_selesai})</span>` : '';
+    const infoEstimasiTeks = e.estimasi_selesai ? ` <span style="color:#8aa0c6;">(Est AI: ${e.estimasi_selesai})</span>` : '';
 
     const bmsComponent = hasCharger ? `
       <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #1e2d4a; display:flex; align-items:center; gap:8px;">
         <span style="font-size:11px; color:#8aa0c6; font-weight:600;">Jam Selesai Cas Riil:</span>
         <input type="time" id="time_riil_${e.id}" class="maka-input" style="width:100px; padding:4px 8px; font-size:12px; border-radius:8px;" value="${jamSaved}">
         <button onclick="simpanKoreksiBms('${e.id}')" class="pill" style="background:rgba(125,255,183,0.1); color:#7dffb7; border-color:rgba(125,255,183,0.2); font-size:11px;">
-          ${jamSaved ? '✓ Update Koreksi' : '⚡ Koreksi BMS'}
+          ${jamSaved ? '✓ Update AI' : '⚡ Ajarkan AI'}
         </button>
       </div>
     ` : '';
@@ -1012,11 +1080,10 @@ function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.ge
 
 function renderDasbor(){
   let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
-  let movingWh = 0, movingN = 0;
   let lastCap = (entries[0] && entries[0].cap_kwh) || 4.0;
   let movingWhList = [];
   
-  entries.forEach((e, idx)=>{ 
+  entries.forEach((e)=>{ 
     const c=calcEntry(e); 
     jarak+=c.jarak; 
     if(isSpklu(e)){
@@ -1027,18 +1094,17 @@ function renderDasbor(){
     if(c.wh_per_km){ 
       wh+=c.wh_per_km; 
       n++; 
-      
-      if(movingN < 20) { 
-        movingWh += c.wh_per_km; 
-        movingN++; 
-        movingWhList.push(c.wh_per_km);
-      }
+      movingWhList.push(c.wh_per_km);
     }
   });
   
   const avgWhKmGlobal = n ? (wh / n) : 0;
-  const avgWhKmMoving = movingN ? (movingWh / movingN) : 0;
-  const estimasiJarak = avgWhKmMoving > 0 ? ((0.7 * lastCap * 1000) / avgWhKmMoving) : 0;
+  
+  // Membaca hasil rumus pembobotan AI bergerak
+  const avgWhKmMovingAI = hitungPrediksiAIWhKm();
+  
+  // Estimasi jangkauan baterai dari 100% sisa hingga batas aman 30% (70% kapasitas terpakai) berdasarkan AI Wh/km
+  const estimasiJarakAI = avgWhKmMovingAI > 0 ? ((0.7 * lastCap * 1000) / avgWhKmMovingAI) : 0;
 
   document.getElementById('stat_jarak').textContent = Math.round(jarak)+' km';
   document.getElementById('stat_whkm').textContent = n ? Math.round(avgWhKmGlobal)+' Wh/km' : '– Wh/km';
@@ -1047,9 +1113,9 @@ function renderDasbor(){
   
   const estimasiEl = document.getElementById('stat_estimasi');
   const noteEl = document.getElementById('estimasi_note');
-  if(estimasiJarak > 0) {
-    estimasiEl.textContent = Math.round(estimasiJarak)+' km';
-    noteEl.textContent = `Rentang 100% → 30% berdasarkan ${movingN} catatan terakhir`;
+  if(estimasiJarakAI > 0) {
+    estimasiEl.textContent = Math.round(estimasiJarakAI)+' km';
+    noteEl.textContent = `Rentang 100% → 30% berdasarkan Pembobotan Linear AI Bergerak`;
   } else { estimasiEl.textContent = '– km'; noteEl.textContent = `Baterai Rentang 100% → 30% (Menunggu data)`; }
   
   try {
@@ -1084,8 +1150,11 @@ function renderDasbor(){
     }
   } catch(err){}
 
-  const currentEfisiensi20 = Math.round(avgWhKmMoving);
-  drawModernDigitalCluster(currentEfisiensi20);
+  // Gambar Cluster Dashboard menggunakan Angka Bergerak AI
+  drawModernDigitalCluster(Math.round(avgWhKmMovingAI));
+  
+  // Eksekusi pembaruan Kartu Sistem Pakar AI di Dasbor
+  perbaruiAIInsightDasbor(avgWhKmMovingAI);
   
   const minDisplay = document.getElementById('speedo_min');
   const maxDisplay = document.getElementById('speedo_max');
@@ -1125,11 +1194,11 @@ function drawModernDigitalCluster(currentWhKm) {
   ctx.stroke();
   
   let themeColor = '#2b8cff'; 
-  if (currentWhKm > 0 && currentWhKm <= 30) {
+  if (currentWhKm > 0 && currentWhKm <= 26) {
     themeColor = '#7dffb7'; 
-  } else if (currentWhKm >= 31 && currentWhKm <= 40) {
+  } else if (currentWhKm > 26 && currentWhKm <= 38) {
     themeColor = '#2b8cff'; 
-  } else if (currentWhKm >= 41) {
+  } else if (currentWhKm > 38) {
     themeColor = '#ff4d4d'; 
   }
   
@@ -1172,7 +1241,7 @@ function drawModernDigitalCluster(currentWhKm) {
   ctx.fillStyle = '#8aa0c6';
   ctx.font = '700 11px Inter, sans-serif';
   ctx.letterSpacing = '1px';
-  ctx.fillText("WH / KM", centerX, centerY + 12);
+  ctx.fillText("AI WH / KM", centerX, centerY + 12);
   ctx.letterSpacing = '0px'; 
   
   const barW = 120;
