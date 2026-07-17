@@ -1262,19 +1262,25 @@ function renderRingkas(){
 function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil((((t-yearStart)/86400000)+1)/7); }
 
 function renderDasbor(){
+  // Pakai string YYYY-MM-DD biar tidak kena timezone
+  const toISODate = (d)=> d.toLocaleDateString('sv-SE');
+  let todayStr = toISODate(new Date());
+  let anchorDateStr = todayStr;
+  let cutoffDateStr = "2000-01-01";
   let anchorDate = new Date(); anchorDate.setHours(0,0,0,0);
-  let cutoffDate = new Date(anchorDate);
+  let cutoffDate = new Date('2000-01-01');
   if(typeof ekonomiPeriod!=='undefined'){
-    if(ekonomiPeriod==='harian'){ cutoffDate = new Date(anchorDate); }
-    else if(ekonomiPeriod==='7hari'){ cutoffDate.setDate(anchorDate.getDate()-6); }
-    else if(ekonomiPeriod==='14hari'){ cutoffDate.setDate(anchorDate.getDate()-13); }
-    else if(ekonomiPeriod==='30hari'){ cutoffDate.setDate(anchorDate.getDate()-29); }
+    let tmp = new Date(); tmp.setHours(0,0,0,0);
+    if(ekonomiPeriod==='harian'){ cutoffDate = new Date(tmp); }
+    else if(ekonomiPeriod==='7hari'){ tmp.setDate(tmp.getDate()-6); cutoffDate = new Date(tmp); }
+    else if(ekonomiPeriod==='14hari'){ tmp.setDate(tmp.getDate()-13); cutoffDate = new Date(tmp); }
+    else if(ekonomiPeriod==='30hari'){ tmp.setDate(tmp.getDate()-29); cutoffDate = new Date(tmp); }
     else { cutoffDate = new Date('2000-01-01'); }
-  } else {
-    cutoffDate = new Date('2000-01-01');
+    cutoffDateStr = toISODate(cutoffDate);
+    anchorDateStr = todayStr;
   }
 
-  // --- STEP 1: cari hari yang ADA data SiGan dalam periode (agar tidak terdistrupsi hari kosong) ---
+  // --- STEP 1: cari hari yang ADA data SiGan dalam periode (hanya hari ada SiGan) ---
   let totalIncome = 0, totalKmEfektif = 0;
   let validDates = new Set();
   try{
@@ -1283,16 +1289,18 @@ function renderDasbor(){
     const kmMapAllTmp = safeParseLocalTmp('maka_cross_sigan_km') || {};
     for(let tgl in incomeMapAllTmp){
       try{
-        const d = new Date(tgl); d.setHours(0,0,0,0);
-        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all'){
+          if(tgl < cutoffDateStr || tgl > anchorDateStr) continue;
+        }
         const v = Number(incomeMapAllTmp[tgl]||0);
         if(v>0){ validDates.add(tgl); totalIncome += v; }
       }catch(e){}
     }
     for(let tgl in kmMapAllTmp){
       try{
-        const d = new Date(tgl); d.setHours(0,0,0,0);
-        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all'){
+          if(tgl < cutoffDateStr || tgl > anchorDateStr) continue;
+        }
         const v = Number(kmMapAllTmp[tgl]||0);
         if(v>0 || validDates.has(tgl)){ 
           if(!validDates.has(tgl) && v>0) validDates.add(tgl);
@@ -1309,8 +1317,9 @@ function renderDasbor(){
   
   entries.forEach((e)=>{ 
     try{
-      const d = new Date(e.tanggal); d.setHours(0,0,0,0);
-      if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) return;
+      if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all'){
+        if(e.tanggal < cutoffDateStr || e.tanggal > anchorDateStr) return;
+      }
       if(validDates.size>0 && !validDates.has(e.tanggal)) return; // HANYA hari yang ada SiGan
     }catch(e){}
     const c=calcEntry(e); 
