@@ -204,29 +204,9 @@ window.addEventListener('storage', (event) => {
   }
   .maka-toast.show { opacity: 1; transform: translateY(0); }
 </style>
-
-<style id="sync-lamp-style">
-.sync-status-bar{display:flex;align-items:center;justify-content:space-between;background:rgba(17,29,53,0.9);border:1px solid #1e2d4a;border-radius:12px;padding:8px 12px;margin-bottom:12px}
-.sync-left{display:flex;align-items:center;gap:8px}
-#sigan-sync-dot{width:9px;height:9px;border-radius:50%;background:#3a4a6a;transition:all 0.3s}
-#sigan-sync-dot.active{background:#00e676;box-shadow:0 0 0 4px rgba(0,230,118,0.18);animation:pulseNeat 1.6s infinite}
-@keyframes pulseNeat{0%{box-shadow:0 0 0 0 rgba(0,230,118,0.6)}70%{box-shadow:0 0 0 7px rgba(0,230,118,0)}100%{box-shadow:0 0 0 0 rgba(0,230,118,0)}}
-#sigan-sync-text{font-size:11px;font-weight:700;color:#8aa0c6;letter-spacing:0.4px}
-#sigan-sync-time{font-size:10px;color:#5a7096}
-</style>
-
 </head>
 <body>
 <div class="max-w-2xl">
-
-<div class="sync-status-bar" id="sigan-sync-lamp">
-  <div class="sync-left">
-    <span id="sigan-sync-dot"></span>
-    <span id="sigan-sync-text">SYNC STANDBY</span>
-  </div>
-  <span id="sigan-sync-time"></span>
-</div>
-
 
   <header class="flex items-center justify-between mb-4">
     <div>
@@ -319,6 +299,28 @@ window.addEventListener('storage', (event) => {
       <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya Rumah</div><div id="stat_biaya_rumah" style="font-size:22px; font-weight:800;">Rp 0</div></div>
       <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya SPKLU / SPB LU</div><div id="stat_biaya_spklu" style="font-size:22px; font-weight:800;">Rp 0</div></div>
     </div>
+    <!-- ANALITIK EKONOMI REAL - INTEGRASI SIGAN -->
+    <div class="maka-card" style="border:1px solid rgba(125,255,183,0.25); background: linear-gradient(180deg, #0d1e2a 0%, #0b1424 100%); margin-bottom:12px;">
+      <div style="font-size:11px; font-weight:800; color:#7dffb7; letter-spacing:0.08em; margin-bottom:10px; display:flex; justify-content:space-between;">
+        <span>💰 ANALITIK EKONOMI REAL (SiGan x BattLog)</span>
+        <span id="stat_integrasi_status" style="font-size:10px; color:#6b7fa2; font-weight:600;">Menunggu SiGan</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Laba Bersih / km</div><div id="stat_laba_km" style="font-size:18px; font-weight:800; color:#eaf2ff;">–</div><div id="stat_laba_km_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
+        <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Rp / kWh & Laba / kWh</div><div id="stat_rp_kwh" style="font-size:18px; font-weight:800; color:#eaf2ff;">–</div><div id="stat_rp_kwh_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
+        <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Km Muter Kosong</div><div id="stat_km_muter" style="font-size:18px; font-weight:800; color:#ffb86b;">–</div><div id="stat_km_muter_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
+        <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Efisiensi Rute</div><div id="stat_eff_rute" style="font-size:18px; font-weight:800; color:#7dffb7;">–</div><div id="stat_eff_rute_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
+      </div>
+      <div style="margin-top:12px; padding:10px; background:rgba(10,19,40,0.6); border:1px solid #1e2d4a; border-radius:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:11px; font-weight:700; color:#6fb2ff;">🔋 Sisa Baterai = Rupiah</div>
+          <div id="stat_sisa_rp" style="font-size:14px; font-weight:800; color:#7dffb7;">–</div>
+        </div>
+        <div id="stat_sisa_rp_detail" style="font-size:11px; color:#8aa0c6; margin-top:4px; line-height:1.4;">Menghitung potensi pendapatan dari sisa daya...</div>
+      </div>
+      <div id="stat_cas_rekom" style="font-size:11px; color:#8aa0c6; margin-top:10px; line-height:1.5; background:rgba(43,140,255,0.08); border:1px dashed rgba(43,140,255,0.2); border-radius:10px; padding:8px 10px;"></div>
+    </div>
+
     <button onclick="switchView('catat')" class="btn-primary" style="margin-top:0.75rem;">→ Buka Catat</button>
   </div>
 
@@ -762,35 +764,80 @@ function perbaruiAIInsightDasbor(avgWhKmMoving) {
     return;
   }
 
-  let status = "";
-  let warnaIndikator = "";
-  let saranTeknis = "";
-  
   const wh = Math.round(avgWhKmMoving);
+  let status = "", warnaIndikator = "", saranTeknis = "";
 
   if (wh >= 0 && wh <= 28) {
     status = "🍀 ECO SANGAT EFISIEN (0 - 28 Wh/km)";
     warnaIndikator = "#7dffb7"; 
-    saranTeknis = "Gokil, urut gasnya halus banget! Manajemen torsi dinamo super efisien membuat pasokan arus konstan tanpa lonjakan mendadak (*discharge spike*). Temperatur internal cell baterai dijamin adem, risiko degradasi dini berkurang drastis. Pertahankan ritme berkendara mantap seperti ini!";
+    saranTeknis = "Urut gasnya halus banget! Torsi dinamo konstan tanpa lonjakan arus (discharge spike), cell adem, degradasi minim. Pertahankan!";
   } else if (wh >= 29 && wh <= 35) {
     status = "💎 RITME NORMAL IDEAL (29 - 35 Wh/km)";
     warnaIndikator = "#2b8cff"; 
-    saranTeknis = "Performa harian yang sangat seimbang. Penyaluran daya ke motor sinkron dengan medan jalanan, aman untuk komputasi jarak tempuh jangka panjang. Kelistrikan motor bekerja di efisiensi termal terbaiknya. Sangat andal untuk melibas rute perkotaan.";
+    saranTeknis = "Seimbang! Penyaluran daya sinkron dengan medan, efisiensi termal terbaik untuk rute kota.";
   } else if (wh >= 36 && wh <= 40) {
     status = "⚡ MODERAT / AGAK BOROS (36 - 40 Wh/km)";
     warnaIndikator = "#ffdd53"; 
-    saranTeknis = "Daya baterai mulai tersedot lebih cepat dari biasanya. Kondisi ini lumrah terjadi kalau sering membawa beban ekstra, berhadapan dengan macet parah (*stop & go*), atau tekanan angin ban kurang optimal. Coba urut gas pelan-pelan saat motor mulai bergerak dari posisi berhenti.";
+    saranTeknis = "Mulai boros. Cek beban, macet stop&go, atau tekanan ban. Urut gas pelan dari berhenti.";
   } else {
-    status = "⚠️ HIGH DISCHARGE / AGRESIF (41 - 80 Wh/km)";
+    status = "⚠️ AGRESIF / HIGH DISCHARGE (41 - 80 Wh/km)";
     warnaIndikator = "#ff4d4d"; 
-    saranTeknis = "Baterai dikuras deras! Indikasi gaya berkendara agresif, tarikan gas spontan, atau rute tanjakan ekstrem yang memaksa dinamo menyedot arus puncak (*peak current*). Tarikan yang terlalu instan berulang kali memicu panas berlebih di sel baterai. Yuk, lebih santai urut gasnya demi keawetan kapasitas bateraimu.";
+    saranTeknis = "Dikuras deras! Gas spontan / tanjakan ekstrem bikin peak current & panas cell. Santaiin gas demi awet baterai.";
+  }
+
+  // Ambil data integrasi SiGan
+  let extra = window._battlogAIExtra || {};
+  let htmlExtra = "";
+  if(extra.totalIncome && extra.totalIncome>0){
+    let muterPct = extra.jarak>0? (extra.kmMuter/extra.jarak*100):0;
+    let labPerKm = Math.round(extra.labaPerKm||0);
+    let rpKwh = Math.round(extra.rpPerKwh||0);
+    let effRute = (extra.effRute||0).toFixed(1);
+    
+    htmlExtra += `<div style="margin-top:10px; padding-top:8px; border-top:1px dashed rgba(125,255,183,0.15);">`;
+    htmlExtra += `<div style="font-weight:800; color:#7dffb7; font-size:12px; margin-bottom:4px;">💰 EKONOMI REAL (SiGan):</div>`;
+    htmlExtra += `<div style="font-size:12px; line-height:1.5; color:#dbe8ff;">`;
+    htmlExtra += `• Bruto total ${fmtRp(Math.round(extra.totalIncome))} dari ${Math.round(extra.totalKmEfektif)} km efektif. `;
+    htmlExtra += `Laba bersih setelah SPKLU ${fmtRp(Math.round(extra.labaBersih))} → <strong>Rp ${labPerKm.toLocaleString('id-ID')}/km</strong>. `;
+    htmlExtra += `1 kWh kamu jadi <strong>${fmtRp(rpKwh)}</strong> (laba ${fmtRp(Math.round(extra.labaPerKwh||0))}/kWh).<br>`;
+    if(extra.kmMuter>5){
+      htmlExtra += `• Km muter kosong <strong>${Math.round(extra.kmMuter)} km (${muterPct.toFixed(1)}%)</strong> – energi kebuang ±${(extra.kmMuter * (extra.avgWhKmGlobal||35)/1000).toFixed(2)} kWh. `;
+      if(muterPct>35) htmlExtra += `<span style="color:#ff8a80">Kebanyakan muter cari order, coba strategi mangkal di spot ramai, bukan keliling.</span>`;
+      else if(muterPct>20) htmlExtra += `<span style="color:#ffdd53">Masih wajar, tapi bisa dihemat.</span>`;
+      else htmlExtra += `<span style="color:#7dffb7">Sangat efisien, hampir semua km jadi duit.</span>`;
+      htmlExtra += `<br>`;
+    }
+    htmlExtra += `• Efisiensi rute <strong>${effRute}%</strong> (${Math.round(extra.totalKmEfektif)} km dibayar / ${Math.round(extra.jarak)} km jalan). `;
+    if(extra.effRute>=85) htmlExtra += `Pola narikmu rapi, minim dead trip.`;
+    else if(extra.effRute>=65) htmlExtra += `Lumayan, masih ada jemput jauh yang bisa dioptimasi.`;
+    else htmlExtra += `Banyak trip kosong, cek filter jarak jemput di Gojek.`;
+    htmlExtra += `</div></div>`;
+
+    // SOH vs gaya
+    try{
+      const sohHist = JSON.parse(localStorage.getItem('maka_soh_history')||'[]');
+      if(sohHist.length>=3 && extra.avgWhKmGlobal>38 && extra.effRute<60){
+        htmlExtra += `<div style="margin-top:8px; background:rgba(255,77,77,0.08); border:1px solid rgba(255,77,77,0.2); border-radius:8px; padding:6px 8px; font-size:11px; color:#ffb4b4;">⚠️ Korelasi SOH: wh_per_km tinggi (${Math.round(extra.avgWhKmGlobal)} Wh/km) + efisiensi rute rendah (${effRute}%) → indikasi betot gas pas jemput jauh. Ini mempercepat degradasi. Coba mode Eco pas jemput >2km.</div>`;
+      }
+    }catch(e){}
+
+    // Rekomendasi cas jadi rupiah
+    let estimasiJarakAI = 0;
+    try{ const avgM = typeof hitungPrediksiAIWhKm==='function'? hitungPrediksiAIWhKm(): extra.avgWhKmGlobal; if(avgM>0) estimasiJarakAI = ((0.7 * (entries[0]?.cap_kwh||4) * 1000) / avgM); }catch(e){}
+    if(estimasiJarakAI>0 && extra.avgRpPerKmEfektif>0){
+      let sisaRp = estimasiJarakAI * extra.avgRpPerKmEfektif;
+      htmlExtra += `<div style="margin-top:8px; background:rgba(125,255,183,0.08); border:1px solid rgba(125,255,183,0.15); border-radius:8px; padding:6px 8px; font-size:11px; color:#c8ffdf;">🔋 Sisa 100%→30% ≈ ${Math.round(estimasiJarakAI)} km ≈ <strong>${fmtRp(Math.round(sisaRp))}</strong> potensi pendapatan. Baterai kamu bukan cuma km, tapi duit. Cas malam di rumah = gratis, SPKLU = ${fmtRp(Math.round(extra.biayaSpklu||0))} sudah keluar.</div>`;
+    }
+  } else {
+    htmlExtra += `<div style="margin-top:10px; font-size:11px; color:#6b7fa2; font-style:italic;">💡 Buka SiGan sekali biar BattLog bisa hitung laba/km, km muter kosong, dan prediksi sisa baterai jadi rupiah.</div>`;
   }
 
   boxAI.innerHTML = `
     <div style="font-weight: 800; font-size:14px; color:${warnaIndikator}; margin-bottom:4px;">${status}</div>
-    <div style="font-size:12.5px; color:#eaf2ff; font-family: sans-serif; line-height:1.45;">
-       Prediksi konsumsi berbasis pembobotan 5 trip terakhirmu berada di angka <strong>${wh} Wh/km</strong>. ${saranTeknis}
+    <div style="font-size:12.5px; color:#eaf2ff; line-height:1.45;">
+       Prediksi AI 5 trip terakhir <strong>${wh} Wh/km</strong>. ${saranTeknis}
     </div>
+    ${htmlExtra}
   `;
 }
 
@@ -1207,12 +1254,14 @@ function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.ge
 
 function renderDasbor(){
   let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
+  let totalEnergiKwh=0;
   let lastCap = (entries[0] && entries[0].cap_kwh) || 4.0;
   let movingWhList = [];
   
   entries.forEach((e)=>{ 
     const c=calcEntry(e); 
     jarak+=c.jarak; 
+    totalEnergiKwh+=c.energi_terpakai;
     if(isSpklu(e)){
       biayaSpklu+=c.biaya;
     } else {
@@ -1233,6 +1282,115 @@ function renderDasbor(){
   document.getElementById('stat_whkm').textContent = n ? Math.round(avgWhKmGlobal)+' Wh/km' : '– Wh/km';
   document.getElementById('stat_biaya_rumah').textContent = fmtRp(biayaRumah);
   document.getElementById('stat_biaya_spklu').textContent = fmtRp(biayaSpklu);
+
+  // ===== INTEGRASI SIGAN - HITUNG LABA REAL, KM MUTER, RP/KWH =====
+  try{
+    const safeParseLocal = (k)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } };
+    const incomeMap = safeParseLocal('maka_cross_sigan_income') || {};
+    const kmMap = safeParseLocal('maka_cross_sigan_km') || {};
+    const shiftMap = safeParseLocal('siganShiftData') || {};
+    let totalIncome = 0, totalKmEfektif = 0;
+    Object.values(incomeMap).forEach(v=> totalIncome += Number(v||0));
+    Object.values(kmMap).forEach(v=> totalKmEfektif += Number(v||0));
+    
+    const elStatus = document.getElementById('stat_integrasi_status');
+    if(totalIncome>0){
+      if(elStatus) { elStatus.textContent = 'Terhubung ✓ '+Object.keys(incomeMap).length+' hari'; elStatus.style.color = '#7dffb7'; }
+    } else {
+      if(elStatus) { elStatus.textContent = 'Menunggu SiGan - buka SiGan sekali'; elStatus.style.color = '#ff8a80'; }
+    }
+
+    // Km Muter Kosong
+    let kmMuter = Math.max(0, jarak - totalKmEfektif);
+    let effRute = jarak>0 ? (totalKmEfektif / jarak * 100) : 0;
+    
+    // Laba bersih hanya potong SPKLU (rumah gratis sesuai permintaan)
+    let labaBersih = totalIncome - biayaSpklu;
+    let labaPerKm = jarak>0 ? labaBersih / jarak : 0;
+    let rpPerKwh = totalEnergiKwh>0 ? totalIncome / totalEnergiKwh : 0;
+    let labaPerKwh = totalEnergiKwh>0 ? labaBersih / totalEnergiKwh : 0;
+    let avgRpPerKmEfektif = totalKmEfektif>0 ? totalIncome / totalKmEfektif : (jarak>0? totalIncome/jarak:0);
+    let avgRpPerKmTotal = jarak>0 ? totalIncome / jarak : 0;
+
+    const elLabaKm = document.getElementById('stat_laba_km');
+    const elLabaKmSub = document.getElementById('stat_laba_km_sub');
+    const elRpKwh = document.getElementById('stat_rp_kwh');
+    const elRpKwhSub = document.getElementById('stat_rp_kwh_sub');
+    const elKmMuter = document.getElementById('stat_km_muter');
+    const elKmMuterSub = document.getElementById('stat_km_muter_sub');
+    const elEffRute = document.getElementById('stat_eff_rute');
+    const elEffRuteSub = document.getElementById('stat_eff_rute_sub');
+
+    if(elLabaKm) elLabaKm.textContent = totalIncome>0 ? fmtRp(Math.round(labaPerKm))+'/km' : '–';
+    if(elLabaKmSub) elLabaKmSub.textContent = totalIncome>0 ? `Bruto ${fmtRp(Math.round(avgRpPerKmTotal))}/km → Netto ${fmtRp(Math.round(labaPerKm))}/km | Laba ${fmtRp(Math.round(labaBersih))}` : 'Buka SiGan dulu';
+    if(elRpKwh) elRpKwh.textContent = totalIncome>0 ? fmtRp(Math.round(rpPerKwh))+'/kWh' : '–';
+    if(elRpKwhSub) elRpKwhSub.textContent = totalIncome>0 ? `Laba ${fmtRp(Math.round(labaPerKwh))}/kWh | ${totalEnergiKwh.toFixed(2)} kWh terpakai` : '';
+    if(elKmMuter) elKmMuter.textContent = totalIncome>0 ? Math.round(kmMuter)+' km' : '–';
+    if(elKmMuterSub) elKmMuterSub.textContent = totalIncome>0 ? `${Math.round(totalKmEfektif)} km efektif dari ${Math.round(jarak)} km total | Buang ${(kmMuter* (totalEnergiKwh/jarak||0)).toFixed(2)} kWh` : 'Selisih odometer vs argo';
+    if(elEffRute) elEffRute.textContent = totalIncome>0 ? effRute.toFixed(1)+'%' : '–';
+    if(elEffRuteSub) {
+      let txt = '';
+      if(effRute>=85) txt = '🔥 Rute sangat efisien, jarang muter kosong';
+      else if(effRute>=65) txt = '💎 Cukup efisien, masih ada muter';
+      else if(effRute>=40) txt = '⚠️ Banyak muter kosong, boros baterai';
+      else if(totalIncome>0) txt = '🚨 Muter kosong dominan, cek strategi mangkal';
+      elEffRuteSub.textContent = txt;
+      elEffRute.style.color = effRute>=75 ? '#7dffb7' : effRute>=50 ? '#ffdd53' : '#ff8a80';
+    }
+
+    // Sisa Baterai = Rupiah
+    const elSisaRp = document.getElementById('stat_sisa_rp');
+    const elSisaDetail = document.getElementById('stat_sisa_rp_detail');
+    let estimasiJarakAI = 0;
+    try{ const avgMoving = typeof hitungPrediksiAIWhKm==='function'? hitungPrediksiAIWhKm(): avgWhKmGlobal; if(avgMoving>0) estimasiJarakAI = ((0.7 * lastCap * 1000) / avgMoving); }catch(e){}
+    if(elSisaRp && totalIncome>0 && estimasiJarakAI>0){
+      let sisaRp = estimasiJarakAI * avgRpPerKmEfektif;
+      elSisaRp.textContent = fmtRp(Math.round(sisaRp)) + ` (${Math.round(estimasiJarakAI)} km)`;
+      if(elSisaDetail) elSisaDetail.textContent = `Estimasi 100%→30% = ${Math.round(estimasiJarakAI)} km ≈ ${fmtRp(Math.round(sisaRp))} potensi pendapatan. ${avgRpPerKmEfektif>0? 'Rata-rata '+fmtRp(Math.round(avgRpPerKmEfektif))+'/km efektif.':''}`;
+    }
+
+    // Rekomendasi Cas berdasarkan shift & SOH
+    const elRekom = document.getElementById('stat_cas_rekom');
+    if(elRekom){
+      let rekomTxt = '';
+      // Baca target global SiGan
+      let globalTarget = 0;
+      try{ globalTarget = Number(localStorage.getItem('siganGlobalTarget')||0); }catch(e){}
+      if(totalIncome>0 && avgRpPerKmEfektif>0 && globalTarget>0){
+        let needKm = globalTarget / avgRpPerKmEfektif;
+        let needKwh = needKm * (avgWhKmGlobal||35) / 1000;
+        let needPct = (needKwh / (lastCap||4)) * 100;
+        needPct = Math.min(100, Math.max(20, Math.round(needPct+10)));
+        rekomTxt += `🎯 Target Rp ${ (globalTarget/1000).toFixed(0)}k butuh ±${Math.round(needKm)} km ≈ ${needKwh.toFixed(2)} kWh → Cas ke ${needPct}% cukup. `;
+      }
+      // Baca shift hari ini/besok
+      try{
+        const todayStr = new Date().toLocaleDateString('sv-SE');
+        const todayShift = shiftMap[todayStr];
+        if(todayShift && todayShift.start){
+          rekomTxt += ` Shift hari ini ${todayShift.start}-${todayShift.end||'?'} | `;
+        }
+      }catch(e){}
+      // SOH warning
+      try{
+        const sohHist = JSON.parse(localStorage.getItem('maka_soh_history')||'[]');
+        if(sohHist.length>=3){
+          const last3 = sohHist.slice(0,3);
+          const avg = last3.reduce((a,b)=>a+b,0)/last3.length;
+          if(avg < 2.0){ rekomTxt += ' SOH mulai turun, usahakan cas 80-90% saja jika tidak kejar target. '; }
+        }
+      }catch(e){}
+      if(kmMuter>0 && effRute<60){
+        rekomTxt += `⚠️ ${Math.round(kmMuter)} km muter kosong terdeteksi, coba kurangi muter cari order, hemat ${ (kmMuter* (avgWhKmGlobal||35)/1000).toFixed(2)} kWh.`;
+      }
+      if(!rekomTxt) rekomTxt = '💡 Buka SiGan sekali agar BattLog bisa hitung rekomendasi cas berbasis pendapatan.';
+      elRekom.innerHTML = rekomTxt;
+    }
+
+    // Simpan untuk AI insight
+    window._battlogAIExtra = { totalIncome, totalKmEfektif, kmMuter, effRute, labaBersih, labaPerKm, rpPerKwh, labaPerKwh, avgRpPerKmEfektif, totalEnergiKwh, jarak, biayaSpklu, biayaRumah, avgWhKmGlobal };
+  }catch(err){ console.log('Integrasi SiGan error', err.message); }
+
   
   const estimasiEl = document.getElementById('stat_estimasi');
   const noteEl = document.getElementById('estimasi_note');
@@ -1730,7 +1888,7 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
   setTimeout(hookSaveEntry, 500);
   setTimeout(hookDelete, 500);
   // Interval aman sebagai backup jika user buka File 2 tanpa save
-  setInterval(buildAndSend, 60000) // hemat batere: tiap 1 menit;
+  setInterval(buildAndSend, 60000); // hemat batere 1 menit
   // Kirim pertama kali saat load
   setTimeout(buildAndSend, 1000);
   
@@ -1805,7 +1963,7 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
 
   // Polling untuk tab yang sama + init
   setTimeout(bacaDataSiGan, 1200);
-  setInterval(bacaDataSiGan, 60000) // hemat batere: tiap 1 menit;
+  setInterval(bacaDataSiGan, 60000); // hemat batere 1 menit
 
   // Expose untuk debug & untuk update app nanti
   window.bacaDataSiGan = bacaDataSiGan;
@@ -1820,48 +1978,6 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
   };
 
   console.log('BattLog Receiver aktif: Siap baca bruto/km dari SiGan via maka_cross_sigan_income');
-})();
-</script>
-
-
-<script id="sync-lamp-script">
-(function(){
-  function fmt(t){ if(!t) return ""; var d=new Date(t); return d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
-  function cek(){
-    var dot=document.getElementById('sigan-sync-dot');
-    var txt=document.getElementById('sigan-sync-text');
-    var tm=document.getElementById('sigan-sync-time');
-    if(!dot||!txt) return;
-    var last=parseInt(localStorage.getItem('sigan_hub_last_update')||'0');
-    var diff=Date.now()-last;
-    var hasLake=!!localStorage.getItem('UNIVERSAL_LAKE_V1');
-    if(hasLake && diff<8000){
-      dot.classList.add('active');
-      txt.textContent='AUTO-SYNC AKTIF';
-      txt.style.color='#00e676';
-      if(tm) tm.textContent='update '+fmt(last);
-    } else if(hasLake){
-      dot.classList.add('active');
-      txt.textContent='TERHUBUNG';
-      txt.style.color='#7dffb7';
-      dot.classList.remove('active');
-      if(tm) tm.textContent='last '+fmt(last);
-    } else {
-      dot.classList.remove('active');
-      txt.textContent='SYNC STANDBY';
-      txt.style.color='#8aa0c6';
-      if(tm) tm.textContent='';
-    }
-  }
-  setInterval(cek,3000);
-  setTimeout(cek,800);
-  window.addEventListener('storage', function(e){
-    if(e.key==='sigan_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1'){
-      var dot=document.getElementById('sigan-sync-dot');
-      var txt=document.getElementById('sigan-sync-text');
-      if(dot){ dot.classList.add('active'); txt.textContent='BERTUKAR DATA...'; setTimeout(cek,1300); }
-    }
-  });
 })();
 </script>
 
