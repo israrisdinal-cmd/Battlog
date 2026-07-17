@@ -1233,12 +1233,61 @@ function renderList(){
   const box=document.getElementById('listBox');
   const list = entries.filter(e=>!q|| ((e.charger||'')+' '+(e.lokasi||'')).toLowerCase().includes(q));
   if(!list.length){ box.innerHTML='<div class="maka-card text-[#6b7fa2] text-sm">Belum ada catatan.</div>'; return; }
+  
+  // Siapkan map SiGan km per tanggal untuk hitung muter per sesi
+  let kmMap = {};
+  try{
+    const raw = localStorage.getItem('maka_cross_sigan_km');
+    if(raw) kmMap = JSON.parse(raw);
+    else {
+      const lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
+      if(lakeRaw){
+        const lake = JSON.parse(lakeRaw);
+        if(lake && lake.cross && lake.cross.maka_cross_sigan_km) kmMap = lake.cross.maka_cross_sigan_km;
+      }
+    }
+  }catch(e){}
+  
+  // Group entries per tanggal untuk distribusi proporsional
+  let entriesByDate = {};
+  list.forEach(e=>{ if(!entriesByDate[e.tanggal]) entriesByDate[e.tanggal]=[]; entriesByDate[e.tanggal].push(e); });
+  let muterPerEntry = {};
+  for(let tgl in entriesByDate){
+    let dayList = entriesByDate[tgl];
+    let totalEvDay = dayList.reduce((acc,ee)=>{ try{ return acc + (calcEntry(ee).jarak||0); }catch(e){return acc;} },0);
+    let totalSiganDay = kmMap[tgl] ? Number(kmMap[tgl]||0) : 0;
+    if(totalEvDay<=0.1 || totalSiganDay<=0.1){
+      dayList.forEach(ee=>{ muterPerEntry[ee.id] = {evKm: 0, siganKm: 0, muter: 0, noSiGan:true}; try{ muterPerEntry[ee.id].evKm = calcEntry(ee).jarak||0; }catch(e){} });
+      continue;
+    }
+    dayList.forEach(ee=>{
+      let evKm = 0; try{ evKm = calcEntry(ee).jarak||0; }catch(e){}
+      let prop = totalEvDay>0 ? evKm/totalEvDay : 0;
+      let siganAlloc = totalSiganDay * prop;
+      let muter = Math.max(0, evKm - siganAlloc);
+      if(muter>100) muter = Math.min(muter, evKm*0.8);
+      muterPerEntry[ee.id] = {evKm, siganKm: siganAlloc, muter, noSiGan:false};
+    });
+  }
+  
   box.innerHTML=list.map(e=>{ const c=calcEntry(e);
     const hasCharger = e.charger && e.batt_akhir < c.targetCas;
     const jamSaved = e.waktu_selesai_riil || '';
-    
     const infoEstimasiTeks = e.estimasi_selesai ? ` <span style="color:#8aa0c6;">(Est AI: ${e.estimasi_selesai})</span>` : '';
-
+    const muterInfo = muterPerEntry[e.id];
+    let muterBadge = '';
+    if(muterInfo){
+      if(muterInfo.noSiGan){
+        muterBadge = `<div style="margin-top:8px; padding:6px 8px; background:rgba(255,138,128,0.08); border:1px dashed rgba(255,138,128,0.2); border-radius:8px; font-size:11px; color:#ff8a80;">⚠️ SiGan tgl ini jarak 0, muter gak bisa dihitung.</div>`;
+      } else {
+        let pct = muterInfo.evKm>0 ? (muterInfo.muter/muterInfo.evKm*100) : 0;
+        let color = pct>50 ? '#ff8a80' : pct>30 ? '#ffdd53' : '#7dffb7';
+        muterBadge = `<div style="margin-top:8px; padding:6px 8px; background:rgba(17,29,53,0.6); border:1px solid #1e2d4a; border-radius:8px; font-size:11px; line-height:1.4;">
+          <div style="display:flex; justify-content:space-between;"><span style="color:#8aa0c6;">📦 Sesi: ${muterInfo.evKm.toFixed(1)} km (km ${e.km_awal}→${e.km_akhir})</span><span style="color:#7dffb7;">Efektif: ${muterInfo.siganKm.toFixed(1)} km</span></div>
+          <div style="margin-top:2px; color:${color}; font-weight:700;">↳ Muter sesi ini: ${muterInfo.muter.toFixed(1)} km (${pct.toFixed(1)}%)</div>
+        </div>`;
+      }
+    }
     const bmsComponent = hasCharger ? `
       <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #1e2d4a; display:flex; align-items:center; gap:8px;">
         <span style="font-size:11px; color:#8aa0c6; font-weight:600;">Jam Selesai Cas Riil:</span>
@@ -1248,12 +1297,12 @@ function renderList(){
         </button>
       </div>
     ` : '';
-
     return `<div class="maka-card">
-      <div class="flex justify-between text-[12px] text-[#8aa0c6] mb-1"><span>${e.tanggal}</span><span>${c.jarak} km • ${Math.round(c.wh_per_km)||0} Wh/km</span></div>
+      <div class="flex justify-between text-[12px] text-[#8aa0c6] mb-1"><span>${e.tanggal} • Sesi Cas</span><span>${c.jarak} km • ${Math.round(c.wh_per_km)||0} Wh/km</span></div>
       <div class="font-semibold mb-1">${e.lokasi||'–'} <span style="color:#7dffb7"> ${fmtRp(c.biaya)}</span></div>
-      <div class="text-[13px] text-[#9ab8e6] mb-2">Spesifikasi: Kapasitas ${e.cap_kwh || 4.0} kWh • Charger ${e.charger||'–'}${infoEstimasiTeks}</div>
-      <div class="flex gap-2 text-[12px]">
+      <div class="text-[13px] text-[#9ab8e6] mb-2">Spesifikasi: Kapasitas ${e.cap_kwh || 4.0} kWh • Charger ${e.charger||'–'}${infoEstimasiTeks} • <strong>km ${e.km_awal}→${e.km_akhir}</strong> = ${c.jarak} km/sesi</div>
+      ${muterBadge}
+      <div class="flex gap-2 text-[12px] mt-2">
         <button onclick="startEdit('${e.id}')" class="pill">Edit</button>
         <button onclick="deleteEntry('${e.id}')" class="pill-danger">Hapus</button>
       </div>
@@ -1404,16 +1453,37 @@ function renderDasbor(){
     let hariTanpaSiGan = 0;
     let hariValid = 0;
     try{
-      // Build map EV km per tanggal dari filtered entries
+      // Build map EV km per tanggal - FIX V3.2: pakai max-min per hari (km real), bukan SUM biar gak dobel
+      // Sesuai masukan user: km real sehari = sisa baterai & setelah dicas = km_akhir terakhir - km_awal pertama
       let evKmPerTgl = {};
+      let evEntriesPerTgl = {};
       (filteredEntriesForAI||[]).forEach(e=>{
         try{
           let tgl = e.tanggal;
           if(!tgl) return;
-          let c = calcEntry(e);
-          evKmPerTgl[tgl] = (evKmPerTgl[tgl]||0) + (c.jarak||0);
+          if(!evEntriesPerTgl[tgl]) evEntriesPerTgl[tgl]=[];
+          evEntriesPerTgl[tgl].push(e);
         }catch(e){}
       });
+      for(let tgl in evEntriesPerTgl){
+        let list = evEntriesPerTgl[tgl];
+        // sort by km_awal
+        list.sort((a,b)=> (Number(a.km_awal)||0) - (Number(b.km_awal)||0));
+        let minAwal = Math.min(...list.map(x=>Number(x.km_awal)||0));
+        let maxAkhir = Math.max(...list.map(x=>Number(x.km_akhir)||0));
+        let sumJarak = list.reduce((acc,ee)=>{ try{ return acc + (calcEntry(ee).jarak||0); }catch(e){return acc;} },0);
+        let realKm = maxAkhir - minAwal;
+        // Validasi: realKm harus >0 dan <400km/hari, dan tidak jauh beda dari sum (toleransi dobel)
+        // Kalau user isi km_awal ngaco (0 terus), pakai sum sebagai fallback
+        if(realKm>0 && realKm<400){
+          // Kalau sum > realKm*1.3 berarti ada dobel log, pakai realKm
+          // Kalau sum < realKm, pakai realKm (lebih akurat)
+          evKmPerTgl[tgl] = realKm;
+        } else {
+          // fallback: sum tapi cap 300km
+          evKmPerTgl[tgl] = Math.min(sumJarak, 350);
+        }
+      }
       // Hitung per tanggal hanya jika ada data di kedua sisi
       for(let tgl in evKmPerTgl){
         let evKm = evKmPerTgl[tgl]||0;
