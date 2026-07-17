@@ -190,16 +190,17 @@
   <span id="sigan-sync-time"></span>
 </div>
 
-    <!-- TAMPILAN BARU STATUS LOGIC ENGINE AI -->
-    <div class="card" style="border-left: 5px solid #2b8cff; margin: 0 0 10px 0; padding: 12px 15px; display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px;">🤖</span>
-            <div>
-                <div style="font-size: 13px; font-weight: bold; color: #ffffff;">Intelligent Pricing Engine Active</div>
-                <div style="font-size: 10px; color: var(--muted);">Tarif dihitung otomatis menggunakan kecerdasan logika histori & kondisi real-time.</div>
-            </div>
+
+    <button class="btn-secondary" style="margin: 0 0 10px 0;" onclick="toggleTariffSettings()">⚙️ Atur Tarif Layanan</button>
+
+    <div id="tariffSettingsPanel" class="card hidden" style="border-left: 5px solid #00e676; margin-bottom: 15px;">
+        <div style="font-size: 13px; font-weight:bold; color:#ffffff; margin-bottom: 4px;">Pengaturan Tarif Auto-Isi</div>
+        <div style="font-size: 11px; color:var(--muted)aaa; margin-bottom: 12px; line-height:1.5;">
+            Auto-isi belajar dari <strong>Median (nilai tengah) Rp/km histori catatanmu sendiri</strong> per layanan (minimal 3 catatan).
         </div>
-        <span style="font-size: 10px; font-weight: bold; color: #2b8cff; background: rgba(43,140,255,0.15); padding: 4px 8px; border-radius: 6px;">AI LOGIC V2</span>
+        <div id="tariffSettingsFields"></div>
+        <button onclick="saveTariffSettings()">Simpan Tarif Cadangan</button>
+        <button class="btn-secondary" style="margin-top: 8px;" onclick="resetTariffDefaults()">Kembalikan ke Default</button>
     </div>
 
     <div class="summary-grid">
@@ -256,13 +257,13 @@
         <select id="category" onchange="autoFillAmount()"></select>
         
         <label style="font-size: 11px; color: #aaaaaa; font-weight: bold; margin-bottom: 2px; display: block; margin-top: 10px;">🕒 Jam Waktu Transaksi</label>
-        <input type="time" id="txTime" style="margin-bottom: 10px; padding: 10px;" onchange="lockTimeManual(); autoFillAmount()">
+        <input type="time" id="txTime" style="margin-bottom: 10px; padding: 10px;" onchange="lockTimeManual()">
 
         <input type="number" id="distance" placeholder="Jarak (km)" step="0.1" min="0" oninput="autoFillAmount()">
         <input type="text" id="amount" inputmode="numeric" onkeyup="formatRupiah(this)" placeholder="Jumlah (Rp)">
-        <div id="amountSourceHint" style="font-size:11px; color:#00e676; margin: 4px 0 10px 2px; line-height: 1.4; font-weight: 500;"></div>
+        <div id="amountSourceHint" style="font-size:10px; color:#777777; margin: -2px 0 8px 2px;"></div>
         
-        <input type="text" id="note" placeholder="Keterangan / Catatan" oninput="autoFillAmount()">
+        <input type="text" id="note" placeholder="Keterangan / Catatan">
         
         <div class="quick-notes">
             <button class="note-chip" onclick="setQuickNote('Parkir')">+ Parkir</button>
@@ -289,63 +290,63 @@
         </div>
         
         <div class="card" style="border-left: 5px solid #e040fb;">
-            <div style="font-size: 13px; color:var(--muted); margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Efisiensi Waktu (Modal Waktu)</div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Efisiensi Waktu (Modal Waktu)</div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-size: 13px; color:var(--muted);">Total Waktu Mengaspal:</span>
+                <span style="font-size: 13px; color:var(--muted)aaa;">Total Waktu Mengaspal:</span>
                 <span style="font-size: 14px; font-weight:bold; color:#ffffff;" id="rekapTotalHours">0 jam</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-size: 13px; color:var(--muted);">Rata<sup>2</sup> Durasi Shift Kerja:</span>
+                <span style="font-size: 13px; color:var(--muted)aaa;">Rata<sup>2</sup> Durasi Shift Kerja:</span>
                 <span style="font-size: 14px; font-weight:bold; color:#ffffff;" id="rekapAvgShift">0 jam/hari</span>
             </div>
             <div style="display: flex; justify-content: space-between;">
-                <span style="font-size: 13px; color:var(--muted);">Rata<sup>2</sup> Netto RP/JAM:</span>
+                <span style="font-size: 13px; color:var(--muted)aaa;">Rata<sup>2</sup> Netto RP/JAM:</span>
                 <span style="font-size: 15px; font-weight:bold; color:#e040fb;" id="rekapAvgRpPerHour">Rp 0 /jam</span>
             </div>
         </div>
 
         <div class="card" style="border-left: 5px solid #ff5252;">
-            <div style="font-size: 13px; color:var(--muted); margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">📊 Analisis Efisiensi Blok Jam Kerja (Jam Gurih)</div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">📊 Analisis Efisiensi Blok Jam Kerja (Jam Gurih)</div>
             <div id="rekapHourlyContainer"></div>
         </div>
 
         <div class="card">
-            <div style="font-size: 13px; color:var(--muted); margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Kontribusi Layanan (Pendapatan)</div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Kontribusi Layanan (Pendapatan)</div>
             <div id="rekapBreakdownContainer"></div>
         </div>
         
         <div class="card" style="border-left: 5px solid #40c4ff;">
-            <div style="font-size: 13px; color:var(--muted); margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Margin & Tip per Layanan</div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Margin & Tip per Layanan</div>
             <div id="rekapRatesContainer" style="font-size: 13px; color: #ffffff; display: flex; flex-direction: column; gap: 12px;"></div>
         </div>
 
         <div class="card" style="border-left: 5px solid #ffb300;">
-            <div style="font-size: 13px; color:var(--muted); margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Batas Waktu Optimal (Evaluasi Lelah vs Cuan)</div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Batas Waktu Optimal (Evaluasi Lelah vs Cuan)</div>
             <div id="rekapTiersContainer" style="font-size: 13px; color: #ffffff; display: flex; flex-direction: column; gap: 12px;"></div>
         </div>
 
         <div class="card" style="border-left: 5px solid #00e676;">
-            <div style="font-size: 13px; color:var(--muted); margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Tren Efisiensi Netto per Jam (Hari Gurih)</div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Tren Efisiensi Netto per Jam (Hari Gurih)</div>
             <div id="rekapDaysContainer"></div>
         </div>
         
         <div class="card" style="border-left: 5px solid #00e676;">
-            <div style="font-size: 13px; color:var(--muted);">Total Bruto</div>
+            <div style="font-size: 13px; color:var(--muted)aaa;">Total Bruto</div>
             <div style="font-size: 18px; font-weight:bold; color:#ffffff; margin: 5px 0;" id="rekapIncome">Rp 0</div>
             
-            <div style="font-size: 13px; color:var(--muted); margin-top: 10px;">Total Pengeluaran</div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-top: 10px;">Total Pengeluaran</div>
             <div style="font-size: 18px; font-weight:bold; color:#ff5252; margin: 5px 0;" id="rekapExpense">Rp 0</div>
             <hr style="border: 0; border-top: 1px solid #333333; margin: 10px 0;">
             
-            <div style="font-size: 13px; color:var(--muted);">Total Netto</div>
+            <div style="font-size: 13px; color:var(--muted)aaa;">Total Netto</div>
             <div style="font-size: 20px; font-weight:bold; color:#00e676; margin: 5px 0;" id="rekapBalance">Rp 0</div>
         </div>
 
         <div class="card" style="border-left: 5px solid #888888;">
-            <div style="font-size: 13px; color:var(--muted);">Total Jarak Produktif</div>
+            <div style="font-size: 13px; color:var(--muted)aaa;">Total Jarak Produktif</div>
             <div style="font-size: 16px; font-weight:bold; color:#ffffff; margin: 5px 0;" id="rekapKm">0 km</div>
             
-            <div style="font-size: 13px; color:var(--muted); margin-top: 10px;">Rata-rata RP/KM (Total)</div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-top: 10px;">Rata-rata RP/KM (Total)</div>
             <div style="font-size: 16px; font-weight:bold; color:#40c4ff; margin: 5px 0;" id="rekapEfficiency">Rp 0 /km</div>
         </div>
 
@@ -365,8 +366,7 @@
             "Pengeluaran": ["Bahan bakar", "Makan/minum", "Lain-lain"]
         };
 
-        // Fallback default jika data histori kosong sama sekali
-        const fallbackTariffs = {
+        const defaultTariffConfig = {
             "Goride":         { baseKm: 4, base: 11200, perKm: 2800 },
             "Goride Hemat":   { baseKm: 4, base: 10200, perKm: 2550 },
             "Goride Comfort": { baseKm: 4, base: 13500, perKm: 3300 },
@@ -392,134 +392,112 @@
             isTimeManuallyLocked = true;
         }
 
-        // ==========================================
-        // UTAMA: ENGINE LOGIKA TARIF AI DINAMIS (V2)
-        // ==========================================
-        function calculateAiTariff(cat, dist, timeStr, noteStr) {
-            const config = fallbackTariffs[cat] || { baseKm: 2, base: 10000, perKm: 2500 };
+        function getTariffConfig() {
+            const stored = localStorage.getItem('siganTariffConfig');
+            const merged = JSON.parse(JSON.stringify(defaultTariffConfig));
+            if (!stored) return merged;
+            try {
+                const parsed = JSON.parse(stored);
+                for (let cat in merged) {
+                    if (parsed[cat]) Object.assign(merged[cat], parsed[cat]);
+                }
+                return merged;
+            } catch (e) {
+                return merged;
+            }
+        }
+
+        function toggleTariffSettings() {
+            const panel = document.getElementById('tariffSettingsPanel');
+            if (panel.classList.contains('hidden')) renderTariffSettingsForm();
+            panel.classList.toggle('hidden');
+        }
+
+        function renderTariffSettingsForm() {
+            const cfg = getTariffConfig();
+            const container = document.getElementById('tariffSettingsFields');
+            container.innerHTML = "";
+            for (let cat in cfg) {
+                const c = cfg[cat];
+                container.innerHTML += `
+                    <div style="margin-bottom:14px; border-bottom:1px dashed #333333; padding-bottom:10px;">
+                        <div style="font-size:13px; font-weight:bold; color:#ffffff; margin-bottom:6px;">${cat}</div>
+                        <div style="display:flex; gap:8px; align-items:center; font-size:11px; color:var(--muted)aaa; margin-bottom:6px;">
+                            <span style="flex:1;">Tarif ${c.baseKm} km pertama (Rp)</span>
+                            <input type="number" id="cfg-${cat}-base" value="${c.base}" style="width:100px; padding:6px; margin:0;">
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; font-size:11px; color:var(--muted)aaa;">
+                            <span style="flex:1;">Tarif per km berikutnya (Rp)</span>
+                            <input type="number" id="cfg-${cat}-perkm" value="${c.perKm}" style="width:100px; padding:6px; margin:0;">
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function saveTariffSettings() {
+            const cfg = getTariffConfig();
+            for (let cat in cfg) {
+                const baseInput = document.getElementById(`cfg-${cat}-base`);
+                const perKmInput = document.getElementById(`cfg-${cat}-perkm`);
+                const baseVal = Number(baseInput.value);
+                const perKmVal = Number(perKmInput.value);
+                if (baseInput.value !== "" && !isNaN(baseVal)) cfg[cat].base = baseVal;
+                if (perKmInput.value !== "" && !isNaN(perKmVal)) cfg[cat].perKm = perKmVal;
+            }
+            localStorage.setItem('siganTariffConfig', JSON.stringify(cfg));
+            document.getElementById('tariffSettingsPanel').classList.add('hidden');
+            autoFillAmount();
+            alert("Tarif berhasil disimpan!");
+        }
+
+        function resetTariffDefaults() {
+            if (!confirm("Kembalikan semua tarif ke nilai default bawaan?")) return;
+            localStorage.removeItem('siganTariffConfig');
+            renderTariffSettingsForm();
+            autoFillAmount();
+        }
+
+        const LEARN_MIN_ENTRIES = 3;
+        const LEARN_WINDOW = 15;
+
+        function getLearnedRate(cat) {
+            const cfg = getTariffConfig();
+            const rateCfg = cfg[cat];
+            if (!rateCfg) return null;
+
             const data = JSON.parse(localStorage.getItem('siganData') || '[]');
-
-            // --- LOGIKA 1: ANGKA BERULANG (MODE) PADA TARIF DASAR ---
-            // Cari data argo rute pendek (<= baseKm) yang pernah dicatat
-            const shortTrips = data.filter(item => 
-                item.type === 'Pendapatan' && 
-                item.cat === cat && 
-                Number(item.dist) > 0 && 
-                Number(item.dist) <= config.baseKm &&
-                Number(item.amount) > 0
+            
+            const entries = data.filter(item =>
+                item.type === 'Pendapatan' &&
+                item.cat === cat &&
+                Number(item.dist) > rateCfg.baseKm &&
+                Number(item.amount) > rateCfg.base
             );
 
-            let aiBase = config.base;
-            let baseSource = "Sistem Default";
+            if (entries.length < LEARN_MIN_ENTRIES) return null;
 
-            if (shortTrips.length >= 2) {
-                const counts = {};
-                shortTrips.forEach(item => {
-                    const amt = Number(item.amount);
-                    counts[amt] = (counts[amt] || 0) + 1;
-                });
+            entries.sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)));
+            const recent = entries.slice(0, LEARN_WINDOW);
 
-                let maxCount = 0;
-                let modeAmount = aiBase;
-                for (let amt in counts) {
-                    if (counts[amt] > maxCount) {
-                        maxCount = counts[amt];
-                        modeAmount = Number(amt);
-                    }
-                }
-                if (maxCount >= 2) {
-                    aiBase = modeAmount;
-                    baseSource = `Pola Berulang (${maxCount}x di riwayat)`;
-                }
+            let individualRates = recent.map(item => {
+                let excessAmt = Number(item.amount) - rateCfg.base;
+                let excessKm = Number(item.dist) - rateCfg.baseKm;
+                return excessAmt / excessKm;
+            });
+
+            individualRates.sort((a, b) => a - b);
+            
+            let robustRatePerKm = 0;
+            let mid = Math.floor(individualRates.length / 2);
+            
+            if (individualRates.length % 2 !== 0) {
+                robustRatePerKm = individualRates[mid];
+            } else {
+                robustRatePerKm = (individualRates[mid - 1] + individualRates[mid]) / 2;
             }
 
-            // --- LOGIKA 2: DYNAMIC PER KM (MEDIAN OF EXCESS RATES) ---
-            const longTrips = data.filter(item => 
-                item.type === 'Pendapatan' && 
-                item.cat === cat && 
-                Number(item.dist) > config.baseKm &&
-                Number(item.amount) > aiBase
-            );
-
-            let aiPerKm = config.perKm;
-            let perKmSource = "Sistem Default";
-
-            if (longTrips.length >= 3) {
-                const excessRates = longTrips.map(item => {
-                    const excessAmt = Number(item.amount) - aiBase;
-                    const excessKm = Number(item.dist) - config.baseKm;
-                    return excessAmt / excessKm;
-                });
-
-                excessRates.sort((a, b) => a - b);
-                const mid = Math.floor(excessRates.length / 2);
-                let medianRate = (excessRates.length % 2 !== 0) 
-                    ? excessRates[mid] 
-                    : (excessRates[mid - 1] + excessRates[mid]) / 2;
-                
-                aiPerKm = medianRate;
-                perKmSource = `Median Riwayat (${longTrips.length} Rute Jauh)`;
-            }
-
-            // --- LOGIKA 3: RUSH HOUR FACTOR & NIGHT SURCHARGE ---
-            let timeFactor = 1.0;
-            let timeLabel = "";
-            if (timeStr) {
-                const [hh, mm] = timeStr.split(':').map(Number);
-                const minutes = hh * 60 + mm;
-                
-                // Commute Commotion (Morning Rush: 06:30 - 09:00)
-                if (minutes >= 390 && minutes <= 540) {
-                    timeFactor = 1.25;
-                    timeLabel = "Morning Rush Hour (+25%)";
-                }
-                // Commute Commotion (Evening Rush: 16:30 - 19:30)
-                else if (minutes >= 990 && minutes <= 1170) {
-                    timeFactor = 1.25;
-                    timeLabel = "Evening Rush Hour (+25%)";
-                }
-                // Night Rider (Late Night: 22:00 - 04:30)
-                else if (minutes >= 1320 || minutes <= 270) {
-                    timeFactor = 1.15;
-                    timeLabel = "Night Surcharge (+15%)";
-                }
-            }
-
-            // --- LOGIKA 4: NOTE-BASED ADAPTIVE MULTIPLIER (WEATHER/TRAFFIC) ---
-            let noteFactor = 1.0;
-            let noteLabel = "";
-            if (noteStr) {
-                const lowerNote = noteStr.toLowerCase();
-                if (lowerNote.includes("hujan") || lowerNote.includes("rain") || lowerNote.includes("basah") || lowerNote.includes("gerimis")) {
-                    noteFactor = 1.20;
-                    noteLabel = "Weather Surge (+20%)";
-                } else if (lowerNote.includes("macet") || lowerNote.includes("jam") || lowerNote.includes("red") || lowerNote.includes("antri")) {
-                    noteFactor = 1.10;
-                    noteLabel = "Traffic Surge (+10%)";
-                }
-            }
-
-            // --- CALCULATE BASE AND EXCESS ---
-            let basePart = aiBase;
-            let excessPart = 0;
-            if (dist > config.baseKm) {
-                excessPart = (dist - config.baseKm) * aiPerKm;
-            }
-
-            let totalCalculated = (basePart + excessPart) * timeFactor * noteFactor;
-            totalCalculated = Math.round(totalCalculated / 100) * 100; // Pembulatan Rp100
-
-            return {
-                amount: totalCalculated,
-                base: aiBase,
-                perKm: aiPerKm,
-                timeFactor,
-                timeLabel,
-                noteFactor,
-                noteLabel,
-                baseSource,
-                perKmSource
-            };
+            return { ratePerKm: robustRatePerKm, count: recent.length };
         }
 
         function switchTab(tabName) {
@@ -549,7 +527,6 @@
 
         function setQuickNote(text) {
             document.getElementById('note').value = text;
-            autoFillAmount();
         }
 
         function updateTarget() {
@@ -611,10 +588,7 @@
 
         function formatRupiah(input) {
             let val = input.value.replace(/[^0-9]/g, '');
-            input.value = val.replace(/\B(?=(\d{3})+(\d))/g, "$1.$2"); // Format titik ribuan standard
-            // Fallback standard regex rupiah
-            let clean = input.value.replace(/\./g, '');
-            input.value = clean.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            input.value = val.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         }
 
         function updateCategories() {
@@ -630,9 +604,6 @@
             autoFillAmount();
         }
 
-        // ==========================================
-        // AUTO FILL ENGINE DIHUBUNGKAN KE AI COGNITIVE
-        // ==========================================
         function autoFillAmount() {
             const type = document.getElementById('type').value;
             const hintEl = document.getElementById('amountSourceHint');
@@ -644,8 +615,6 @@
             const cat = document.getElementById('category').value;
             const dist = Number(document.getElementById('distance').value) || 0;
             const amountInput = document.getElementById('amount');
-            const time = document.getElementById('txTime').value;
-            const note = document.getElementById('note').value;
 
             if (dist <= 0) {
                 amountInput.value = '';
@@ -653,29 +622,37 @@
                 return;
             }
 
-            const aiResult = calculateAiTariff(cat, dist, time, note);
+            const cfg = getTariffConfig();
+            const rate = cfg[cat];
+            if (!rate) return;
 
-            if (aiResult.amount > 0) {
-                amountInput.value = aiResult.amount.toString();
+            let estimatedAmount = 0;
+            let source = '';
+
+            if (dist <= rate.baseKm) {
+                estimatedAmount = rate.base;
+                source = `🔒 Menggunakan Tarif Base Terkunci (${rate.baseKm} km pertama)`;
+            } 
+            else {
+                const learned = getLearnedRate(cat);
+
+                if (learned) {
+                    estimatedAmount = rate.base + (learned.ratePerKm * (dist - rate.baseKm));
+                    source = `📊 Base Rp ${rate.base.toLocaleString('id-ID')} + Tarif per km riil (≈Rp ${Math.round(learned.ratePerKm).toLocaleString('id-ID')}/km via Median dari ${learned.count} histori)`;
+                } else {
+                    estimatedAmount = rate.base + (rate.perKm * (dist - rate.baseKm));
+                    source = `⚙️ Dari tarif cadangan (histori kilometer bonus "${cat}" belum cukup)`;
+                }
+            }
+
+            estimatedAmount = Math.round(estimatedAmount / 100) * 100;
+
+            if (estimatedAmount > 0) {
+                amountInput.value = estimatedAmount.toString();
                 formatRupiah(amountInput);
             }
 
-            // Tampilkan narasi detail logika di bawah nominal
-            let debugStr = `🤖 AI Engine: Rp ${aiResult.amount.toLocaleString('id-ID')}<br>`;
-            debugStr += `↳ Batas Bawah: Rp ${Math.round(aiResult.base).toLocaleString('id-ID')} (${aiResult.baseSource})<br>`;
-            debugStr += `↳ Tarif Tambahan: Rp ${Math.round(aiResult.perKm).toLocaleString('id-ID')}/km (${aiResult.perKmSource})`;
-            
-            let activeSurges = [];
-            if (aiResult.timeFactor > 1.0) activeSurges.push(aiResult.timeLabel);
-            if (aiResult.noteFactor > 1.0) activeSurges.push(aiResult.noteLabel);
-
-            if (activeSurges.length > 0) {
-                debugStr += `<br><span style="color:#ffb300; font-weight:bold;">⚡ Surcharge Aktif: ${activeSurges.join(' + ')}</span>`;
-            }
-
-            if (hintEl) {
-                hintEl.innerHTML = debugStr;
-            }
+            if (hintEl) hintEl.innerText = source;
         }
 
         function saveData() {
@@ -823,6 +800,7 @@
         function getEvSpkluCostMap(){
           const map = {};
           try{
+            // Coba ambil dari lake dulu (paling lengkap), fallback ke raw maka_log_v1
             let makaLog = null;
             try{
               const lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
@@ -927,9 +905,13 @@
 
             let evSpkluCostToday = getEvSpkluCostForDate(targetDate);
             let totalExpenseWithEv = expense + evSpkluCostToday;
+            // Tampilkan expense total termasuk SPKLU, tapi simpan manual terpisah untuk breakdown
             let netBalance = income - totalExpenseWithEv;
+            // Update tampilan expense menjadi total (manual + SPKLU)
+            // Simpan untuk rekap: window last
             window._lastEvSpkluCostToday = evSpkluCostToday;
             window._lastManualExpenseToday = manualExpense;
+            // Override expense variable untuk UI agar mencerminkan total
             expense = totalExpenseWithEv;
 
             let netYieldPerKm = totalIncomeKm > 0 ? Math.round(netBalance / totalIncomeKm) : 0;
@@ -1049,11 +1031,13 @@
             });
 
 
-            // === BIAYA SPKLU DARI BATTLOG ===
+            // === TAMBAHAN: HITUNG BIAYA SPKLU ONLY DARI BATTLOG ===
             let evSpkluMap = getEvSpkluCostMap();
+            // Gabungkan ke dailyAgg dan totalExpense (hanya SPKLU)
             for(let tgl in evSpkluMap){
               let biayaSpklu = evSpkluMap[tgl]||0;
               if(biayaSpklu<=0) continue;
+              // cek apakah tanggal dalam periode rekap
               const p = tgl.split('-');
               const itemDate = new Date(p[0], p[1]-1, p[2]); itemDate.setHours(0,0,0,0);
               if(itemDate >= cutoffDate && itemDate <= anchorDate){
@@ -1237,7 +1221,7 @@
                 let infoText = t.data.count > 0
                     ? `<div style="text-align: right; font-size: 11px; line-height: 1.4;">
                         <span style="font-weight:bold; color:#ffb300;">Rp ${avg.toLocaleString('id-ID')}/jam</span><br>
-                        <span style="color:var(--muted);">${t.data.count} Hari Shift (${t.data.hours.toFixed(1)} Jam)</span>
+                        <span style="color:var(--muted)aaa;">${t.data.count} Hari Shift (${t.data.hours.toFixed(1)} Jam)</span>
                        </div>`
                     : `<span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data shift</span>`;
 
@@ -1261,7 +1245,7 @@
                 daysContainer.innerHTML += `
                     <div class="breakdown-row">
                         <div class="breakdown-label">
-                            <span>${d.name} <span style="font-size:10px; color:var(--muted);">(Net: Rp ${d.net.toLocaleString('id-ID')})</span></span>
+                            <span>${d.name} <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp ${d.net.toLocaleString('id-ID')})</span></span>
                             <span style="color:${barColor}; font-weight:bold;">Rp ${d.rpPerHour.toLocaleString('id-ID')}/jam</span>
                         </div>
                         <div class="breakdown-bg">
@@ -1273,13 +1257,13 @@
             });
 
             // ==========================================
-            // REKOMENDASI INSIGHT AI (INTELLIGENT INSIGHTS)
+            // MESIN INTEGRASI ANALISIS NARASI INTELIJEN AI
             // ==========================================
             const insightContainer = document.getElementById('rekapInsightContainer');
             insightContainer.innerHTML = "";
             
             if (totalIncome === 0) {
-                insightContainer.innerHTML = `<div style="color:var(--muted); font-style:italic; font-size:12px;">Belum ada data pergerakan di periode ini. Roda belum berputar, kumpulkan data tarikan dulu agar AI bisa menganalisis strategimu!</div>`;
+                insightContainer.innerHTML = `<div style="color:var(--muted)aaa; font-style:italic; font-size:12px;">Belum ada data pergerakan di periode ini. Roda belum berputar, kumpulkan data tarikan dulu agar AI bisa menganalisis strategimu!</div>`;
             } else {
                 let aiInsights = [];
                 
@@ -1305,19 +1289,24 @@
                     aiInsights.push(`⏰ <strong>Zona Waktu Emas:</strong> Rentang waktu <strong>${bestBlock.label}</strong> adalah tambang emasmu dengan efisiensi tertinggi per jam. Amankan jam ini untuk tidak off-bid.`);
                 }
 
-                // 3. Analisis Dinamis Berdasarkan Layanan Dominan
+                // 3. Analisis Dinamis Berdasarkan Layanan Dominan & Anomalinya
+                // Menghitung persentase kontribusi per layanan
                 let pGoride = ((incomeByCat["Goride"] || 0) + (incomeByCat["Goride Hemat"] || 0) + (incomeByCat["Goride Comfort"] || 0)) / totalIncome;
                 let pGofood = (incomeByCat["Gofood"] || 0) / totalIncome;
                 let pGosend = (incomeByCat["Gosend"] || 0) / totalIncome;
                 let pGomart = (incomeByCat["Gomart"] || 0) / totalIncome;
 
+                // Cek Anomali Goride
                 if (pGoride >= 0.25) {
                     let pctTxt = Math.round(pGoride * 100);
                     aiInsights.push(`🏍️ <strong>Analisis Peta Goride Group (${pctTxt}%):</strong> Layanan ini menyumbang porsi besar karena ongkosnya stabil dan bagus. <strong>Anomali Lapangan:</strong> Tingkat persaingan sesama driver sangat tinggi. <em>Saran AI:</em> Hindari menumpuk di area kerumunan basecamp driver lain. Gunakan strategi melipir tipis-tipis di radius luar hotspot demand.`);
                 }
 
+                // Cek Anomali Gofood
                 if (pGofood >= 0.25) {
                     let pctTxt = Math.round(pGofood * 100);
+                    let gofoodBrutoKm = serviceRates["Gofood"].km > 0 ? Math.round(serviceRates["Gofood"].amt / serviceRates["Gofood"].km) : 0;
+                    
                     let gofoodWarning = `🍔 <strong>Analisis Peta Gofood (${pctTxt}%):</strong> Kontribusi argo layanan bagus. <strong>Anomali Lapangan:</strong> Waktu tunggu resto rawan lama dan memotong jam kerja efektif.`;
                     if (avgRpPerHourPeriod < 22000) {
                         gofoodWarning += ` <span style="color:#ff5252;">(AI Mendeteksi Rp/Jam kamu drop, kemungkinan besar akibat terjebak antrean resto)</span>.`;
@@ -1326,6 +1315,7 @@
                     aiInsights.push(gofoodWarning);
                 }
 
+                // Cek Anomali Gosend
                 if (pGosend >= 0.20) {
                     let pctTxt = Math.round(pGosend * 100);
                     let gosendBrutoKm = serviceRates["Gosend"].km > 0 ? Math.round(serviceRates["Gosend"].amt / serviceRates["Gosend"].km) : 0;
@@ -1338,12 +1328,14 @@
                     aiInsights.push(gosendMsg);
                 }
 
+                // Cek Anomali Gomart
                 if (pGomart >= 0.10) {
                     let pctTxt = Math.round(pGomart * 100);
                     aiInsights.push(`🛒 <strong>Analisis Peta Gomart (${pctTxt}%):</strong> Layanan idaman! Waktu tunggu singkat di kasir mini market dan ongkosnya sangat bagus. <strong>Anomali Lapangan:</strong> Frekuensi orderan tergolong langka/jarang muncul. <em>Saran AI:</em> Sekalinya orderan Gomart melintas di layar hp-mu, jangan pernah dilewatkan, langsung sikat!`);
                 }
 
-                // 4. Analisis Biaya SPKLU
+                // 4. Rekomendasi Cross-Data Khusus (Kombinasi Tarif Rendah vs Jarak)
+                // 4.1 Analisis Biaya SPKLU (hanya SPKLU, rumah gratis)
                 let totalEvSpkluInPeriod = 0;
                 for(let k in evSpkluMap){
                   const pp = k.split('-'); const dd = new Date(pp[0], pp[1]-1, pp[2]); dd.setHours(0,0,0,0);
@@ -1358,6 +1350,7 @@
                     aiInsights.push("🚨 <strong>Koreksi Strategi AI:</strong> Akumulasi netto Rp/km kamu terlalu rendah karena didominasi paket jarak jauh berbiaya murah. Kurangi trip Gosend jarak ekstrem jika alokasi waktu tersebut bisa dipakai untuk 1-2 tarikan Goride pendek bermargin tebal.");
                 }
 
+                // Render ke HTML list
                 let htmlInsight = `<ul style="margin: 0; padding-left: 18px; font-size: 12.5px; color: #e0e0e0; line-height: 1.6; display: flex; flex-direction: column; gap: 10px;">`;
                 aiInsights.forEach(s => { htmlInsight += `<li>${s}</li>`; });
                 htmlInsight += `</ul>`;
@@ -1415,9 +1408,10 @@
         };
     </script>
 
-<!-- TAMBAHAN PENERIMA & PENGIRIM DATA -->
+<!-- TAMBAHAN PENERIMA & PENGIRIM DATA - TIDAK MERUBAH KODE SEMPURNA DI ATAS -->
 <script>
 (function(){
+  // --- HANYA MENAMBAH, TIDAK MENGUBAH ---
   var KEYS_SIGAN = ['siganData','siganShiftData','siganGlobalTarget','siganTariffConfig'];
   var KEYS_MAKA = ['maka_log_v1','maka_bms_history','maka_soh_history','factory_cap_kwh','factory_range_km','maka_soh_baseline','maka_soh_baseline_is_fallback','maka_soh_total_samples','maka_log_v1_lokasi_history','maka_charger_history','universal_custom_v','universal_custom_ah','maka_chat_id','sigan_hub_data','sigan_riwayat_harian','sigan_cross_ev_cost','maka_cross_summary'];
   var LAKE_KEY = 'UNIVERSAL_LAKE_V1';
@@ -1430,6 +1424,7 @@
     }catch(e){ return null; }
   }
 
+  // 1. BANGUN DANAU UNIVERSAL YANG BISA DIBACA FILE LAIN & KIRIM DATA SIGAN
   function buildAndSendSiGan(){
     try{
       var lake = {_updated: Date.now(), _source: 'sigan_sempurna', sigan: {}, maka: {}};
@@ -1437,28 +1432,45 @@
       for(var i=0;i<KEYS_MAKA.length;i++){ lake.maka[KEYS_MAKA[i]] = safeParse(KEYS_MAKA[i]); }
       try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
       
+      // Kirim ringkas untuk EV Log - FIX: toleran huruf & semua tipe yang ada amount
       var siganData = safeParse('siganData')||[];
       var incomeMap = {};
       var kmMap = {};
       for(var j=0;j<siganData.length;j++){
         var it = siganData[j];
-        if(it.type==='Pendapatan'){
-          incomeMap[it.date] = (incomeMap[it.date]||0)+Number(it.amount||0);
-          kmMap[it.date] = (kmMap[it.date]||0)+Number(it.dist||0);
+        if(!it) continue;
+        var t = (it.type||'').toString().toLowerCase();
+        var amt = Number(it.amount||it.bruto||it.total||0);
+        var dist = Number(it.dist||it.km||it.jarak||0);
+        var d = it.date || it.tanggal;
+        if(!d) continue;
+        // Hitung semua yang ada pendapatan (Pendapatan, bonus, dll) kecuali Pengeluaran murni
+        if(amt>0 && t!=='pengeluaran'){
+          incomeMap[d] = (incomeMap[d]||0)+amt;
+          kmMap[d] = (kmMap[d]||0)+dist;
+        } else if(t==='pendapatan' && amt>=0){
+          // fallback khusus Pendapatan walau 0
+          incomeMap[d] = (incomeMap[d]||0)+amt;
+          kmMap[d] = (kmMap[d]||0)+dist;
         }
       }
       try{
         localStorage.setItem('maka_cross_sigan_income', JSON.stringify(incomeMap));
         localStorage.setItem('maka_cross_sigan_km', JSON.stringify(kmMap));
         localStorage.setItem('sigan_hub_last_update', String(Date.now()));
+        // Debug biar kelihatan di console
+        console.log('SiGan Sender FIX: incomeMap', incomeMap, 'kmMap', kmMap);
       }catch(e){}
 
+      // Kirim versi yang langsung bisa dibaca EV Log sebagai pesan
       try{
+        var paket = {dari:'SiGan', tujuan:'BattLog', pesan:'Update bruto '+Object.keys(incomeMap).length+' hari', timestamp:Date.now(), brutoMap:incomeMap};
         localStorage.setItem('sigan_hub_data_from_sigan', JSON.stringify({siganData:siganData, incomeMap:incomeMap, kmMap:kmMap, ts:Date.now()}));
       }catch(e){}
     }catch(e){ console.log('SiGan Sender error', e.message); }
   }
 
+  // 2. BACA DATA DARI EV LOG (FILE 2) - JADI TERSEDIA UNTUK UPDATE APP NANTI
   function bacaDataEvLog(){
     try{
       var riwayatEv = safeParse('sigan_riwayat_harian')||[];
@@ -1467,17 +1479,23 @@
       var hubData = safeParse('sigan_hub_data')||{};
       var lake = safeParse(LAKE_KEY)||{};
       
-      window.__CROSS_EV_RIWAYAT = riwayatEv;
-      window.__CROSS_EV_COST_MAP = biayaEv;
+      // Expose global biar bisa kamu pakai di AI nanti tanpa ubah kode lama
+      window.__CROSS_EV_RIWAYAT = riwayatEv; // isinya km_awal, km_akhir, dist, batt_used, wh_per_km
+      window.__CROSS_EV_COST_MAP = biayaEv; // { "2026-05-13": 12500 }
       window.__CROSS_EV_SUMMARY = summaryEv;
       window.__CROSS_EV_HUB = hubData;
       window.__CROSS_EV_LAKE = lake;
       window.__CROSS_EV_LAST_UPDATE = localStorage.getItem('sigan_hub_last_update');
+
+      // Contoh: kalau mau hitung netto real (bruto - biaya cas) per tanggal, sudah bisa
+      // Tidak merubah UI, hanya sediakan data
+      // console.log('EV Data tersedia:', riwayatEv.length, 'trip, km_awal contoh:', riwayatEv[0]?.km_awal);
       
       return {riwayat: riwayatEv, biaya: biayaEv, summary: summaryEv};
     }catch(e){ console.log('SiGan Reader error', e.message); return null; }
   }
 
+  // 3. HOOK saveData, deleteItem, editItem TANPA MERUBAH ISINYA
   function hookSiGan(){
     if(window.saveData && !window.saveData.__hooked){
       var origSave = window.saveData;
@@ -1508,22 +1526,30 @@
     }
   }
 
+  // 4. LISTENER: Kalau File EV Log kirim data baru, otomatis baca
   window.addEventListener('storage', function(e){
     if(!e) return;
     if(e.key==='sigan_riwayat_harian' || e.key==='sigan_cross_ev_cost' || e.key==='sigan_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1' || e.key==='sigan_hub_data'){
+      // Data EV baru masuk, baca dan expose
       setTimeout(bacaDataEvLog, 100);
+      // Kalau mau auto-refresh rekap biar biaya cas langsung kepotong, aktifkan baris bawah (tidak merubah UI, cuma refresh data)
+      // setTimeout(function(){ if(typeof loadData==='function') loadData(); }, 300);
     }
   });
 
+  // INIT
   setTimeout(hookSiGan, 600);
   setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 1000);
-  setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 60000);
+  setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 60000) // hemat batere: tiap 1 menit;
 
+  // Expose untuk debug & untuk update app nanti
   window.kirimSiGanKeEvLog = buildAndSendSiGan;
   window.bacaDataEvLog = bacaDataEvLog;
   window.getUniversalLake = window.getUniversalLake || function(){
     try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; }
   };
+
+  console.log('SiGan Receiver+Sender aktif: Siap baca km_awal/km_akhir dari EV Log dan kirim balik bruto/km ke EV Log via '+LAKE_KEY);
 })();
 </script>
 
