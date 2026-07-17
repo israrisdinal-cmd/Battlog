@@ -1,4 +1,6 @@
-<html lang="id" style="--tg-viewport-height: 100vh; --tg-viewport-stable-height: 100vh;"><head><!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
+<!DOCTYPE html>
+<html lang="id">
+<head><!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
 (function() {
   if (window.__playableTouchPatchInstalled) return;
   window.__playableTouchPatchInstalled = true;
@@ -182,10 +184,10 @@
 
 <div class="sync-status-bar" id="sigan-sync-lamp">
   <div class="sync-left">
-    <span id="sigan-sync-dot" class=""></span>
-    <span id="sigan-sync-text" style="color: rgb(125, 255, 183);">TERHUBUNG</span>
+    <span id="sigan-sync-dot"></span>
+    <span id="sigan-sync-text">SYNC STANDBY</span>
   </div>
-  <span id="sigan-sync-time">last 19.22</span>
+  <span id="sigan-sync-time"></span>
 </div>
 
 
@@ -236,9 +238,9 @@
         </div>
 
         <div class="progress-container" style="margin-top: 10px;">
-            <div id="progressBar" class="progress-bar" style="width: 0%;"></div>
+            <div id="progressBar" class="progress-bar"></div>
         </div>
-        <div style="font-size: 11px; color: #bbbbbb; margin-top: 5px; text-align: right; font-weight: bold;" id="txtTargetProgress">0% Tercapai (Semangat!)</div>
+        <div style="font-size: 11px; color: #bbbbbb; margin-top: 5px; text-align: right; font-weight: bold;" id="txtTargetProgress">0% Tercapai</div>
     </div>
 
     <div class="tab-bar">
@@ -252,7 +254,7 @@
             <option value="Pendapatan">Pendapatan</option>
             <option value="Pengeluaran">Pengeluaran</option>
         </select>
-        <select id="category" onchange="autoFillAmount()"><option value="Goride">Goride</option><option value="Goride Hemat">Goride Hemat</option><option value="Goride Comfort">Goride Comfort</option><option value="Gofood">Gofood</option><option value="Gomart">Gomart</option><option value="Gosend">Gosend</option></select>
+        <select id="category" onchange="autoFillAmount()"></select>
         
         <label style="font-size: 11px; color: #aaaaaa; font-weight: bold; margin-bottom: 2px; display: block; margin-top: 10px;">🕒 Jam Waktu Transaksi</label>
         <input type="time" id="txTime" style="margin-bottom: 10px; padding: 10px;" onchange="lockTimeManual()">
@@ -274,7 +276,7 @@
     </div>
 
     <div id="tabContentHistory" class="hidden">
-        <div id="historyContainer"><div style="text-align:center; color:#777777; padding: 20px; font-size:13px;">Tidak ada riwayat transaksi pada tanggal ini.</div></div>
+        <div id="historyContainer"></div>
         <button class="btn-secondary" onclick="exportToCSV()">Ekspor Semua Data ke CSV</button>
     </div>
 
@@ -291,11 +293,11 @@
             <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Efisiensi Waktu (Modal Waktu)</div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                 <span style="font-size: 13px; color:var(--muted)aaa;">Total Waktu Mengaspal:</span>
-                <span style="font-size: 14px; font-weight:bold; color:#ffffff;" id="rekapTotalHours">0.0 jam</span>
+                <span style="font-size: 14px; font-weight:bold; color:#ffffff;" id="rekapTotalHours">0 jam</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                 <span style="font-size: 13px; color:var(--muted)aaa;">Rata<sup>2</sup> Durasi Shift Kerja:</span>
-                <span style="font-size: 14px; font-weight:bold; color:#ffffff;" id="rekapAvgShift">0.0 jam/hari</span>
+                <span style="font-size: 14px; font-weight:bold; color:#ffffff;" id="rekapAvgShift">0 jam/hari</span>
             </div>
             <div style="display: flex; justify-content: space-between;">
                 <span style="font-size: 13px; color:var(--muted)aaa;">Rata<sup>2</sup> Netto RP/JAM:</span>
@@ -305,189 +307,27 @@
 
         <div class="card" style="border-left: 5px solid #ff5252;">
             <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">📊 Analisis Efisiensi Blok Jam Kerja (Jam Gurih)</div>
-            <div id="rekapHourlyContainer">
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>🌅 Subuh - Pagi (05.00 - 10.00)</span>
-                            <span style="color:#e040fb; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#e040fb;"></div>
-                        </div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>☀️ Siang - Sore (10.00 - 16.00)</span>
-                            <span style="color:#e040fb; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#e040fb;"></div>
-                        </div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>🌆 Malam Malam (16.00 - 22.00)</span>
-                            <span style="color:#e040fb; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#e040fb;"></div>
-                        </div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>🌌 Larut Malam (22.00 - 05.00)</span>
-                            <span style="color:#e040fb; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#e040fb;"></div>
-                        </div>
-                    </div>
-                </div>
+            <div id="rekapHourlyContainer"></div>
         </div>
 
         <div class="card">
             <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Kontribusi Layanan (Pendapatan)</div>
-            <div id="rekapBreakdownContainer"><div style="color:#777777; font-size:12px; text-align:center; padding:15px 0;">Tidak ada data pendapatan pada periode ini.</div></div>
+            <div id="rekapBreakdownContainer"></div>
         </div>
         
         <div class="card" style="border-left: 5px solid #40c4ff;">
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Margin &amp; Tip per Layanan</div>
-            <div id="rekapRatesContainer" style="font-size: 13px; color: #ffffff; display: flex; flex-direction: column; gap: 12px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">Goride</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data jarak</span></span>
-                    </div>
-                
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">Goride Hemat</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data jarak</span></span>
-                    </div>
-                
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">Goride Comfort</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data jarak</span></span>
-                    </div>
-                
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">Gofood</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data jarak</span></span>
-                    </div>
-                
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">Gomart</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data jarak</span></span>
-                    </div>
-                
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">Gosend</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data jarak</span></span>
-                    </div>
-                </div>
+            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Margin & Tip per Layanan</div>
+            <div id="rekapRatesContainer" style="font-size: 13px; color: #ffffff; display: flex; flex-direction: column; gap: 12px;"></div>
         </div>
 
         <div class="card" style="border-left: 5px solid #ffb300;">
             <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Batas Waktu Optimal (Evaluasi Lelah vs Cuan)</div>
-            <div id="rekapTiersContainer" style="font-size: 13px; color: #ffffff; display: flex; flex-direction: column; gap: 12px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">⚡ Shift Pendek (&lt; 5 Jam)</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data shift</span></span>
-                    </div>
-                
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">🎯 Shift Ideal (5 - 8 Jam)</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data shift</span></span>
-                    </div>
-                
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">🚨 Shift Lembur (&gt; 8 Jam)</span>
-                        <span><span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data shift</span></span>
-                    </div>
-                </div>
+            <div id="rekapTiersContainer" style="font-size: 13px; color: #ffffff; display: flex; flex-direction: column; gap: 12px;"></div>
         </div>
 
         <div class="card" style="border-left: 5px solid #00e676;">
             <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Tren Efisiensi Netto per Jam (Hari Gurih)</div>
-            <div id="rekapDaysContainer">
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>Minggu <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp 0)</span></span>
-                            <span style="color:#00e676; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#00e676;"></div>
-                        </div>
-                        <div style="font-size:9px; color:#777777; margin-top: 2px; text-align:right;">Total Kerja Harian: 0.0 Jam</div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>Senin <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp 0)</span></span>
-                            <span style="color:#00e676; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#00e676;"></div>
-                        </div>
-                        <div style="font-size:9px; color:#777777; margin-top: 2px; text-align:right;">Total Kerja Harian: 0.0 Jam</div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>Selasa <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp 0)</span></span>
-                            <span style="color:#00e676; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#00e676;"></div>
-                        </div>
-                        <div style="font-size:9px; color:#777777; margin-top: 2px; text-align:right;">Total Kerja Harian: 0.0 Jam</div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>Rabu <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp 0)</span></span>
-                            <span style="color:#00e676; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#00e676;"></div>
-                        </div>
-                        <div style="font-size:9px; color:#777777; margin-top: 2px; text-align:right;">Total Kerja Harian: 0.0 Jam</div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>Kamis <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp 0)</span></span>
-                            <span style="color:#00e676; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#00e676;"></div>
-                        </div>
-                        <div style="font-size:9px; color:#777777; margin-top: 2px; text-align:right;">Total Kerja Harian: 0.0 Jam</div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>Jumat <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp 0)</span></span>
-                            <span style="color:#00e676; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#00e676;"></div>
-                        </div>
-                        <div style="font-size:9px; color:#777777; margin-top: 2px; text-align:right;">Total Kerja Harian: 0.0 Jam</div>
-                    </div>
-                
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>Sabtu <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp 0)</span></span>
-                            <span style="color:#00e676; font-weight:bold;">Rp 0/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: 0%; background:#00e676;"></div>
-                        </div>
-                        <div style="font-size:9px; color:#777777; margin-top: 2px; text-align:right;">Total Kerja Harian: 0.0 Jam</div>
-                    </div>
-                </div>
+            <div id="rekapDaysContainer"></div>
         </div>
         
         <div class="card" style="border-left: 5px solid #00e676;">
@@ -504,7 +344,7 @@
 
         <div class="card" style="border-left: 5px solid #888888;">
             <div style="font-size: 13px; color:var(--muted)aaa;">Total Jarak Produktif</div>
-            <div style="font-size: 16px; font-weight:bold; color:#ffffff; margin: 5px 0;" id="rekapKm">0.0 km</div>
+            <div style="font-size: 16px; font-weight:bold; color:#ffffff; margin: 5px 0;" id="rekapKm">0 km</div>
             
             <div style="font-size: 13px; color:var(--muted)aaa; margin-top: 10px;">Rata-rata RP/KM (Total)</div>
             <div style="font-size: 16px; font-weight:bold; color:#40c4ff; margin: 5px 0;" id="rekapEfficiency">Rp 0 /km</div>
@@ -512,7 +352,7 @@
 
         <div class="card" style="border-left: 5px solid #ff5252; background: #221818;">
             <div style="font-size: 13px; color:#ff8a80; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">🤖 REKOMENDASI TAKTIS AI (INTELLIGENT INSIGHTS)</div>
-            <div id="rekapInsightContainer"><div style="color:var(--muted)aaa; font-style:italic; font-size:12px;">Belum ada data pergerakan di periode ini. Roda belum berputar, kumpulkan data tarikan dulu agar AI bisa menganalisis strategimu!</div></div>
+            <div id="rekapInsightContainer"></div>
         </div>
     </div>
 
@@ -1080,6 +920,23 @@
             document.getElementById('valExpense').innerText = "Rp " + expense.toLocaleString('id-ID');
             document.getElementById('valBalance').innerText = "Rp " + netBalance.toLocaleString('id-ID');
             document.getElementById('valEfficiency').innerText = "Rp " + netYieldPerKm.toLocaleString('id-ID') + " /km";
+            // tampilkan jam istirahat cas
+            try{
+              let jamInfoToday = getJamOnlineEfektif(targetDate);
+              let el = document.getElementById('valEfficiency');
+              if(el && jamInfoToday.jamCas>0){
+                let sub = document.getElementById('txtJamEfektif');
+                if(!sub){
+                  let div = document.createElement('div');
+                  div.id = 'txtJamEfektif';
+                  div.style.cssText = 'font-size:10px; color:#6fb2ff; margin-top:6px; font-weight:600; line-height:1.4;';
+                  el.parentElement.appendChild(div);
+                  sub = div;
+                }
+                sub.innerHTML = `🔋 Cas: ${jamInfoToday.jamCas.toFixed(1)} jam istirahat | Onbit ${jamInfoToday.jamOnbit.toFixed(1)}j → Efektif ${jamInfoToday.efektif.toFixed(1)}j`;
+              }
+            }catch(e){}
+
 
             const globalTarget = Number(localStorage.getItem('siganGlobalTarget')) || 200000;
             document.getElementById('inputTarget').value = globalTarget;
@@ -1091,6 +948,81 @@
             document.getElementById('txtTargetProgress').innerText = actualPercent + "% Tercapai " + (actualPercent >= 100 ? "(Tembus! 🎯)" : "(Semangat!)");
 
             loadRekapData();
+        }
+
+        // ===== V3.3+ : Ambil jam istirahat cas dari EV Log (BattLog) =====
+        function getIstirahatCasForDate(targetDate){
+          try{
+            // BattLog simpan di localStorage key bt_log_entries atau similar
+            let battEntries = [];
+            // coba beberapa key yang mungkin
+            const keys = ['bt_log_entries', 'EV_LOG_ENTRIES', 'ev_log_entries'];
+            for(let k of keys){
+              let raw = localStorage.getItem(k);
+              if(raw){
+                try{ let arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length>0){ battEntries = arr; break; } }catch(e){}
+              }
+            }
+            // fallback: universal lake
+            if(battEntries.length===0){
+              let lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
+              if(lakeRaw){
+                try{
+                  let lake = JSON.parse(lakeRaw);
+                  if(lake && lake.battlog && Array.isArray(lake.battlog)) battEntries = lake.battlog;
+                }catch(e){}
+              }
+            }
+            let totalJamCas = 0;
+            let detail = [];
+            battEntries.forEach(e=>{
+              try{
+                if(!e.tanggal || e.tanggal !== targetDate) return;
+                // V3.3 punya waktu_dibuat_asli (timestamp mulai cas) dan estimasi_selesai (string jam)
+                // atau jam_mulai_cas & jam_selesai_cas jika sudah V3.5
+                let dur = 0;
+                if(e.jam_mulai_cas && e.jam_selesai_cas){
+                  const [h1,m1] = e.jam_mulai_cas.split(':').map(Number);
+                  const [h2,m2] = e.jam_selesai_cas.split(':').map(Number);
+                  let s = h1*60+m1; let ee = h2*60+m2; if(ee < s) ee+=1440; dur = (ee-s)/60;
+                } else if(e.waktu_dibuat_asli && e.estimasi_selesai){
+                  // estimasi_selesai format "14:30 ke 100%"
+                  let jamStr = (e.estimasi_selesai||'').split(' ke ')[0].trim();
+                  if(jamStr && jamStr.includes(':')){
+                    let start = new Date(Number(e.waktu_dibuat_asli));
+                    let [h2,m2] = jamStr.split(':').map(Number);
+                    let end = new Date(start); end.setHours(h2, m2, 0, 0);
+                    if(end < start) end.setDate(end.getDate()+1);
+                    dur = (end - start)/1000/3600;
+                  }
+                } else if(e.durasi_cas_jam){
+                  dur = Number(e.durasi_cas_jam)||0;
+                }
+                if(dur>0 && dur<12){ // filter aneh
+                  // cek apakah cas di dalam jam onbit (06-22)
+                  let jamMulai = 0;
+                  if(e.jam_mulai_cas) jamMulai = Number(e.jam_mulai_cas.split(':')[0]);
+                  else if(e.waktu_dibuat_asli){ jamMulai = new Date(Number(e.waktu_dibuat_asli)).getHours(); }
+                  if(jamMulai>=6 && jamMulai<=22){
+                    totalJamCas += dur;
+                    detail.push({jam: e.jam_mulai_cas||'', dur, lokasi: e.lokasi||''});
+                  }
+                }
+              }catch(err){}
+            });
+            return {totalJamCas, detail};
+          }catch(err){ return {totalJamCas:0, detail:[]}; }
+        }
+
+        function getJamOnlineEfektif(targetDate){
+          try{
+            let shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
+            let dayShift = shiftData[targetDate] || {start:'', end:''};
+            let jamOnbit = getDurationInHours(dayShift.start, dayShift.end);
+            let casInfo = getIstirahatCasForDate(targetDate);
+            let efektif = Math.max(0, jamOnbit - casInfo.totalJamCas);
+            return {jamOnbit, jamCas: casInfo.totalJamCas, efektif, detail: casInfo.detail};
+          }catch(e){ return {jamOnbit:0, jamCas:0, efektif:0, detail:[]}; }
         }
 
         function loadRekapData() {
@@ -1134,6 +1066,7 @@
             };
 
             let totalHoursPeriod = 0;
+            let totalHoursCasPeriod = 0;
             let daysWithShiftCount = 0;
             let dailyAgg = {};
             
@@ -2012,5 +1945,5 @@ console.log('AI Engine V2 Override Loaded - Tarif Dasar Flat Dihapus');
 })();
 </script>
 
-
-</body></html>
+</body>
+</html>
