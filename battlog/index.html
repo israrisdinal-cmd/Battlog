@@ -1260,13 +1260,16 @@ function renderList(){
       dayList.forEach(ee=>{ muterPerEntry[ee.id] = {evKm: 0, siganKm: 0, muter: 0, noSiGan:true}; try{ muterPerEntry[ee.id].evKm = calcEntry(ee).jarak||0; }catch(e){} });
       continue;
     }
+    // FIX V3.3.1: jika SiGan > EV, data EV kurang lengkap (lupa catat sesi)
+    let isAnomaly = totalSiganDay > totalEvDay;
     dayList.forEach(ee=>{
       let evKm = 0; try{ evKm = calcEntry(ee).jarak||0; }catch(e){}
       let prop = totalEvDay>0 ? evKm/totalEvDay : 0;
-      let siganAlloc = totalSiganDay * prop;
-      let muter = Math.max(0, evKm - siganAlloc);
+      let siganAllocRaw = totalSiganDay * prop;
+      let siganAlloc = isAnomaly ? Math.min(siganAllocRaw, evKm) : siganAllocRaw; // cap biar gak lebih besar dari sesi
+      let muter = isAnomaly ? 0 : Math.max(0, evKm - siganAlloc);
       if(muter>100) muter = Math.min(muter, evKm*0.8);
-      muterPerEntry[ee.id] = {evKm, siganKm: siganAlloc, muter, noSiGan:false};
+      muterPerEntry[ee.id] = {evKm, siganKm: siganAlloc, siganRaw: siganAllocRaw, muter, noSiGan:false, anomaly: isAnomaly, totalEvDay, totalSiganDay};
     });
   }
   
@@ -1282,10 +1285,18 @@ function renderList(){
       } else {
         let pct = muterInfo.evKm>0 ? (muterInfo.muter/muterInfo.evKm*100) : 0;
         let color = pct>50 ? '#ff8a80' : pct>30 ? '#ffdd53' : '#7dffb7';
-        muterBadge = `<div style="margin-top:8px; padding:6px 8px; background:rgba(17,29,53,0.6); border:1px solid #1e2d4a; border-radius:8px; font-size:11px; line-height:1.4;">
-          <div style="display:flex; justify-content:space-between;"><span style="color:#8aa0c6;">📦 Sesi: ${muterInfo.evKm.toFixed(1)} km (km ${e.km_awal}→${e.km_akhir})</span><span style="color:#7dffb7;">Efektif: ${muterInfo.siganKm.toFixed(1)} km</span></div>
-          <div style="margin-top:2px; color:${color}; font-weight:700;">↳ Muter sesi ini: ${muterInfo.muter.toFixed(1)} km (${pct.toFixed(1)}%)</div>
-        </div>`;
+        if(muterInfo.anomaly){
+          muterBadge = `<div style="margin-top:8px; padding:8px; background:rgba(255,138,128,0.12); border:1px solid rgba(255,138,128,0.3); border-radius:8px; font-size:11px; line-height:1.4;">
+            <div style="display:flex; justify-content:space-between;"><span style="color:#8aa0c6;">📦 Sesi: ${muterInfo.evKm.toFixed(1)} km (km ${e.km_awal}→${e.km_akhir})</span><span style="color:#ff8a80;">SiGan: ${muterInfo.siganRaw.toFixed(1)} km > Sesi!</span></div>
+            <div style="margin-top:4px; color:#ffdd53; font-weight:700;">⚠️ Data EV Log kurang: Total EV hari ini ${muterInfo.totalEvDay.toFixed(1)} km tapi SiGan ${muterInfo.totalSiganDay.toFixed(1)} km. Cek km_awal/km_akhir, mungkin ada sesi yang lupa dicatat tgl ${e.tanggal}.</div>
+            <div style="margin-top:2px; color:#8aa0c6;">Muter dikunci 0.0 km sampai data diperbaiki.</div>
+          </div>`;
+        } else {
+          muterBadge = `<div style="margin-top:8px; padding:6px 8px; background:rgba(17,29,53,0.6); border:1px solid #1e2d4a; border-radius:8px; font-size:11px; line-height:1.4;">
+            <div style="display:flex; justify-content:space-between;"><span style="color:#8aa0c6;">📦 Sesi: ${muterInfo.evKm.toFixed(1)} km (km ${e.km_awal}→${e.km_akhir})</span><span style="color:#7dffb7;">Efektif: ${muterInfo.siganKm.toFixed(1)} km</span></div>
+            <div style="margin-top:2px; color:${color}; font-weight:700;">↳ Muter sesi ini: ${muterInfo.muter.toFixed(1)} km (${pct.toFixed(1)}%)</div>
+          </div>`;
+        }
       }
     }
     const bmsComponent = hasCharger ? `
