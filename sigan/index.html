@@ -1408,10 +1408,9 @@
         };
     </script>
 
-<!-- TAMBAHAN PENERIMA & PENGIRIM DATA - TIDAK MERUBAH KODE SEMPURNA DI ATAS -->
+<!-- TAMBAHAN PENERIMA & PENGIRIM DATA - PATCH MERGE V2 ANTI-TIMPA -->
 <script>
 (function(){
-  // --- HANYA MENAMBAH, TIDAK MENGUBAH ---
   var KEYS_SIGAN = ['siganData','siganShiftData','siganGlobalTarget','siganTariffConfig'];
   var KEYS_MAKA = ['maka_log_v1','maka_bms_history','maka_soh_history','factory_cap_kwh','factory_range_km','maka_soh_baseline','maka_soh_baseline_is_fallback','maka_soh_total_samples','maka_log_v1_lokasi_history','maka_charger_history','universal_custom_v','universal_custom_ah','maka_chat_id','sigan_hub_data','sigan_riwayat_harian','sigan_cross_ev_cost','maka_cross_summary'];
   var LAKE_KEY = 'UNIVERSAL_LAKE_V1';
@@ -1423,79 +1422,94 @@
       try{ return JSON.parse(v); }catch(e){ return v; }
     }catch(e){ return null; }
   }
+  function getExistingLake(){
+    try{
+      var raw = localStorage.getItem(LAKE_KEY);
+      if(!raw) return {_updated:0, _source:'', _sources:{}, sigan:{}, maka:{}, cross:{}};
+      var obj = JSON.parse(raw);
+      obj.sigan = obj.sigan || {};
+      obj.maka = obj.maka || {};
+      obj.cross = obj.cross || {};
+      obj._sources = obj._sources || {};
+      return obj;
+    }catch(e){ return {_updated:0, _source:'', _sources:{}, sigan:{}, maka:{}, cross:{}}; }
+  }
+  try{
+    window.__siganBC = window.__siganBC || new BroadcastChannel('sigan_universal_sync');
+  }catch(e){}
 
-  // 1. BANGUN DANAU UNIVERSAL YANG BISA DIBACA FILE LAIN & KIRIM DATA SIGAN
   function buildAndSendSiGan(){
     try{
-      var lake = {_updated: Date.now(), _source: 'sigan_sempurna', sigan: {}, maka: {}};
-      for(var i=0;i<KEYS_SIGAN.length;i++){ lake.sigan[KEYS_SIGAN[i]] = safeParse(KEYS_SIGAN[i]); }
-      for(var i=0;i<KEYS_MAKA.length;i++){ lake.maka[KEYS_MAKA[i]] = safeParse(KEYS_MAKA[i]); }
-      try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
-      
-      // Kirim ringkas untuk EV Log - FIX: toleran huruf & semua tipe yang ada amount
+      var lake = getExistingLake();
+
+      // Merge sigan & maka
+      for(var i=0;i<KEYS_SIGAN.length;i++){ 
+        var v = safeParse(KEYS_SIGAN[i]); 
+        if(v!==null) lake.sigan[KEYS_SIGAN[i]] = v; 
+      }
+      for(var i=0;i<KEYS_MAKA.length;i++){ 
+        var v2 = safeParse(KEYS_MAKA[i]); 
+        if(v2!==null) lake.maka[KEYS_MAKA[i]] = v2; 
+      }
+
+      // Kirim ringkas untuk EV Log
       var siganData = safeParse('siganData')||[];
       var incomeMap = {};
       var kmMap = {};
       for(var j=0;j<siganData.length;j++){
         var it = siganData[j];
-        if(!it) continue;
-        var t = (it.type||'').toString().toLowerCase();
-        var amt = Number(it.amount||it.bruto||it.total||0);
-        var dist = Number(it.dist||it.km||it.jarak||0);
-        var d = it.date || it.tanggal;
-        if(!d) continue;
-        // Hitung semua yang ada pendapatan (Pendapatan, bonus, dll) kecuali Pengeluaran murni
-        if(amt>0 && t!=='pengeluaran'){
-          incomeMap[d] = (incomeMap[d]||0)+amt;
-          kmMap[d] = (kmMap[d]||0)+dist;
-        } else if(t==='pendapatan' && amt>=0){
-          // fallback khusus Pendapatan walau 0
-          incomeMap[d] = (incomeMap[d]||0)+amt;
-          kmMap[d] = (kmMap[d]||0)+dist;
+        if(it.type==='Pendapatan'){
+          incomeMap[it.date] = (incomeMap[it.date]||0)+Number(it.amount||0);
+          kmMap[it.date] = (kmMap[it.date]||0)+Number(it.dist||0);
         }
       }
       try{
         localStorage.setItem('maka_cross_sigan_income', JSON.stringify(incomeMap));
         localStorage.setItem('maka_cross_sigan_km', JSON.stringify(kmMap));
         localStorage.setItem('sigan_hub_last_update', String(Date.now()));
-        // Debug biar kelihatan di console
-        console.log('SiGan Sender FIX: incomeMap', incomeMap, 'kmMap', kmMap);
+        lake.cross['maka_cross_sigan_income'] = incomeMap;
+        lake.cross['maka_cross_sigan_km'] = kmMap;
+        lake.cross['sigan_hub_data_from_sigan'] = {siganData:siganData, incomeMap:incomeMap, kmMap:kmMap, ts:Date.now()};
       }catch(e){}
 
-      // Kirim versi yang langsung bisa dibaca EV Log sebagai pesan
+      // Bawa juga cross EV biar tidak hilang
+      var biayaEv = safeParse('sigan_cross_ev_cost');
+      var summaryEv = safeParse('maka_cross_summary');
+      if(biayaEv) lake.cross['sigan_cross_ev_cost'] = biayaEv;
+      if(summaryEv) lake.cross['maka_cross_summary'] = summaryEv;
+      var riwayatEv = safeParse('sigan_riwayat_harian');
+      if(riwayatEv) lake.cross['sigan_riwayat_harian'] = riwayatEv;
+
       try{
-        var paket = {dari:'SiGan', tujuan:'BattLog', pesan:'Update bruto '+Object.keys(incomeMap).length+' hari', timestamp:Date.now(), brutoMap:incomeMap};
         localStorage.setItem('sigan_hub_data_from_sigan', JSON.stringify({siganData:siganData, incomeMap:incomeMap, kmMap:kmMap, ts:Date.now()}));
       }catch(e){}
+
+      lake._updated = Date.now();
+      lake._sources['sigan_sempurna'] = Date.now();
+      lake._source = Object.keys(lake._sources).join('+');
+      try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
+      try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update', from:'sigan', ts:Date.now()}); }catch(e){}
     }catch(e){ console.log('SiGan Sender error', e.message); }
   }
 
-  // 2. BACA DATA DARI EV LOG (FILE 2) - JADI TERSEDIA UNTUK UPDATE APP NANTI
   function bacaDataEvLog(){
     try{
-      var riwayatEv = safeParse('sigan_riwayat_harian')||[];
-      var biayaEv = safeParse('sigan_cross_ev_cost')||{};
-      var summaryEv = safeParse('maka_cross_summary')||{};
-      var hubData = safeParse('sigan_hub_data')||{};
       var lake = safeParse(LAKE_KEY)||{};
+      var riwayatEv = safeParse('sigan_riwayat_harian') || (lake.cross && lake.cross.sigan_riwayat_harian) || [];
+      var biayaEv = safeParse('sigan_cross_ev_cost') || (lake.cross && lake.cross.sigan_cross_ev_cost) || {};
+      var summaryEv = safeParse('maka_cross_summary') || (lake.cross && lake.cross.maka_cross_summary) || {};
+      var hubData = safeParse('sigan_hub_data') || (lake.cross && lake.cross.sigan_hub_data) || {};
       
-      // Expose global biar bisa kamu pakai di AI nanti tanpa ubah kode lama
-      window.__CROSS_EV_RIWAYAT = riwayatEv; // isinya km_awal, km_akhir, dist, batt_used, wh_per_km
-      window.__CROSS_EV_COST_MAP = biayaEv; // { "2026-05-13": 12500 }
+      window.__CROSS_EV_RIWAYAT = riwayatEv;
+      window.__CROSS_EV_COST_MAP = biayaEv;
       window.__CROSS_EV_SUMMARY = summaryEv;
       window.__CROSS_EV_HUB = hubData;
       window.__CROSS_EV_LAKE = lake;
       window.__CROSS_EV_LAST_UPDATE = localStorage.getItem('sigan_hub_last_update');
-
-      // Contoh: kalau mau hitung netto real (bruto - biaya cas) per tanggal, sudah bisa
-      // Tidak merubah UI, hanya sediakan data
-      // console.log('EV Data tersedia:', riwayatEv.length, 'trip, km_awal contoh:', riwayatEv[0]?.km_awal);
-      
       return {riwayat: riwayatEv, biaya: biayaEv, summary: summaryEv};
     }catch(e){ console.log('SiGan Reader error', e.message); return null; }
   }
 
-  // 3. HOOK saveData, deleteItem, editItem TANPA MERUBAH ISINYA
   function hookSiGan(){
     if(window.saveData && !window.saveData.__hooked){
       var origSave = window.saveData;
@@ -1526,32 +1540,34 @@
     }
   }
 
-  // 4. LISTENER: Kalau File EV Log kirim data baru, otomatis baca
   window.addEventListener('storage', function(e){
     if(!e) return;
     if(e.key==='sigan_riwayat_harian' || e.key==='sigan_cross_ev_cost' || e.key==='sigan_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1' || e.key==='sigan_hub_data'){
-      // Data EV baru masuk, baca dan expose
       setTimeout(bacaDataEvLog, 100);
-      // Kalau mau auto-refresh rekap biar biaya cas langsung kepotong, aktifkan baris bawah (tidak merubah UI, cuma refresh data)
-      // setTimeout(function(){ if(typeof loadData==='function') loadData(); }, 300);
     }
   });
+  try{
+    window.__siganBC = window.__siganBC || new BroadcastChannel('sigan_universal_sync');
+    window.__siganBC.onmessage = function(ev){
+      if(ev.data && ev.data.type==='lake_update' && ev.data.from==='maka'){
+        setTimeout(bacaDataEvLog, 80);
+      }
+    };
+  }catch(e){}
 
-  // INIT
   setTimeout(hookSiGan, 600);
   setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 1000);
-  setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 60000) // hemat batere: tiap 1 menit;
+  setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 60000);
 
-  // Expose untuk debug & untuk update app nanti
   window.kirimSiGanKeEvLog = buildAndSendSiGan;
   window.bacaDataEvLog = bacaDataEvLog;
   window.getUniversalLake = window.getUniversalLake || function(){
     try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; }
   };
-
-  console.log('SiGan Receiver+Sender aktif: Siap baca km_awal/km_akhir dari EV Log dan kirim balik bruto/km ke EV Log via '+LAKE_KEY);
+  console.log('SiGan V2 Receiver+Sender aktif: MERGE mode + BroadcastChannel');
 })();
 </script>
+
 
 
 <script id="sync-lamp-script">
