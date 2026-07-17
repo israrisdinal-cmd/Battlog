@@ -196,7 +196,7 @@
     <div id="tariffSettingsPanel" class="card hidden" style="border-left: 5px solid #00e676; margin-bottom: 15px;">
         <div style="font-size: 13px; font-weight:bold; color:#ffffff; margin-bottom: 4px;">Pengaturan Tarif Auto-Isi</div>
         <div style="font-size: 11px; color:var(--muted)aaa; margin-bottom: 12px; line-height:1.5;">
-            Auto-isi belajar dari <strong>Median (nilai tengah) Rp/km histori catatanmu sendiri</strong> per layanan (minimal 3 catatan).
+            AI Engine V2 belajar <strong>Tarif Dasar + Rp/km per layanan + faktor jam sibuk</strong> dari histori. Batas bawah = P15. Tarif flat lama sudah dihapus.
         </div>
         <div id="tariffSettingsFields"></div>
         <button onclick="saveTariffSettings()">Simpan Tarif Cadangan</button>
@@ -1407,6 +1407,247 @@
             loadData();
         };
     </script>
+
+
+<!-- AI ENGINE V2 OVERRIDE - PENGGANTI TARIF DASAR FLAT -->
+<script>
+const AIEngineV2 = {
+  STORAGE_KEY: 'sigan_ai_v2_models',
+  models: {},
+  globalModel: null,
+  helpers: {
+    median(arr){ if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; },
+    percentile(arr,p){ if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b); const idx=Math.ceil((p/100)*s.length)-1; return s[Math.max(0,Math.min(idx,s.length-1))]; },
+    mean(arr){ return arr.length? arr.reduce((a,b)=>a+b,0)/arr.length : 0; },
+    clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+  },
+  learn(){
+    try{
+      const data = JSON.parse(localStorage.getItem('siganData')||'[]');
+      const pend = data.filter(x=>x.type==='Pendapatan' && Number(x.dist)>0 && Number(x.amount)>0);
+      const models = {};
+      const regress = (xs,ys)=>{
+        const n=xs.length; if(n<2) return {base:0,perKm:0};
+        let sumX=0,sumY=0,sumXY=0,sumX2=0;
+        for(let i=0;i<n;i++){ sumX+=xs[i]; sumY+=ys[i]; sumXY+=xs[i]*ys[i]; sumX2+=xs[i]*xs[i]; }
+        const denom=(n*sumX2 - sumX*sumX);
+        let perKm=denom!==0 ? (n*sumXY - sumX*sumY)/denom : 0;
+        let base=(sumY - perKm*sumX)/n;
+        if(!isFinite(perKm) || perKm<200) perKm=0;
+        if(!isFinite(base)) base=0;
+        if(base<0) base=0;
+        if(perKm>15000) perKm=15000;
+        return {base,perKm};
+      };
+      for(let cat of categories.Pendapatan){
+        let entries=pend.filter(e=>e.cat===cat);
+        entries.sort((a,b)=>(a.date<b.date?1:-1));
+        if(entries.length<3){
+          models[cat]={count:entries.length, base:0, perKm:0, baseLower:0, perKmLower:0, baseUpper:0, perKmUpper:0, avgRpPerKm:0, medianRpPerKm:0, hourlyFactor:{}, blockFactor:{subuh:1,siang:1,sore:1,malam:1}, jamSibuk:'sore', confidence:'low', lastUpdated:Date.now(), insufficient:true};
+          continue;
+        }
+        let xs=entries.map(e=>Number(e.dist));
+        let ys=entries.map(e=>Number(e.amount));
+        let rpkm=entries.map(e=>Number(e.amount)/Number(e.dist));
+        let {base,perKm}=regress(xs,ys);
+        let medRpKm=this.helpers.median(rpkm);
+        let avgRpKm=this.helpers.mean(rpkm);
+        if(perKm<500 || perKm>10000){ perKm=medRpKm*0.85; }
+        if(base===0 || base>Math.min(...ys)*1.5){
+          let short=entries.filter(e=>Number(e.dist)<=2.5).map(e=>Number(e.amount));
+          if(short.length) base=this.helpers.median(short)*0.7;
+          else base=this.helpers.percentile(ys,20)*0.5;
+        }
+        base=Math.max(0,Math.round(base));
+        perKm=Math.max(300,Math.round(perKm));
+        let hourlyGroups={}; let blockGroups={'subuh':[],'siang':[],'sore':[],'malam':[]};
+        for(let e of entries){
+          if(!e.time) continue;
+          let h=parseInt((e.time||'00:00').split(':')[0]); if(isNaN(h)) continue;
+          let rk=Number(e.amount)/Number(e.dist);
+          if(!hourlyGroups[h]) hourlyGroups[h]=[];
+          hourlyGroups[h].push(rk);
+          if(h>=5&&h<10) blockGroups.subuh.push(rk);
+          else if(h>=10&&h<16) blockGroups.siang.push(rk);
+          else if(h>=16&&h<22) blockGroups.sore.push(rk);
+          else blockGroups.malam.push(rk);
+        }
+        let hourlyFactor={}; for(let h=0;h<24;h++){
+          if(hourlyGroups[h]&&hourlyGroups[h].length>=2){
+            let avgH=this.helpers.mean(hourlyGroups[h]);
+            let f=avgH/(avgRpKm||medRpKm||1);
+            hourlyFactor[h]=this.helpers.clamp(f,0.7,1.6);
+          } else hourlyFactor[h]=1.0;
+        }
+        let blockFactor={};
+        for(let k in blockGroups){
+          let arr=blockGroups[k];
+          if(arr.length>=2){ let f=this.helpers.mean(arr)/(avgRpKm||1); blockFactor[k]=this.helpers.clamp(f,0.75,1.5); }
+          else blockFactor[k]=1.0;
+        }
+        let sortedBlocks=Object.entries(blockFactor).sort((a,b)=>b[1]-a[1]);
+        let jamSibuk=sortedBlocks[0]?sortedBlocks[0][0]:'sore';
+        let perKmLower=this.helpers.percentile(rpkm,15)*0.9;
+        let perKmUpper=this.helpers.percentile(rpkm,85)*1.05;
+        let baseLower=Math.round(base*0.85);
+        let baseUpper=Math.round(base*1.15);
+        if(perKmLower<300) perKmLower=300;
+        let conf=entries.length>=25?'high':entries.length>=10?'medium':'low';
+        models[cat]={count:entries.length, base, perKm, baseLower, perKmLower:Math.round(perKmLower), baseUpper, perKmUpper:Math.round(perKmUpper), avgRpPerKm:Math.round(avgRpKm), medianRpPerKm:Math.round(medRpKm), hourlyFactor, blockFactor, jamSibuk, confidence:conf, lastUpdated:Date.now(), insufficient:false};
+      }
+      if(pend.length>=3){
+        let gxs=pend.map(e=>Number(e.dist)); let gys=pend.map(e=>Number(e.amount));
+        let {base:gb,perKm:gp}=regress(gxs,gys);
+        if(!gb||!gp){ gb=this.helpers.median(gys)*0.5; gp=this.helpers.median(gys.map((y,i)=>y/gxs[i]))*0.8; }
+        this.globalModel={base:Math.round(gb), perKm:Math.round(gp), count:pend.length};
+      }
+      this.models=models;
+      try{ localStorage.setItem(this.STORAGE_KEY, JSON.stringify({models, globalModel:this.globalModel, ts:Date.now()})); }catch(e){}
+      return models;
+    }catch(e){ console.error('AI V2 learn error',e); return {}; }
+  },
+  load(){
+    try{
+      const raw=localStorage.getItem(this.STORAGE_KEY);
+      if(raw){
+        const obj=JSON.parse(raw);
+        this.models=obj.models||{};
+        this.globalModel=obj.globalModel||null;
+        const dataLen=JSON.parse(localStorage.getItem('siganData')||'[]').length;
+        const savedCount=Object.values(this.models).reduce((a,m)=>a+(m.count||0),0);
+        if(Math.abs(dataLen-savedCount)>5) this.learn();
+        return this.models;
+      }
+    }catch(e){}
+    return this.learn();
+  },
+  predict(cat,dist,timeStr){
+    if(!Object.keys(this.models).length) this.load();
+    let model=this.models[cat];
+    let isFallback=false;
+    if(!model||model.insufficient){
+      model=this.globalModel ? {...this.globalModel, hourlyFactor:{}, blockFactor:{subuh:1,siang:1,sore:1,malam:1}, baseLower:this.globalModel.base*0.8, perKmLower:this.globalModel.perKm*0.8, baseUpper:this.globalModel.base*1.2, perKmUpper:this.globalModel.perKm*1.2, confidence:'low', jamSibuk:'sore', count:this.globalModel.count, avgRpPerKm:this.globalModel.perKm} : null;
+      isFallback=true;
+      if(!model) return null;
+    }
+    let hour=12;
+    try{ if(timeStr&&timeStr.includes(':')) hour=parseInt(timeStr.split(':')[0]); else { const now=new Date(); hour=now.getHours(); } }catch(e){}
+    let factor=1.0;
+    if(model.hourlyFactor&&model.hourlyFactor[hour]!==undefined) factor=model.hourlyFactor[hour];
+    else if(model.blockFactor){
+      if(hour>=5&&hour<10) factor=model.blockFactor.subuh||1;
+      else if(hour>=10&&hour<16) factor=model.blockFactor.siang||1;
+      else if(hour>=16&&hour<22) factor=model.blockFactor.sore||1;
+      else factor=model.blockFactor.malam||1;
+    }
+    let base=model.base||0; let perKm=model.perKm||0;
+    let amount=(base+perKm*dist)*factor;
+    let lower=((model.baseLower||base*0.85)+(model.perKmLower||perKm*0.85)*dist)*Math.max(0.8,factor*0.92);
+    let upper=((model.baseUpper||base*1.15)+(model.perKmUpper||perKm*1.15)*dist)*Math.min(1.4,factor*1.08);
+    amount=Math.round(amount/100)*100; lower=Math.round(lower/100)*100; upper=Math.round(upper/100)*100;
+    if(amount<(model.baseLower||2000)) amount=model.baseLower||2000;
+    if(lower<1000) lower=1000;
+    return {amount, lowerBound:lower, upperBound:upper, base, perKm, baseLower:model.baseLower, perKmLower:model.perKmLower, factor, hour, jamSibuk:model.jamSibuk||'sore', confidence:model.confidence, count:model.count, isFallback, avgRpPerKm:model.avgRpPerKm, blockFactor:model.blockFactor};
+  }
+};
+AIEngineV2.load();
+
+// Override legacy functions to use AI V2
+function getTariffConfig(){
+  const cfg={};
+  for(let cat of categories.Pendapatan){
+    let m=AIEngineV2.models[cat];
+    if(m && !m.insufficient){ cfg[cat]={baseKm:2, base:m.base, perKm:m.perKm}; }
+    else { cfg[cat]=defaultTariffConfig[cat]||{baseKm:2, base:10000, perKm:2500}; }
+  }
+  return cfg;
+}
+function getLearnedRate(cat){
+  const m=AIEngineV2.models[cat];
+  if(!m||m.insufficient) return null;
+  return {ratePerKm:m.perKm, count:m.count, base:m.base, lower:m.perKmLower};
+}
+function renderTariffSettingsForm(){
+  const container=document.getElementById('tariffSettingsFields');
+  AIEngineV2.learn();
+  const models=AIEngineV2.models;
+  let html=`<div style="background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; padding:10px; margin-bottom:12px; font-size:11px; line-height:1.5; color:#8aa0c6;">
+    <div style="font-weight:800; color:#7dffb7; font-size:12px; margin-bottom:4px;">🤖 AI ENGINE V2 AKTIF - PENGGANTI TARIF DASAR FLAT</div>
+    Tarif flat lama sudah dihapus. AI belajar dari <strong>${Object.values(models).reduce((a,m)=>a+(m.count||0),0)} trip</strong> per layanan + jam sibuk. Batas bawah = P15.
+  </div>`;
+  for(let cat of categories.Pendapatan){
+    const m=models[cat]; if(!m) continue;
+    if(m.insufficient){
+      html+=`<div style="margin-bottom:12px; padding:10px; background:#1a1210; border:1px dashed #3a2a20; border-radius:10px;"><div style="font-weight:700; color:#ff8a80; font-size:13px;">${cat}</div><div style="font-size:11px; color:#8aa0c6;">Belum cukup data (${m.count}/3). Catat min 3 trip biar AI belajar.</div></div>`;
+      continue;
+    }
+    let confColor=m.confidence==='high'?'#7dffb7':m.confidence==='medium'?'#ffdd53':'#ff8a80';
+    let blockTxt=Object.entries(m.blockFactor||{}).map(([k,v])=>`${k}:${v.toFixed(2)}x`).join(' ');
+    let pred3=AIEngineV2.predict(cat,3,'08:00'); let pred5=AIEngineV2.predict(cat,5,'17:30'); let pred10=AIEngineV2.predict(cat,10,'20:00');
+    html+=`<div style="margin-bottom:14px; background:#111d35; border:1px solid #1e2d4a; border-radius:12px; padding:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div style="font-size:14px; font-weight:800; color:#eaf2ff;">${cat}</div>
+        <div style="font-size:10px; background:${confColor}20; color:${confColor}; border:1px solid ${confColor}40; border-radius:999px; padding:2px 8px;">${m.confidence.toUpperCase()} • ${m.count} trip</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:11px; margin-bottom:8px;">
+        <div style="background:#0f1f36; border-radius:8px; padding:8px;"><div style="color:#8aa0c6; font-size:10px;">Tarif Dasar AI</div><div style="font-weight:800; color:#eaf2ff; font-size:13px;">Rp ${m.base.toLocaleString('id-ID')}</div><div style="color:#ff8a80; font-size:10px;">Bawah: Rp ${m.baseLower.toLocaleString('id-ID')}</div></div>
+        <div style="background:#0f1f36; border-radius:8px; padding:8px;"><div style="color:#8aa0c6; font-size:10px;">Rp / KM AI</div><div style="font-weight:800; color:#40c4ff; font-size:13px;">Rp ${m.perKm.toLocaleString('id-ID')}/km</div><div style="color:#ff8a80; font-size:10px;">Bawah: Rp ${m.perKmLower.toLocaleString('id-ID')}/km</div></div>
+      </div>
+      <div style="font-size:10.5px; color:#8aa0c6; background:#0a1328; border-radius:8px; padding:6px 8px; margin-bottom:8px;">⏰ ${blockTxt} | Sibuk: <strong style="color:#7dffb7;">${m.jamSibuk}</strong> (${(m.blockFactor[m.jamSibuk]||1).toFixed(2)}x) | Avg Rp ${m.avgRpPerKm.toLocaleString('id-ID')}/km</div>
+      <div style="display:flex; gap:6px; font-size:10px; flex-wrap:wrap;"><span style="background:#13223d; border:1px solid #1e2d4a; border-radius:999px; padding:3px 8px; color:#a8c0e8;">3km → Rp ${pred3?pred3.amount.toLocaleString('id-ID'):'-'} (bawah ${pred3?pred3.lowerBound.toLocaleString('id-ID'):'-'})</span><span style="background:#13223d; border:1px solid #1e2d4a; border-radius:999px; padding:3px 8px; color:#a8c0e8;">5km → Rp ${pred5?pred5.amount.toLocaleString('id-ID'):'-'}</span><span style="background:#13223d; border:1px solid #1e2d4a; border-radius:999px; padding:3px 8px; color:#a8c0e8;">10km → Rp ${pred10?pred10.amount.toLocaleString('id-ID'):'-'}</span></div>
+    </div>`;
+  }
+  container.innerHTML=html;
+}
+function saveTariffSettings(){
+  document.getElementById('tariffSettingsPanel').classList.add('hidden');
+  AIEngineV2.learn(); renderTariffSettingsForm(); alert("AI Engine V2 belajar ulang!");
+}
+function resetTariffDefaults(){
+  if(!confirm("Hapus semua model AI V2 dan belajar ulang dari nol?")) return;
+  localStorage.removeItem(AIEngineV2.STORAGE_KEY);
+  localStorage.removeItem('siganTariffConfig');
+  AIEngineV2.learn(); renderTariffSettingsForm(); autoFillAmount();
+}
+function autoFillAmount(){
+  const type=document.getElementById('type').value;
+  const hintEl=document.getElementById('amountSourceHint');
+  if(type!=='Pendapatan'){ if(hintEl) hintEl.innerText=''; return; }
+  const cat=document.getElementById('category').value;
+  const dist=Number(document.getElementById('distance').value)||0;
+  const timeStr=document.getElementById('txTime').value||'';
+  const amountInput=document.getElementById('amount');
+  if(dist<=0){ amountInput.value=''; if(hintEl) hintEl.innerText=''; return; }
+  let pred=AIEngineV2.predict(cat,dist,timeStr);
+  if(!pred){ AIEngineV2.learn(); pred=AIEngineV2.predict(cat,dist,timeStr); }
+  if(pred){
+    let amt=Math.round(pred.amount/100)*100;
+    if(amt>0){ amountInput.value=amt.toString(); formatRupiah(amountInput); }
+    if(hintEl){
+      let icon=pred.confidence==='high'?'🟢':pred.confidence==='medium'?'🟡':'🔴';
+      let fb=pred.isFallback?' (fallback global)':'';
+      hintEl.innerHTML=`${icon} <strong>AI V2${fb}</strong>: Base Rp ${pred.base.toLocaleString('id-ID')} + ${pred.perKm.toLocaleString('id-ID')}/km × ${dist}km × ${pred.factor.toFixed(2)}x (${pred.hour}:00) = <strong>Rp ${pred.amount.toLocaleString('id-ID')}</strong><br>↳ Bawah: Rp ${pred.lowerBound.toLocaleString('id-ID')} | Atas: Rp ${pred.upperBound.toLocaleString('id-ID')} | ${pred.count} trip | Sibuk ${pred.jamSibuk}`;
+    }
+  } else {
+    if(hintEl) hintEl.innerText='⚠️ Belum cukup data AI, isi manual. Min 3 trip/layanan.';
+  }
+}
+// Hook save/delete to re-learn
+const _origSaveData = window.saveData;
+window.saveData = function(){
+  const r = _origSaveData.apply(this, arguments);
+  setTimeout(()=>{ try{AIEngineV2.learn();}catch(e){} }, 300);
+  return r;
+};
+const _origDeleteItem = window.deleteItem;
+window.deleteItem = function(){
+  const r = _origDeleteItem.apply(this, arguments);
+  setTimeout(()=>{ try{AIEngineV2.learn();}catch(e){} }, 300);
+  return r;
+};
+console.log('AI Engine V2 Override Loaded - Tarif Dasar Flat Dihapus');
+</script>
+
 
 <!-- TAMBAHAN PENERIMA & PENGIRIM DATA - PATCH MERGE V2 ANTI-TIMPA -->
 <script>
