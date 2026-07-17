@@ -264,7 +264,7 @@ window.addEventListener('storage', (event) => {
       </div>
     </div>
 
-    
+    <!-- AI DIAGNOSTIK DIPINDAHKAN KE BAWAH -->
 
     <div class="maka-card" style="background: linear-gradient(180deg, #0e192f 0%, #0b1424 100%); border: 1px solid #1a2f52;">
       <div class="flex justify-between items-center" style="font-size:10px; color:#5e759e; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px; padding-left:0.5rem; padding-right:0.5rem;">
@@ -325,12 +325,15 @@ window.addEventListener('storage', (event) => {
       </div>
       <div id="stat_cas_rekom" style="font-size:11px; color:#8aa0c6; margin-top:10px; line-height:1.5; background:rgba(43,140,255,0.08); border:1px dashed rgba(43,140,255,0.2); border-radius:10px; padding:8px 10px;"></div>
     </div>
-
-    
-    <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%);">
-      <div style="font-size:11px; font-weight:700; color:var(--blue); margin-bottom:6px; letter-spacing: 0.5px;">🤖 AI DIAGNOSTIK SISTEM PAKAR</div>
-      <div id="ai-insight-box" style="font-size:13px; color:#eaf2ff; line-height:1.4;">Menganalisis data kendaraan lokal...</div>
+    <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%); margin-top:12px;" id="ai-diagnostik-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div style="font-size:11px; font-weight:800; color:var(--blue); letter-spacing:0.08em;">🤖 AI DIAGNOSTIK SISTEM PAKAR • BATTLOG x SIGAN</div>
+        <div id="ai-periode-badge" style="font-size:10px; font-weight:700; color:#8aa0c6; background:#0f1f36; border:1px solid var(--line); border-radius:999px; padding:3px 8px;">PERIODE</div>
+      </div>
+      <div id="ai-insight-box" style="font-size:13px; color:#eaf2ff; line-height:1.5;">Menganalisis data kendaraan + SiGan...</div>
     </div>
+
+
     <button onclick="switchView('catat')" class="btn-primary" style="margin-top:0.75rem;">→ Buka Catat</button>
   </div>
 
@@ -742,35 +745,41 @@ function kalibrasiSohMover() {
   localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(allKmPerPct));
 }
 
-function hitungPrediksiAIWhKm() {
-  const validEntries = entries.filter(e => {
-    const c = calcEntry(e);
-    return c.wh_per_km > 0;
+function hitungPrediksiAIWhKm(filtered) {
+  // V3: kalau ada filtered (sesuai periode SiGan), pakai itu. Kalau tidak, fallback 5 trip terakhir
+  let source = filtered && filtered.length ? filtered : entries;
+  const validEntries = source.filter(e => {
+    try{ const c = calcEntry(e); return c.wh_per_km > 0 && c.wh_per_km < 200; }catch(e){return false;}
   });
-  
   if (validEntries.length === 0) return 0;
-  
-  const listTerakhir = validEntries.slice(0, 5).reverse();
-  
+  // Ambil 7 terbaru dari periode itu biar lebih akurat untuk 7/14/30 hari
+  const take = Math.min(validEntries.length, (typeof ekonomiPeriod!=='undefined' && ekonomiPeriod==='harian') ? 3 : 7);
+  const listTerakhir = validEntries.slice(0, take).reverse();
   let totalBobot = 0;
   let totalWhKmBerbobot = 0;
-  
   listTerakhir.forEach((e, idx) => {
     const c = calcEntry(e);
     const bobot = idx + 1; 
     totalWhKmBerbobot += (c.wh_per_km * bobot);
     totalBobot += bobot;
   });
-  
-  return totalWhKmBerbobot / totalBobot;
+  return totalBobot ? totalWhKmBerbobot / totalBobot : 0;
 }
 
-function perbaruiAIInsightDasbor(avgWhKmMoving) {
+function getPeriodeLabel(){
+  if(typeof ekonomiPeriod==='undefined') return 'SEMUA';
+  const map = {harian:'HARIAN', '7hari':'7 HARI', '14hari':'14 HARI', '30hari':'30 HARI', 'all':'SEMUA'};
+  return map[ekonomiPeriod]||ekonomiPeriod.toUpperCase();
+}
+
+function perbaruiAIInsightDasbor(avgWhKmMoving, filteredEntries) {
   const boxAI = document.getElementById('ai-insight-box');
+  const badge = document.getElementById('ai-periode-badge');
   if (!boxAI) return;
-  
+  if(badge) badge.textContent = getPeriodeLabel();
+
   if (!entries.length || avgWhKmMoving === 0) {
-    boxAI.innerHTML = "💡 <strong>Analisis AI:</strong> Siap memantau pergerakan daya! Masukkan data trip awalmu untuk mengaktifkan pemodelan gaya berkendara.";
+    boxAI.innerHTML = "💡 <strong>Analisis AI:</strong> Siap memantau! Masukkan data trip awalmu. Untuk akurasi laba/km, buka SiGan dulu biar sinkron.";
     return;
   }
 
@@ -780,11 +789,11 @@ function perbaruiAIInsightDasbor(avgWhKmMoving) {
   if (wh >= 0 && wh <= 28) {
     status = "🍀 ECO SANGAT EFISIEN (0 - 28 Wh/km)";
     warnaIndikator = "#7dffb7"; 
-    saranTeknis = "Urut gasnya halus banget! Torsi dinamo konstan tanpa lonjakan arus (discharge spike), cell adem, degradasi minim. Pertahankan!";
+    saranTeknis = "Urut gas halus, discharge spike minim, cell adem, degradasi minim. Pertahankan!";
   } else if (wh >= 29 && wh <= 35) {
     status = "💎 RITME NORMAL IDEAL (29 - 35 Wh/km)";
     warnaIndikator = "#2b8cff"; 
-    saranTeknis = "Seimbang! Penyaluran daya sinkron dengan medan, efisiensi termal terbaik untuk rute kota.";
+    saranTeknis = "Seimbang! Penyaluran daya sinkron dengan medan, efisiensi termal terbaik rute kota.";
   } else if (wh >= 36 && wh <= 40) {
     status = "⚡ MODERAT / AGAK BOROS (36 - 40 Wh/km)";
     warnaIndikator = "#ffdd53"; 
@@ -792,60 +801,95 @@ function perbaruiAIInsightDasbor(avgWhKmMoving) {
   } else {
     status = "⚠️ AGRESIF / HIGH DISCHARGE (41 - 80 Wh/km)";
     warnaIndikator = "#ff4d4d"; 
-    saranTeknis = "Dikuras deras! Gas spontan / tanjakan ekstrem bikin peak current & panas cell. Santaiin gas demi awet baterai.";
+    saranTeknis = "Dikuras deras! Gas spontan / tanjakan bikin peak current & panas cell. Santaiin gas demi awet baterai.";
   }
 
-  // Ambil data integrasi SiGan
   let extra = window._battlogAIExtra || {};
+  let periode = extra.periode || getPeriodeLabel();
+  let tripCount = extra.tripCount || (filteredEntries ? filteredEntries.length : entries.length);
   let htmlExtra = "";
+
+  // Header periode + validasi SiGan
+  htmlExtra += `<div style="margin-top:2px; font-size:11px; color:#8aa0c6; margin-bottom:8px;">📅 Periode: <strong style="color:#dbe8ff;">${periode}</strong> • ${tripCount} trip • ${extra.jarak ? Math.round(extra.jarak)+' km odometer' : ''}</div>`;
+
   if(extra.totalIncome && extra.totalIncome>0){
     let muterPct = extra.jarak>0? (extra.kmMuter/extra.jarak*100):0;
     let labPerKm = Math.round(extra.labaPerKm||0);
     let rpKwh = Math.round(extra.rpPerKwh||0);
-    let effRute = (extra.effRute||0).toFixed(1);
+    let labaKwh = Math.round(extra.labaPerKwh||0);
+    let effRute = (extra.effRute||0);
+    let avgRpEff = Math.round(extra.avgRpPerKmEfektif||0);
     
-    htmlExtra += `<div style="margin-top:10px; padding-top:8px; border-top:1px dashed rgba(125,255,183,0.15);">`;
-    htmlExtra += `<div style="font-weight:800; color:#7dffb7; font-size:12px; margin-bottom:4px;">💰 EKONOMI REAL (SiGan):</div>`;
-    htmlExtra += `<div style="font-size:12px; line-height:1.5; color:#dbe8ff;">`;
-    htmlExtra += `• Bruto total ${fmtRp(Math.round(extra.totalIncome))} dari ${Math.round(extra.totalKmEfektif)} km efektif. `;
-    htmlExtra += `Laba bersih setelah SPKLU ${fmtRp(Math.round(extra.labaBersih))} → <strong>Rp ${labPerKm.toLocaleString('id-ID')}/km</strong>. `;
-    htmlExtra += `1 kWh kamu jadi <strong>${fmtRp(rpKwh)}</strong> (laba ${fmtRp(Math.round(extra.labaPerKwh||0))}/kWh).<br>`;
-    if(extra.kmMuter>5){
-      htmlExtra += `• Km muter kosong <strong>${Math.round(extra.kmMuter)} km (${muterPct.toFixed(1)}%)</strong> – energi kebuang ±${(extra.kmMuter * (extra.avgWhKmGlobal||35)/1000).toFixed(2)} kWh. `;
-      if(muterPct>35) htmlExtra += `<span style="color:#ff8a80">Kebanyakan muter cari order, coba strategi mangkal di spot ramai, bukan keliling.</span>`;
-      else if(muterPct>20) htmlExtra += `<span style="color:#ffdd53">Masih wajar, tapi bisa dihemat.</span>`;
-      else htmlExtra += `<span style="color:#7dffb7">Sangat efisien, hampir semua km jadi duit.</span>`;
-      htmlExtra += `<br>`;
+    htmlExtra += `<div style="padding-top:8px; border-top:1px dashed rgba(125,255,183,0.15);">`;
+    htmlExtra += `<div style="font-weight:800; color:#7dffb7; font-size:12px; margin-bottom:6px;">💰 EKONOMI REAL (SiGan x BattLog) - ${periode}</div>`;
+    htmlExtra += `<div style="font-size:12px; line-height:1.6; color:#dbe8ff; display:flex; flex-direction:column; gap:4px;">`;
+    htmlExtra += `<div>• Bruto <strong>${fmtRp(Math.round(extra.totalIncome))}</strong> dari <strong>${Math.round(extra.totalKmEfektif)} km</strong> efektif (argo). Odometer jalan ${Math.round(extra.jarak)} km → <strong>${effRute.toFixed(1)}% dibayar</strong></div>`;
+    htmlExtra += `<div>• Laba bersih (potong SPKLU) <strong>${fmtRp(Math.round(extra.labaBersih))}</strong> → <strong>Rp ${labPerKm.toLocaleString('id-ID')}/km total</strong> / <strong>Rp ${avgRpEff.toLocaleString('id-ID')}/km efektif</strong></div>`;
+    htmlExtra += `<div>• 1 kWh = <strong>${fmtRp(rpKwh)}</strong> bruto, laba <strong>${fmtRp(labaKwh)}/kWh</strong> • Total pakai ${extra.totalEnergiKwh.toFixed(2)} kWh</div>`;
+    
+    if(extra.kmMuter>1){
+      htmlExtra += `<div>• Muter kosong <strong>${Math.round(extra.kmMuter)} km (${muterPct.toFixed(1)}%)</strong> ≈ ${(extra.kmMuter * (extra.avgWhKmGlobal||35)/1000).toFixed(2)} kWh kebuang ≈ <strong>${fmtRp(Math.round(extra.kmMuter * avgRpEff))}</strong> potensi hilang. `;
+      if(muterPct>35) htmlExtra += `<span style="color:#ff8a80">Kebanyakan muter cari order, strategi mangkal di spot ramai lebih cuan.</span>`;
+      else if(muterPct>20) htmlExtra += `<span style="color:#ffdd53">Masih wajar, bisa dihemat dikit.</span>`;
+      else htmlExtra += `<span style="color:#7dffb7">Sangat efisien.</span>`;
+      htmlExtra += `</div>`;
     }
-    htmlExtra += `• Efisiensi rute <strong>${effRute}%</strong> (${Math.round(extra.totalKmEfektif)} km dibayar / ${Math.round(extra.jarak)} km jalan). `;
-    if(extra.effRute>=85) htmlExtra += `Pola narikmu rapi, minim dead trip.`;
-    else if(extra.effRute>=65) htmlExtra += `Lumayan, masih ada jemput jauh yang bisa dioptimasi.`;
-    else htmlExtra += `Banyak trip kosong, cek filter jarak jemput di Gojek.`;
     htmlExtra += `</div></div>`;
 
-    // SOH vs gaya
+    // SOH korelasi
     try{
       const sohHist = JSON.parse(localStorage.getItem('maka_soh_history')||'[]');
-      if(sohHist.length>=3 && extra.avgWhKmGlobal>38 && extra.effRute<60){
-        htmlExtra += `<div style="margin-top:8px; background:rgba(255,77,77,0.08); border:1px solid rgba(255,77,77,0.2); border-radius:8px; padding:6px 8px; font-size:11px; color:#ffb4b4;">⚠️ Korelasi SOH: wh_per_km tinggi (${Math.round(extra.avgWhKmGlobal)} Wh/km) + efisiensi rute rendah (${effRute}%) → indikasi betot gas pas jemput jauh. Ini mempercepat degradasi. Coba mode Eco pas jemput >2km.</div>`;
+      if(sohHist.length>=3 && extra.avgWhKmGlobal>38 && effRute<60){
+        htmlExtra += `<div style="margin-top:10px; background:rgba(255,77,77,0.08); border:1px solid rgba(255,77,77,0.2); border-radius:8px; padding:8px 10px; font-size:11px; color:#ffb4b4;">⚠️ Korelasi SOH: Wh/km tinggi (${Math.round(extra.avgWhKmGlobal)}) + efisiensi rute rendah (${effRute.toFixed(1)}%) di ${periode}. Indikasi betot gas pas jemput jauh → degradasi lebih cepat. Coba Eco pas jemput >2km.</div>`;
       }
     }catch(e){}
 
-    // Rekomendasi cas jadi rupiah
-    let estimasiJarakAI = 0;
-    try{ const avgM = typeof hitungPrediksiAIWhKm==='function'? hitungPrediksiAIWhKm(): extra.avgWhKmGlobal; if(avgM>0) estimasiJarakAI = ((0.7 * (entries[0]?.cap_kwh||4) * 1000) / avgM); }catch(e){}
-    if(estimasiJarakAI>0 && extra.avgRpPerKmEfektif>0){
-      let sisaRp = estimasiJarakAI * extra.avgRpPerKmEfektif;
-      htmlExtra += `<div style="margin-top:8px; background:rgba(125,255,183,0.08); border:1px solid rgba(125,255,183,0.15); border-radius:8px; padding:6px 8px; font-size:11px; color:#c8ffdf;">🔋 Sisa 100%→30% ≈ ${Math.round(estimasiJarakAI)} km ≈ <strong>${fmtRp(Math.round(sisaRp))}</strong> potensi pendapatan. Baterai kamu bukan cuma km, tapi duit. Cas malam di rumah = gratis, SPKLU = ${fmtRp(Math.round(extra.biayaSpklu||0))} sudah keluar.</div>`;
+    // Sisa baterai jadi rupiah - periode aware
+    try{
+      let lastCap = (entries[0]?.cap_kwh||4);
+      let estimasiJarakAI = avgWhKmMoving>0 ? ((0.7 * lastCap * 1000) / avgWhKmMoving) : 0;
+      if(estimasiJarakAI>0 && extra.avgRpPerKmEfektif>0){
+        let sisaRp = estimasiJarakAI * extra.avgRpPerKmEfektif;
+        htmlExtra += `<div style="margin-top:10px; background:rgba(125,255,183,0.08); border:1px solid rgba(125,255,183,0.15); border-radius:10px; padding:8px 10px; font-size:11px; line-height:1.5; color:#c8ffdf;">🔋 Potensi ${periode}: Sisa 100%→30% ≈ <strong>${Math.round(estimasiJarakAI)} km</strong> ≈ <strong>${fmtRp(Math.round(sisaRp))}</strong>. Rata-rata periode ini ${fmtRp(avgRpEff)}/km efektif. SPKLU keluar ${fmtRp(Math.round(extra.biayaSpklu||0))} di periode ini.</div>`;
+      }
+    }catch(e){}
+
+    // Insight tambahan berbasis periode SiGan
+    if(tripCount>=1){
+      let avgIncomePerTrip = extra.totalIncome / Math.max(1, extra.totalKmEfektif>0 ? (extra.totalKmEfektif/ (extra.jarak>0? extra.jarak/tripCount : 10)) : tripCount);
+      // Simple trend: if 7 hari laba/km < 30 hari laba/km, warning
+      try{
+        let incomeMapFull = JSON.parse(localStorage.getItem('maka_cross_sigan_income')||'{}');
+        let costMapFull = JSON.parse(localStorage.getItem('sigan_cross_ev_cost')||'{}');
+        // Hitung rata-rata 30 hari vs periode ini kalau periode 7 hari
+        if(ekonomiPeriod==='7hari' && Object.keys(incomeMapFull).length>=14){
+          let now = new Date(); now.setHours(0,0,0,0);
+          let cut30 = new Date(now); cut30.setDate(now.getDate()-29);
+          let inc30=0, cost30=0;
+          for(let t in incomeMapFull){ let d=new Date(t); if(d>=cut30) inc30+=Number(incomeMapFull[t]||0); }
+          for(let t in costMapFull){ let d=new Date(t); if(d>=cut30) cost30+=Number(costMapFull[t]||0); }
+          let laba30 = inc30 - cost30;
+          let jarak30 = 0; 
+          let entries30 = entries.filter(e=>{ let d=new Date(e.tanggal); return d>=cut30; });
+          entries30.forEach(e=>{ try{ jarak30+=calcEntry(e).jarak; }catch(e){} });
+          let labaPerKm30 = jarak30>0? laba30/jarak30:0;
+          if(labaPerKm30>0 && labPerKm>0 && labPerKm < labaPerKm30*0.85){
+            htmlExtra += `<div style="margin-top:8px; background:rgba(255,221,83,0.08); border:1px solid rgba(255,221,83,0.2); border-radius:8px; padding:6px 8px; font-size:11px; color:#ffe082;">📉 Trend ${periode}: Laba/km Rp ${labPerKm.toLocaleString()} turun vs 30 hari Rp ${Math.round(labaPerKm30).toLocaleString()}/km (-${Math.round((1-labPerKm/labaPerKm30)*100)}%). Cek muter kosong / tarif SPKLU naik.</div>`;
+          }
+        }
+      }catch(e){}
     }
+
   } else {
-    htmlExtra += `<div style="margin-top:10px; font-size:11px; color:#6b7fa2; font-style:italic;">💡 Buka SiGan sekali biar BattLog bisa hitung laba/km, km muter kosong, dan prediksi sisa baterai jadi rupiah.</div>`;
+    htmlExtra += `<div style="margin-top:10px; padding:8px 10px; background:rgba(255,77,77,0.06); border:1px dashed rgba(255,77,77,0.2); border-radius:10px; font-size:11px; color:#ff8a80; line-height:1.5;">⚠️ Data SiGan tidak ada untuk ${periode}. Buka SiGan → save 1x biar BattLog bisa hitung laba/km, km muter, dan prediksi rupiah di periode ini. Akurasi ${periode} mengikuti data SiGan (bruto/km efektif).</div>`;
   }
 
   boxAI.innerHTML = `
-    <div style="font-weight: 800; font-size:14px; color:${warnaIndikator}; margin-bottom:4px;">${status}</div>
-    <div style="font-size:12.5px; color:#eaf2ff; line-height:1.45;">
-       Prediksi AI 5 trip terakhir <strong>${wh} Wh/km</strong>. ${saranTeknis}
+    <div style="font-weight: 800; font-size:13px; color:${warnaIndikator}; margin-bottom:6px; display:flex; justify-content:space-between;">
+      <span>${status}</span><span style="font-size:11px; color:#8aa0c6; font-weight:600;">${wh} Wh/km • ${periode}</span>
+    </div>
+    <div style="font-size:12.5px; color:#eaf2ff; line-height:1.5; background:rgba(10,19,40,0.5); border:1px solid #1e2d4a; border-radius:10px; padding:8px 10px;">
+       Prediksi AI periode ${periode}: <strong>${wh} Wh/km</strong> dari ${tripCount} trip terfilter. ${saranTeknis}
     </div>
     ${htmlExtra}
   `;
@@ -1263,94 +1307,17 @@ function renderRingkas(){
 function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil((((t-yearStart)/86400000)+1)/7); }
 
 function renderDasbor(){
-  // Pakai string YYYY-MM-DD biar tidak kena timezone
-  const toISODate = (d)=> d.toLocaleDateString('sv-SE');
-  let todayStr = toISODate(new Date());
-  let anchorDateStr = todayStr;
-  let cutoffDateStr = "2000-01-01";
   let anchorDate = new Date(); anchorDate.setHours(0,0,0,0);
-  let cutoffDate = new Date('2000-01-01');
+  let cutoffDate = new Date(anchorDate);
   if(typeof ekonomiPeriod!=='undefined'){
-    let tmp = new Date(); tmp.setHours(0,0,0,0);
-    if(ekonomiPeriod==='harian'){ cutoffDate = new Date(tmp); }
-    else if(ekonomiPeriod==='7hari'){ tmp.setDate(tmp.getDate()-6); cutoffDate = new Date(tmp); }
-    else if(ekonomiPeriod==='14hari'){ tmp.setDate(tmp.getDate()-13); cutoffDate = new Date(tmp); }
-    else if(ekonomiPeriod==='30hari'){ tmp.setDate(tmp.getDate()-29); cutoffDate = new Date(tmp); }
+    if(ekonomiPeriod==='harian'){ cutoffDate = new Date(anchorDate); }
+    else if(ekonomiPeriod==='7hari'){ cutoffDate.setDate(anchorDate.getDate()-6); }
+    else if(ekonomiPeriod==='14hari'){ cutoffDate.setDate(anchorDate.getDate()-13); }
+    else if(ekonomiPeriod==='30hari'){ cutoffDate.setDate(anchorDate.getDate()-29); }
     else { cutoffDate = new Date('2000-01-01'); }
-    cutoffDateStr = toISODate(cutoffDate);
-    anchorDateStr = todayStr;
+  } else {
+    cutoffDate = new Date('2000-01-01');
   }
-
-  // --- STEP 1: cari hari yang ADA data SiGan dalam periode (hanya hari ada SiGan) - ROBUST ---
-  let totalIncome = 0, totalKmEfektif = 0;
-  let validDates = new Set();
-  try{
-    const safeParseLocalTmp = (k)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } };
-    let incomeMapAllTmp = safeParseLocalTmp('maka_cross_sigan_income') || {};
-    let kmMapAllTmp = safeParseLocalTmp('maka_cross_sigan_km') || {};
-
-    // Fallback: jika cross kosong, coba baca dari siganData langsung atau dari lake
-    if(Object.keys(incomeMapAllTmp).length===0){
-      try{
-        let siganRaw = safeParseLocalTmp('siganData') || [];
-        if(siganRaw.length>0){
-          // siganData is array, hitung bruto per tanggal
-          let tmpIncome = {}, tmpKm = {};
-          for(let it of siganRaw){
-            let tgl = it.tanggal || it.date;
-            if(!tgl) continue;
-            let bruto = Number(it.bruto || it.pendapatan || it.total || 0);
-            let km = Number(it.km || it.jarak || it.totalKm || 0);
-            if(bruto>0){ tmpIncome[tgl] = (tmpIncome[tgl]||0)+bruto; }
-            if(km>0){ tmpKm[tgl] = (tmpKm[tgl]||0)+km; }
-          }
-          if(Object.keys(tmpIncome).length>0) incomeMapAllTmp = tmpIncome;
-          if(Object.keys(tmpKm).length>0) kmMapAllTmp = tmpKm;
-        }
-      }catch(e){}
-    }
-    if(Object.keys(incomeMapAllTmp).length===0){
-      try{
-        let lake = safeParseLocalTmp('UNIVERSAL_LAKE_V1') || {};
-        let sData = (lake.sigan && lake.sigan.siganData) || [];
-        if(sData.length>0){
-          let tmpIncome = {}, tmpKm = {};
-          for(let it of sData){
-            let tgl = it.tanggal || it.date;
-            if(!tgl) continue;
-            let bruto = Number(it.bruto || it.pendapatan || it.total || 0);
-            let km = Number(it.km || it.jarak || it.totalKm || 0);
-            if(bruto>0){ tmpIncome[tgl] = (tmpIncome[tgl]||0)+bruto; }
-            if(km>0){ tmpKm[tgl] = (tmpKm[tgl]||0)+km; }
-          }
-          if(Object.keys(tmpIncome).length>0) incomeMapAllTmp = tmpIncome;
-          if(Object.keys(tmpKm).length>0) kmMapAllTmp = tmpKm;
-        }
-      }catch(e){}
-    }
-
-    for(let tgl in incomeMapAllTmp){
-      try{
-        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all'){
-          if(tgl < cutoffDateStr || tgl > anchorDateStr) continue;
-        }
-        const v = Number(incomeMapAllTmp[tgl]||0);
-        if(v>0){ validDates.add(tgl); totalIncome += v; }
-      }catch(e){}
-    }
-    for(let tgl in kmMapAllTmp){
-      try{
-        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all'){
-          if(tgl < cutoffDateStr || tgl > anchorDateStr) continue;
-        }
-        const v = Number(kmMapAllTmp[tgl]||0);
-        if(v>0 || validDates.has(tgl)){ 
-          if(!validDates.has(tgl) && v>0) validDates.add(tgl);
-          totalKmEfektif += v; 
-        }
-      }catch(e){}
-    }
-  }catch(e){}
 
   let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
   let totalEnergiKwh=0;
@@ -1359,10 +1326,8 @@ function renderDasbor(){
   
   entries.forEach((e)=>{ 
     try{
-      if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all'){
-        if(e.tanggal < cutoffDateStr || e.tanggal > anchorDateStr) return;
-      }
-      if(validDates.size>0 && !validDates.has(e.tanggal)) return; // HANYA hari yang ada SiGan
+      const d = new Date(e.tanggal); d.setHours(0,0,0,0);
+      if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) return;
     }catch(e){}
     const c=calcEntry(e); 
     jarak+=c.jarak; 
@@ -1380,24 +1345,54 @@ function renderDasbor(){
   });
   
   const avgWhKmGlobal = n ? (wh / n) : 0;
-  const avgWhKmMovingAI = hitungPrediksiAIWhKm();
+  // avg global dari filtered, moving AI juga filtered periode
+  const avgWhKmMovingAI_global = hitungPrediksiAIWhKm();
+  // filteredEntriesForAI belum ada di sini, jadi hitung manual dari entries yang lolos filter tadi
+  let filteredForAI_tmp = [];
+  try{ entries.forEach((ee)=>{ const dd=new Date(ee.tanggal); dd.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (dd < cutoffDate || dd > anchorDate)) return; filteredForAI_tmp.push(ee); }); }catch(e){}
+  const avgWhKmMovingAI = hitungPrediksiAIWhKm(filteredForAI_tmp.length?filteredForAI_tmp:undefined) || avgWhKmMovingAI_global;
   const estimasiJarakAI = avgWhKmMovingAI > 0 ? ((0.7 * lastCap * 1000) / avgWhKmMovingAI) : 0;
+
+  let filteredEntriesForAI = [];
+  entries.forEach((e)=>{ 
+    try{
+      const d = new Date(e.tanggal); d.setHours(0,0,0,0);
+      if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) return;
+      filteredEntriesForAI.push(e);
+    }catch(e){}
+  });
 
   document.getElementById('stat_jarak').textContent = Math.round(jarak)+' km';
   document.getElementById('stat_whkm').textContent = n ? Math.round(avgWhKmGlobal)+' Wh/km' : '– Wh/km';
   document.getElementById('stat_biaya_rumah').textContent = fmtRp(biayaRumah);
   document.getElementById('stat_biaya_spklu').textContent = fmtRp(biayaSpklu);
 
-  // ===== INTEGRASI SIGAN - HITUNG LABA REAL, KM MUTER, RP/KWH (HANYA HARI ADA SIGAN) =====
+  // ===== INTEGRASI SIGAN - HITUNG LABA REAL, KM MUTER, RP/KWH =====
   try{
     const safeParseLocal = (k)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } };
+    const incomeMap = safeParseLocal('maka_cross_sigan_income') || {};
+    const kmMap = safeParseLocal('maka_cross_sigan_km') || {};
     const shiftMap = safeParseLocal('siganShiftData') || {};
-    // totalIncome, totalKmEfektif, validDates sudah dihitung di atas, pakai langsung
-
+    let totalIncome = 0, totalKmEfektif = 0;
+    // filter by periode
+    for(let tgl in incomeMap){
+      try{
+        const d = new Date(tgl); d.setHours(0,0,0,0);
+        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        totalIncome += Number(incomeMap[tgl]||0);
+      }catch(e){}
+    }
+    for(let tgl in kmMap){
+      try{
+        const d = new Date(tgl); d.setHours(0,0,0,0);
+        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        totalKmEfektif += Number(kmMap[tgl]||0);
+      }catch(e){}
+    }
     
     const elStatus = document.getElementById('stat_integrasi_status');
     if(totalIncome>0){
-      if(elStatus) { elStatus.textContent = 'Terhubung ✓ '+validDates.size+' hari ada data ('+Object.keys(incomeMap||{}).length+' total)'; elStatus.style.color = '#7dffb7'; }
+      if(elStatus) { elStatus.textContent = 'Terhubung ✓ '+Object.keys(incomeMap).length+' hari'; elStatus.style.color = '#7dffb7'; }
     } else {
       if(elStatus) { elStatus.textContent = 'Menunggu SiGan - buka SiGan sekali'; elStatus.style.color = '#ff8a80'; }
     }
@@ -1489,8 +1484,8 @@ function renderDasbor(){
       elRekom.innerHTML = rekomTxt;
     }
 
-    // Simpan untuk AI insight
-    window._battlogAIExtra = { totalIncome, totalKmEfektif, kmMuter, effRute, labaBersih, labaPerKm, rpPerKwh, labaPerKwh, avgRpPerKmEfektif, totalEnergiKwh, jarak, biayaSpklu, biayaRumah, avgWhKmGlobal };
+    // Simpan untuk AI insight V3 - periode aware SiGan
+    window._battlogAIExtra = { totalIncome, totalKmEfektif, kmMuter, effRute, labaBersih, labaPerKm, rpPerKwh, labaPerKwh, avgRpPerKmEfektif, totalEnergiKwh, jarak, biayaSpklu, biayaRumah, avgWhKmGlobal, periode: getPeriodeLabel(), tripCount: filteredEntriesForAI.length, cutoff: cutoffDate.toISOString().slice(0,10) };
   }catch(err){ console.log('Integrasi SiGan error', err.message); }
 
   
@@ -1533,8 +1528,9 @@ function renderDasbor(){
     }
   } catch(err){}
 
-  drawModernDigitalCluster(Math.round(avgWhKmMovingAI));
-  perbaruiAIInsightDasbor(avgWhKmMovingAI);
+  const avgWhKmMovingAI_filtered = hitungPrediksiAIWhKm(filteredEntriesForAI);
+  drawModernDigitalCluster(Math.round(avgWhKmMovingAI_filtered||avgWhKmMovingAI));
+  perbaruiAIInsightDasbor(avgWhKmMovingAI_filtered||avgWhKmMovingAI, filteredEntriesForAI);
   
   const minDisplay = document.getElementById('speedo_min');
   const maxDisplay = document.getElementById('speedo_max');
@@ -1895,7 +1891,7 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
 }
 </script>
 
-<!-- TAMBAHAN PENGIRIM DATA KE FILE 1 - TIDAK MERUBAH KODE SEMPURNA DI ATAS -->
+<!-- TAMBAHAN PENGIRIM DATA KE FILE 1 - PATCH MERGE ANTI-TIMPA V2 -->
 <script>
 (function(){
   // Hanya menambah, tidak mengubah fungsi lama
@@ -1910,17 +1906,40 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
       try{ return JSON.parse(v); }catch(e){ return v; }
     }catch(e){ return null; }
   }
+  function getExistingLake(){
+    try{
+      var raw = localStorage.getItem(LAKE_KEY);
+      if(!raw) return {_updated:0, _source:'', _sources:{}, sigan:{}, maka:{}, cross:{}};
+      var obj = JSON.parse(raw);
+      obj.sigan = obj.sigan || {};
+      obj.maka = obj.maka || {};
+      obj.cross = obj.cross || {};
+      obj._sources = obj._sources || {};
+      return obj;
+    }catch(e){ return {_updated:0, _source:'', _sources:{}, sigan:{}, maka:{}, cross:{}}; }
+  }
   
+  // BroadcastChannel untuk sync instan antar tab
+  try{
+    window.__siganBC = window.__siganBC || new BroadcastChannel('sigan_universal_sync');
+  }catch(e){}
+
   function buildAndSend(){
     try{
-      // 1. Bangun danau universal yang bisa dibaca File 1
-      var lake = {_updated: Date.now(), _source: 'maka_sempurna', sigan: {}, maka: {}};
-      for(var i=0;i<KEYS_SIGAN.length;i++){ lake.sigan[KEYS_SIGAN[i]] = safeParse(KEYS_SIGAN[i]); }
-      for(var i=0;i<KEYS_MAKA.length;i++){ lake.maka[KEYS_MAKA[i]] = safeParse(KEYS_MAKA[i]); }
-      // Simpan tanpa memicu loop
-      try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
-      
-      // 2. Kirim versi ringkas yang langsung dimengerti File 1 (format siganData)
+      var lake = getExistingLake();
+
+      // 1. Merge sigan keys - hanya update kalau ada data baru (tidak null)
+      for(var i=0;i<KEYS_SIGAN.length;i++){ 
+        var val = safeParse(KEYS_SIGAN[i]); 
+        if(val!==null) lake.sigan[KEYS_SIGAN[i]] = val; 
+      }
+      // 2. Merge maka keys
+      for(var i=0;i<KEYS_MAKA.length;i++){ 
+        var val2 = safeParse(KEYS_MAKA[i]); 
+        if(val2!==null) lake.maka[KEYS_MAKA[i]] = val2; 
+      }
+
+      // 3. Bangun ringkasan biaya & energi (yang tadinya langsung timpa)
       var makaLog = safeParse('maka_log_v1');
       if(makaLog && makaLog.length){
         var ringkasBiaya = {};
@@ -1936,7 +1955,6 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
             biaya = (pct/100)*cap*Number(e.tarif||0);
           }
           ringkasBiaya[tgl] = (ringkasBiaya[tgl]||0)+biaya;
-          // energi terpakai
           var jarak = Math.max(0,(Number(e.km_akhir)||0)-(Number(e.km_awal)||0));
           var usedPct = Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0));
           var cap2 = Number(e.cap_kwh||4);
@@ -1949,41 +1967,53 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
         try{
           localStorage.setItem('sigan_cross_ev_cost', JSON.stringify(ringkasBiaya));
           localStorage.setItem('maka_cross_summary', JSON.stringify(ringkasEnergi));
-          // Penanda update untuk File 1 bisa listen via storage event
           localStorage.setItem('sigan_hub_last_update', String(Date.now()));
+          lake.cross['sigan_cross_ev_cost'] = ringkasBiaya;
+          lake.cross['maka_cross_summary'] = ringkasEnergi;
         }catch(e){}
       }
       
-      // 3. Pastikan data hub yang sudah ada tetap terkirim ulang
+      // 4. Pastikan data hub tetap ada di cross
       try{
         var hubData = safeParse('sigan_hub_data');
         var riwayatHub = safeParse('sigan_riwayat_harian');
-        // Tidak diubah, cuma pastikan ada timestamp biar File 1 tau ada update
+        if(hubData) lake.cross['sigan_hub_data'] = hubData;
+        if(riwayatHub) lake.cross['sigan_riwayat_harian'] = riwayatHub;
         if(hubData || riwayatHub){
           localStorage.setItem('sigan_hub_data_sync', JSON.stringify({hub:hubData, riwayat:riwayatHub, ts:Date.now()}));
         }
+        // bawa juga data cross dari SiGan yang sudah ada biar tidak hilang
+        var inc = safeParse('maka_cross_sigan_income');
+        var kmm = safeParse('maka_cross_sigan_km');
+        if(inc) lake.cross['maka_cross_sigan_income'] = inc;
+        if(kmm) lake.cross['maka_cross_sigan_km'] = kmm;
+        var fromSigan = safeParse('sigan_hub_data_from_sigan');
+        if(fromSigan) lake.cross['sigan_hub_data_from_sigan'] = fromSigan;
       }catch(e){}
       
+      // 5. Update metadata merge (bukan overwrite)
+      lake._updated = Date.now();
+      lake._sources['maka_sempurna'] = Date.now();
+      lake._source = Object.keys(lake._sources).join('+');
+
+      try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){ console.error('Lake save fail', e); }
+      try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update', from:'maka', ts:Date.now()}); }catch(e){}
+
     }catch(e){ console.log('Sender error', e.message); }
   }
   
-  // Bungkus saveEntry yang sudah sempurna tanpa mengubah isinya
-  // Kita tunggu sampai saveEntry ada
   function hookSaveEntry(){
     if(window.saveEntry && !window.saveEntry.__hooked){
       var orig = window.saveEntry;
       window.saveEntry = function(){
         var res = orig.apply(this, arguments);
-        // Setelah simpan asli selesai, kirim data ke File 1
         setTimeout(buildAndSend, 150);
         return res;
       };
       window.saveEntry.__hooked = true;
-      console.log('SiGan Sender: saveEntry hooked');
+      console.log('SiGan Sender V2: saveEntry hooked (merge)');
     }
   }
-  
-  // Hook juga delete dan edit biar tetap sinkron
   function hookDelete(){
     if(window.deleteEntry && !window.deleteEntry.__hooked){
       var origDel = window.deleteEntry;
@@ -1996,28 +2026,23 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
     }
   }
   
-  // Jalankan hook setelah load
   setTimeout(hookSaveEntry, 500);
   setTimeout(hookDelete, 500);
-  // Interval aman sebagai backup jika user buka File 2 tanpa save
-  setInterval(buildAndSend, 3000); // hemat batere 1 menit
-  // Kirim pertama kali saat load
+  setInterval(buildAndSend, 60000);
   setTimeout(buildAndSend, 1000);
   
-  // Expose untuk debug
   window.kirimSemuaKeSiGan = buildAndSend;
   window.getUniversalLake = function(){
     try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; }
   };
-  
-  console.log('SiGan Sender aktif: File ini sekarang otomatis mengirim ke File 1 via '+LAKE_KEY);
+  console.log('SiGan Sender V2 aktif: MERGE mode, tidak timpa '+LAKE_KEY);
 })();
 </script>
 
-<!-- TAMBAHAN PENERIMA DATA DARI SIGAN - TIDAK MERUBAH KODE SEMPURNA DI ATAS -->
+
+<!-- TAMBAHAN PENERIMA DATA DARI SIGAN - PATCH V2 MERGE READ -->
 <script>
 (function(){
-  // Hanya menambah, tidak mengubah fungsi lama
   var LAKE_KEY = 'UNIVERSAL_LAKE_V1';
   function safeParse(k){
     try{
@@ -2035,17 +2060,23 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
       var siganData = safeParse('siganData') || [];
       var lake = safeParse(LAKE_KEY) || {};
 
-      // Expose global untuk update app nanti - TIDAK MERUBAH UI
-      window.__CROSS_SIGAN_INCOME = incomeMap; // { "2026-05-13": 200000 }
-      window.__CROSS_SIGAN_KM = kmMap; // { "2026-05-13": 120 }
+      // Fallback: jika key terpisah kosong, ambil dari lake.cross
+      if(Object.keys(incomeMap).length===0 && lake.cross && lake.cross.maka_cross_sigan_income){
+        incomeMap = lake.cross.maka_cross_sigan_income;
+      }
+      if(Object.keys(kmMap).length===0 && lake.cross && lake.cross.maka_cross_sigan_km){
+        kmMap = lake.cross.maka_cross_sigan_km;
+      }
+
+      window.__CROSS_SIGAN_INCOME = incomeMap;
+      window.__CROSS_SIGAN_KM = kmMap;
       window.__CROSS_SIGAN_HUB = hubFromSiGan;
       window.__CROSS_SIGAN_DATA = siganData;
       window.__CROSS_SIGAN_LAKE = lake;
       window.__CROSS_SIGAN_LAST_UPDATE = localStorage.getItem('sigan_hub_last_update');
 
-      // Helper netto: bruto - biaya cas (sudah tersedia dari pengirim lama)
       try{
-        var biayaMap = safeParse('sigan_cross_ev_cost') || {};
+        var biayaMap = safeParse('sigan_cross_ev_cost') || (lake.cross && lake.cross.sigan_cross_ev_cost) || {};
         var nettoMap = {};
         var keys = Object.keys(incomeMap);
         for(var i=0;i<keys.length;i++){
@@ -2054,10 +2085,9 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
           var biaya = Number(biayaMap[tgl]||0);
           nettoMap[tgl] = bruto - biaya;
         }
-        window.__CROSS_SIGAN_NETTO = nettoMap; // { tanggal: bruto - biaya }
+        window.__CROSS_SIGAN_NETTO = nettoMap;
       }catch(e){}
 
-      // console.log('BattLog Receiver: SiGan data tersedia', Object.keys(incomeMap).length, 'hari');
       return { income: incomeMap, km: kmMap, hub: hubFromSiGan, lake: lake };
     }catch(e){
       console.log('BattLog Receiver error', e.message);
@@ -2065,33 +2095,38 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
     }
   }
 
-  // Listener: kalau SiGan kirim data baru dari tab lain
   window.addEventListener('storage', function(e){
     if(!e) return;
     if(e.key==='maka_cross_sigan_income' || e.key==='maka_cross_sigan_km' || e.key==='sigan_hub_data_from_sigan' || e.key==='UNIVERSAL_LAKE_V1' || e.key==='sigan_hub_last_update' || e.key==='siganData' || e.key==='siganShiftData'){
       setTimeout(bacaDataSiGan, 100);
     }
   });
+  try{
+    window.__siganBC = window.__siganBC || new BroadcastChannel('sigan_universal_sync');
+    window.__siganBC.onmessage = function(ev){
+      if(ev.data && ev.data.type==='lake_update' && ev.data.from==='sigan'){
+        setTimeout(bacaDataSiGan, 80);
+      }
+    };
+  }catch(e){}
 
-  // Polling untuk tab yang sama + init
   setTimeout(bacaDataSiGan, 1200);
-  setInterval(bacaDataSiGan, 4000); // hemat batere 1 menit
+  setInterval(bacaDataSiGan, 60000);
 
-  // Expose untuk debug & untuk update app nanti
   window.bacaDataSiGan = bacaDataSiGan;
   window.getCrossSiganData = function(){
     return {
-      income: safeParse('maka_cross_sigan_income'),
+      income: safeParse('maka_cross_sigan_income') || (safeParse(LAKE_KEY)?.cross?.maka_cross_sigan_income),
       km: safeParse('maka_cross_sigan_km'),
       hub: safeParse('sigan_hub_data_from_sigan'),
       netto: window.__CROSS_SIGAN_NETTO || {},
       lake: safeParse(LAKE_KEY)
     };
   };
-
-  console.log('BattLog Receiver aktif: Siap baca bruto/km dari SiGan via maka_cross_sigan_income');
+  console.log('BattLog Receiver V2 aktif: MERGE READ + BroadcastChannel');
 })();
 </script>
+
 
 </body>
 </html>
