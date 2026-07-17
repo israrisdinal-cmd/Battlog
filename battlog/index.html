@@ -299,6 +299,14 @@ window.addEventListener('storage', (event) => {
       <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya Rumah</div><div id="stat_biaya_rumah" style="font-size:22px; font-weight:800;">Rp 0</div></div>
       <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya SPKLU / SPB LU</div><div id="stat_biaya_spklu" style="font-size:22px; font-weight:800;">Rp 0</div></div>
     </div>
+        <div style="display:flex; gap:6px; margin:12px 0 8px 0; overflow-x:auto; padding-bottom:4px;">
+      <button class="pill active" onclick="setEkonomiPeriod('harian', this)">Hari Ini</button>
+      <button class="pill" onclick="setEkonomiPeriod('7hari', this)">7 Hari</button>
+      <button class="pill" onclick="setEkonomiPeriod('14hari', this)">14 Hari</button>
+      <button class="pill" onclick="setEkonomiPeriod('30hari', this)">30 Hari</button>
+      <button class="pill" onclick="setEkonomiPeriod('all', this)">Semua</button>
+    </div>
+
     <!-- ANALITIK EKONOMI REAL - INTEGRASI SIGAN -->
     <div class="maka-card" style="border:1px solid rgba(125,255,183,0.25); background: linear-gradient(180deg, #0d1e2a 0%, #0b1424 100%); margin-bottom:12px;">
       <div style="font-size:11px; font-weight:800; color:#7dffb7; letter-spacing:0.08em; margin-bottom:10px; display:flex; justify-content:space-between;">
@@ -1253,12 +1261,28 @@ function renderRingkas(){
 function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil((((t-yearStart)/86400000)+1)/7); }
 
 function renderDasbor(){
+  let anchorDate = new Date(); anchorDate.setHours(0,0,0,0);
+  let cutoffDate = new Date(anchorDate);
+  if(typeof ekonomiPeriod!=='undefined'){
+    if(ekonomiPeriod==='harian'){ cutoffDate = new Date(anchorDate); }
+    else if(ekonomiPeriod==='7hari'){ cutoffDate.setDate(anchorDate.getDate()-6); }
+    else if(ekonomiPeriod==='14hari'){ cutoffDate.setDate(anchorDate.getDate()-13); }
+    else if(ekonomiPeriod==='30hari'){ cutoffDate.setDate(anchorDate.getDate()-29); }
+    else { cutoffDate = new Date('2000-01-01'); }
+  } else {
+    cutoffDate = new Date('2000-01-01');
+  }
+
   let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
   let totalEnergiKwh=0;
   let lastCap = (entries[0] && entries[0].cap_kwh) || 4.0;
   let movingWhList = [];
   
   entries.forEach((e)=>{ 
+    try{
+      const d = new Date(e.tanggal); d.setHours(0,0,0,0);
+      if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) return;
+    }catch(e){}
     const c=calcEntry(e); 
     jarak+=c.jarak; 
     totalEnergiKwh+=c.energi_terpakai;
@@ -1290,8 +1314,21 @@ function renderDasbor(){
     const kmMap = safeParseLocal('maka_cross_sigan_km') || {};
     const shiftMap = safeParseLocal('siganShiftData') || {};
     let totalIncome = 0, totalKmEfektif = 0;
-    Object.values(incomeMap).forEach(v=> totalIncome += Number(v||0));
-    Object.values(kmMap).forEach(v=> totalKmEfektif += Number(v||0));
+    // filter by periode
+    for(let tgl in incomeMap){
+      try{
+        const d = new Date(tgl); d.setHours(0,0,0,0);
+        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        totalIncome += Number(incomeMap[tgl]||0);
+      }catch(e){}
+    }
+    for(let tgl in kmMap){
+      try{
+        const d = new Date(tgl); d.setHours(0,0,0,0);
+        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        totalKmEfektif += Number(kmMap[tgl]||0);
+      }catch(e){}
+    }
     
     const elStatus = document.getElementById('stat_integrasi_status');
     if(totalIncome>0){
@@ -1544,6 +1581,16 @@ function drawModernDigitalCluster(currentWhKm) {
 }
 
 let chartPeriod='harian';
+let ekonomiPeriod='harian';
+function setEkonomiPeriod(p,btn){
+  ekonomiPeriod=p;
+  try{
+    const parent = btn.parentElement;
+    if(parent) parent.querySelectorAll('.pill').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  }catch(e){}
+  renderDasbor();
+}
 function setPeriod(p,btn){ chartPeriod=p; document.querySelectorAll('[data-period]').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active'); renderChart(); }
 function renderChart(){
   try{
