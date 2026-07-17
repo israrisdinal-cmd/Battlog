@@ -1397,9 +1397,69 @@ function renderDasbor(){
       if(elStatus) { elStatus.textContent = 'Menunggu SiGan - buka SiGan sekali'; elStatus.style.color = '#ff8a80'; }
     }
 
-    // Km Muter Kosong
-    let kmMuter = Math.max(0, jarak - totalKmEfektif);
-    let effRute = jarak>0 ? (totalKmEfektif / jarak * 100) : 0;
+    // Km Muter Kosong - FIX V3.1: hitung per tanggal, skip tanggal tanpa data SiGan biar gak ratusan km ngaco
+    let kmMuter = 0;
+    let effRute = 0;
+    let debugPerTanggal = [];
+    let hariTanpaSiGan = 0;
+    let hariValid = 0;
+    try{
+      // Build map EV km per tanggal dari filtered entries
+      let evKmPerTgl = {};
+      (filteredEntriesForAI||[]).forEach(e=>{
+        try{
+          let tgl = e.tanggal;
+          if(!tgl) return;
+          let c = calcEntry(e);
+          evKmPerTgl[tgl] = (evKmPerTgl[tgl]||0) + (c.jarak||0);
+        }catch(e){}
+      });
+      // Hitung per tanggal hanya jika ada data di kedua sisi
+      for(let tgl in evKmPerTgl){
+        let evKm = evKmPerTgl[tgl]||0;
+        let siganKm = kmMap[tgl] ? Number(kmMap[tgl]||0) : 0;
+        // cek apakah tanggal ini masuk periode
+        try{
+          let d = new Date(tgl); d.setHours(0,0,0,0);
+          if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        }catch(e){ continue; }
+        
+        if(siganKm <= 0.1){
+          // SiGan tidak ada jarak di tanggal ini -> skip, jangan hitung sebagai muter
+          hariTanpaSiGan++;
+          debugPerTanggal.push({tgl, evKm, siganKm, muter:0, skip:true, reason:'SiGan jarak 0'});
+          continue;
+        }
+        let muterTgl = Math.max(0, evKm - siganKm);
+        // sanity: muter per hari tidak mungkin > 200km (kalau >200, anggap data error, skip)
+        if(muterTgl > 200){
+          debugPerTanggal.push({tgl, evKm, siganKm, muter:muterTgl, skip:true, reason:'Muter >200km anomali'});
+          continue;
+        }
+        kmMuter += muterTgl;
+        hariValid++;
+        debugPerTanggal.push({tgl, evKm, siganKm, muter:muterTgl, skip:false});
+      }
+      // Kalau semua hari di-skip karena SiGan kosong, fallback ke cara lama tapi dengan warning
+      if(hariValid===0 && Object.keys(evKmPerTgl).length>0){
+        // coba pakai total tapi kasih flag
+        let totalEv = Object.values(evKmPerTgl).reduce((a,b)=>a+b,0);
+        let totalSi = totalKmEfektif;
+        if(totalSi > 0.1){
+          kmMuter = Math.max(0, totalEv - totalSi);
+        } else {
+          kmMuter = 0; // kalau SiGan memang kosong, jangan tampilkan ratusan km
+        }
+      }
+      effRute = jarak>0 && totalKmEfektif>0 ? (totalKmEfektif / jarak * 100) : 0;
+      // Simpan debug untuk AI insight
+      window._debugMuterPerTgl = debugPerTanggal;
+      window._muterStats = {hariValid, hariTanpaSiGan, kmMuter, totalEv: jarak, totalSi: totalKmEfektif};
+    }catch(e){
+      console.error('muter calc error', e);
+      kmMuter = Math.max(0, jarak - totalKmEfektif);
+      effRute = jarak>0 ? (totalKmEfektif / jarak * 100) : 0;
+    }
     
     // Laba bersih hanya potong SPKLU (rumah gratis sesuai permintaan)
     let labaBersih = totalIncome - biayaSpklu;
@@ -1422,8 +1482,27 @@ function renderDasbor(){
     if(elLabaKmSub) elLabaKmSub.textContent = totalIncome>0 ? `Bruto ${fmtRp(Math.round(avgRpPerKmTotal))}/km → Netto ${fmtRp(Math.round(labaPerKm))}/km | Laba ${fmtRp(Math.round(labaBersih))}` : 'Buka SiGan dulu';
     if(elRpKwh) elRpKwh.textContent = totalIncome>0 ? fmtRp(Math.round(rpPerKwh))+'/kWh' : '–';
     if(elRpKwhSub) elRpKwhSub.textContent = totalIncome>0 ? `Laba ${fmtRp(Math.round(labaPerKwh))}/kWh | ${totalEnergiKwh.toFixed(2)} kWh terpakai` : '';
-    if(elKmMuter) elKmMuter.textContent = totalIncome>0 ? Math.round(kmMuter)+' km' : '–';
-    if(elKmMuterSub) elKmMuterSub.textContent = totalIncome>0 ? `${Math.round(totalKmEfektif)} km efektif dari ${Math.round(jarak)} km total | Buang ${(kmMuter* (totalEnergiKwh/jarak||0)).toFixed(2)} kWh` : 'Selisih odometer vs argo';
+    if(elKmMuter) {
+      if(totalKmEfektif<=0.1 && totalIncome>0){
+        elKmMuter.textContent = 'Data jarak SiGan kosong';
+        elKmMuter.style.color = '#ff8a80';
+      } else if(window._muterStats && window._muterStats.hariValid===0){
+        elKmMuter.textContent = '–';
+      } else {
+        elKmMuter.textContent = Math.round(kmMuter)+' km';
+        elKmMuter.style.color = '#ffb86b';
+      }
+    }
+    if(elKmMuterSub) {
+      if(totalKmEfektif<=0.1){
+        elKmMuterSub.textContent = 'Isi jarak (km) di SiGan tiap order, bukan cuma nominal. Kalau jarak 0, muter gak bisa dihitung & jadi ratusan km ngaco.';
+      } else if(window._muterStats){
+        let s = window._muterStats;
+        elKmMuterSub.textContent = `${s.hariValid} hari valid, ${s.hariTanpaSiGan} hari tanpa jarak SiGan | ${Math.round(totalKmEfektif)} km efektif dari ${Math.round(jarak)} km total | Buang ${(kmMuter* (totalEnergiKwh/jarak||0)).toFixed(2)} kWh | Per tgl: ` + (window._debugMuterPerTgl||[]).filter(x=>!x.skip).slice(0,3).map(x=>`${x.tgl}:${Math.round(x.muter)}km`).join(', ');
+      } else {
+        elKmMuterSub.textContent = totalIncome>0 ? `${Math.round(totalKmEfektif)} km efektif dari ${Math.round(jarak)} km total | Buang ${(kmMuter* (totalEnergiKwh/jarak||0)).toFixed(2)} kWh` : 'Selisih odometer vs argo';
+      }
+    }
     if(elEffRute) elEffRute.textContent = totalIncome>0 ? effRute.toFixed(1)+'%' : '–';
     if(elEffRuteSub) {
       let txt = '';
