@@ -775,6 +775,63 @@
             el.classList.toggle('hidden');
         }
 
+        
+        // === HELPER EV SPKLU ONLY - HEMAT BATERE, HANYA SPKLU ===
+        function isSpkluEv(e){
+          if(!e) return false;
+          const tarifStr = String(e.tarif ?? '');
+          const lokasiStr = (e.lokasi || '').toLowerCase();
+          return tarifStr === '2466' || lokasiStr.includes('spklu') || lokasiStr.includes('spblu');
+        }
+        function calcBiayaEv(e){
+          try{
+            if(e.biaya !== null && e.biaya !== undefined && e.biaya !== ''){
+              return Number(e.biaya)||0;
+            }
+            const cap = Number(e.cap_kwh || 4);
+            const targetCas = Number(e.batt_setelah || 100);
+            const battAkhir = Number(e.batt_akhir || 0);
+            const pct = Math.max(0, targetCas - battAkhir);
+            const energi = (pct/100)*cap;
+            const tarif = Number(e.tarif||0);
+            return energi * tarif;
+          }catch(err){ return 0; }
+        }
+        function getEvSpkluCostMap(){
+          const map = {};
+          try{
+            // Coba ambil dari lake dulu (paling lengkap), fallback ke raw maka_log_v1
+            let makaLog = null;
+            try{
+              const lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
+              if(lakeRaw){
+                const lake = JSON.parse(lakeRaw);
+                if(lake && lake.maka && lake.maka.maka_log_v1) makaLog = lake.maka.maka_log_v1;
+              }
+            }catch(e){}
+            if(!makaLog){
+              makaLog = JSON.parse(localStorage.getItem('maka_log_v1') || '[]');
+            }
+            if(!Array.isArray(makaLog)) return map;
+            for(let i=0;i<makaLog.length;i++){
+              const e = makaLog[i];
+              if(!isSpkluEv(e)) continue;
+              const tgl = e.tanggal;
+              if(!tgl) continue;
+              const biaya = calcBiayaEv(e);
+              if(biaya>0){
+                map[tgl] = (map[tgl]||0) + biaya;
+              }
+            }
+          }catch(err){}
+          return map;
+        }
+        function getEvSpkluCostForDate(dateStr){
+          const map = getEvSpkluCostMap();
+          return map[dateStr] || 0;
+        }
+
+
         function loadData() {
             const targetDate = document.getElementById('globalDate').value;
             const data = JSON.parse(localStorage.getItem('siganData') || '[]');
@@ -786,7 +843,7 @@
             document.getElementById('globalStartTime').value = dayShift.start || '';
             document.getElementById('globalEndTime').value = dayShift.end || '';
             
-            let income = 0, expense = 0, totalIncomeKm = 0;
+            let income = 0, expense = 0, totalIncomeKm = 0; let manualExpense = 0;
             let grouped = {};
 
             data.forEach((item, index) => {
@@ -799,6 +856,7 @@
                         totalIncomeKm += km;
                     } else {
                         expense += amt;
+                        manualExpense += amt;
                     }
                     
                     if(!grouped[item.cat]) grouped[item.cat] = [];
@@ -845,7 +903,17 @@
                 container.innerHTML += html;
             }
 
-            let netBalance = income - expense;
+            let evSpkluCostToday = getEvSpkluCostForDate(targetDate);
+            let totalExpenseWithEv = expense + evSpkluCostToday;
+            // Tampilkan expense total termasuk SPKLU, tapi simpan manual terpisah untuk breakdown
+            let netBalance = income - totalExpenseWithEv;
+            // Update tampilan expense menjadi total (manual + SPKLU)
+            // Simpan untuk rekap: window last
+            window._lastEvSpkluCostToday = evSpkluCostToday;
+            window._lastManualExpenseToday = manualExpense;
+            // Override expense variable untuk UI agar mencerminkan total
+            expense = totalExpenseWithEv;
+
             let netYieldPerKm = totalIncomeKm > 0 ? Math.round(netBalance / totalIncomeKm) : 0;
 
             document.getElementById('valIncome').innerText = "Rp " + income.toLocaleString('id-ID');
@@ -961,6 +1029,26 @@
                     }
                 }
             });
+
+
+            // === TAMBAHAN: HITUNG BIAYA SPKLU ONLY DARI BATTLOG ===
+            let evSpkluMap = getEvSpkluCostMap();
+            // Gabungkan ke dailyAgg dan totalExpense (hanya SPKLU)
+            for(let tgl in evSpkluMap){
+              let biayaSpklu = evSpkluMap[tgl]||0;
+              if(biayaSpklu<=0) continue;
+              // cek apakah tanggal dalam periode rekap
+              const p = tgl.split('-');
+              const itemDate = new Date(p[0], p[1]-1, p[2]); itemDate.setHours(0,0,0,0);
+              if(itemDate >= cutoffDate && itemDate <= anchorDate){
+                if(!dailyAgg[tgl]) dailyAgg[tgl] = { income: 0, expense: 0, orders: [] };
+                dailyAgg[tgl].expense += biayaSpklu;
+                totalExpense += biayaSpklu;
+                dailyExpenseMap[tgl] = (dailyExpenseMap[tgl]||0) + biayaSpklu;
+              }
+            }
+            window._lastEvSpkluMap = evSpkluMap;
+
 
             for (let dStr in dailyAgg) {
                 const p = dStr.split('-');
@@ -1247,6 +1335,17 @@
                 }
 
                 // 4. Rekomendasi Cross-Data Khusus (Kombinasi Tarif Rendah vs Jarak)
+                // 4.1 Analisis Biaya SPKLU (hanya SPKLU, rumah gratis)
+                let totalEvSpkluInPeriod = 0;
+                for(let k in evSpkluMap){
+                  const pp = k.split('-'); const dd = new Date(pp[0], pp[1]-1, pp[2]); dd.setHours(0,0,0,0);
+                  if(dd >= cutoffDate && dd <= anchorDate) totalEvSpkluInPeriod += evSpkluMap[k];
+                }
+                if(totalEvSpkluInPeriod > 0){
+                  let avgEvCostPerKm = totalKm > 0 ? Math.round(totalEvSpkluInPeriod / totalKm) : 0;
+                  aiInsights.push(`⚡ <strong>Biaya SPKLU Real:</strong> Total Rp ${Math.round(totalEvSpkluInPeriod).toLocaleString('id-ID')} (${avgEvCostPerKm>0? 'Rp '+avgEvCostPerKm+'/km':''}) dalam periode ini. Biaya rumah tidak dihitung karena gratis. ${avgEvCostPerKm>300? '<span style="color:#ff5252">Cukup boros, coba cas malam di rumah lebih banyak.</span>':'<span style="color:#00e676">Sudah efisien.</span>'}`);
+                }
+
                 if (avgEfficiency > 0 && avgEfficiency < 2200 && pGosend > 0.30) {
                     aiInsights.push("🚨 <strong>Koreksi Strategi AI:</strong> Akumulasi netto Rp/km kamu terlalu rendah karena didominasi paket jarak jauh berbiaya murah. Kurangi trip Gosend jarak ekstrem jika alokasi waktu tersebut bisa dipakai untuk 1-2 tarikan Goride pendek bermargin tebal.");
                 }
