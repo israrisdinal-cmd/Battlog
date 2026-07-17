@@ -264,10 +264,7 @@ window.addEventListener('storage', (event) => {
       </div>
     </div>
 
-    <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%);">
-      <div style="font-size:11px; font-weight:700; color:var(--blue); margin-bottom:6px; letter-spacing: 0.5px;">🤖 AI DIAGNOSTIK SISTEM PAKAR</div>
-      <div id="ai-insight-box" style="font-size:13px; color:#eaf2ff; line-height:1.4;">Menganalisis data kendaraan lokal...</div>
-    </div>
+    
 
     <div class="maka-card" style="background: linear-gradient(180deg, #0e192f 0%, #0b1424 100%); border: 1px solid #1a2f52;">
       <div class="flex justify-between items-center" style="font-size:10px; color:#5e759e; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px; padding-left:0.5rem; padding-right:0.5rem;">
@@ -329,6 +326,10 @@ window.addEventListener('storage', (event) => {
       <div id="stat_cas_rekom" style="font-size:11px; color:#8aa0c6; margin-top:10px; line-height:1.5; background:rgba(43,140,255,0.08); border:1px dashed rgba(43,140,255,0.2); border-radius:10px; padding:8px 10px;"></div>
     </div>
 
+    <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%);">
+      <div style="font-size:11px; font-weight:700; color:var(--blue); margin-bottom:6px; letter-spacing: 0.5px;">🤖 AI DIAGNOSTIK SISTEM PAKAR</div>
+      <div id="ai-insight-box" style="font-size:13px; color:#eaf2ff; line-height:1.4;">Menganalisis data kendaraan lokal...</div>
+    </div>
     <button onclick="switchView('catat')" class="btn-primary" style="margin-top:0.75rem;">→ Buka Catat</button>
   </div>
 
@@ -1273,6 +1274,34 @@ function renderDasbor(){
     cutoffDate = new Date('2000-01-01');
   }
 
+  // --- STEP 1: cari hari yang ADA data SiGan dalam periode (agar tidak terdistrupsi hari kosong) ---
+  let totalIncome = 0, totalKmEfektif = 0;
+  let validDates = new Set();
+  try{
+    const safeParseLocalTmp = (k)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } };
+    const incomeMapAllTmp = safeParseLocalTmp('maka_cross_sigan_income') || {};
+    const kmMapAllTmp = safeParseLocalTmp('maka_cross_sigan_km') || {};
+    for(let tgl in incomeMapAllTmp){
+      try{
+        const d = new Date(tgl); d.setHours(0,0,0,0);
+        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        const v = Number(incomeMapAllTmp[tgl]||0);
+        if(v>0){ validDates.add(tgl); totalIncome += v; }
+      }catch(e){}
+    }
+    for(let tgl in kmMapAllTmp){
+      try{
+        const d = new Date(tgl); d.setHours(0,0,0,0);
+        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
+        const v = Number(kmMapAllTmp[tgl]||0);
+        if(v>0 || validDates.has(tgl)){ 
+          if(!validDates.has(tgl) && v>0) validDates.add(tgl);
+          totalKmEfektif += v; 
+        }
+      }catch(e){}
+    }
+  }catch(e){}
+
   let jarak=0, biayaRumah=0, biayaSpklu=0, wh=0, n=0;
   let totalEnergiKwh=0;
   let lastCap = (entries[0] && entries[0].cap_kwh) || 4.0;
@@ -1282,6 +1311,7 @@ function renderDasbor(){
     try{
       const d = new Date(e.tanggal); d.setHours(0,0,0,0);
       if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) return;
+      if(validDates.size>0 && !validDates.has(e.tanggal)) return; // HANYA hari yang ada SiGan
     }catch(e){}
     const c=calcEntry(e); 
     jarak+=c.jarak; 
@@ -1307,32 +1337,16 @@ function renderDasbor(){
   document.getElementById('stat_biaya_rumah').textContent = fmtRp(biayaRumah);
   document.getElementById('stat_biaya_spklu').textContent = fmtRp(biayaSpklu);
 
-  // ===== INTEGRASI SIGAN - HITUNG LABA REAL, KM MUTER, RP/KWH =====
+  // ===== INTEGRASI SIGAN - HITUNG LABA REAL, KM MUTER, RP/KWH (HANYA HARI ADA SIGAN) =====
   try{
     const safeParseLocal = (k)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } };
-    const incomeMap = safeParseLocal('maka_cross_sigan_income') || {};
-    const kmMap = safeParseLocal('maka_cross_sigan_km') || {};
     const shiftMap = safeParseLocal('siganShiftData') || {};
-    let totalIncome = 0, totalKmEfektif = 0;
-    // filter by periode
-    for(let tgl in incomeMap){
-      try{
-        const d = new Date(tgl); d.setHours(0,0,0,0);
-        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
-        totalIncome += Number(incomeMap[tgl]||0);
-      }catch(e){}
-    }
-    for(let tgl in kmMap){
-      try{
-        const d = new Date(tgl); d.setHours(0,0,0,0);
-        if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d < cutoffDate || d > anchorDate)) continue;
-        totalKmEfektif += Number(kmMap[tgl]||0);
-      }catch(e){}
-    }
+    // totalIncome, totalKmEfektif, validDates sudah dihitung di atas, pakai langsung
+
     
     const elStatus = document.getElementById('stat_integrasi_status');
     if(totalIncome>0){
-      if(elStatus) { elStatus.textContent = 'Terhubung ✓ '+Object.keys(incomeMap).length+' hari'; elStatus.style.color = '#7dffb7'; }
+      if(elStatus) { elStatus.textContent = 'Terhubung ✓ '+validDates.size+' hari ada data ('+Object.keys(incomeMap||{}).length+' total)'; elStatus.style.color = '#7dffb7'; }
     } else {
       if(elStatus) { elStatus.textContent = 'Menunggu SiGan - buka SiGan sekali'; elStatus.style.color = '#ff8a80'; }
     }
