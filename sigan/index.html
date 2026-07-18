@@ -920,23 +920,21 @@
             document.getElementById('valExpense').innerText = "Rp " + expense.toLocaleString('id-ID');
             document.getElementById('valBalance').innerText = "Rp " + netBalance.toLocaleString('id-ID');
             document.getElementById('valEfficiency').innerText = "Rp " + netYieldPerKm.toLocaleString('id-ID') + " /km";
-            // tampilkan jam istirahat cas
             try{
               let jamInfoToday = getJamOnlineEfektif(targetDate);
-              let el = document.getElementById('valEfficiency');
-              if(el && jamInfoToday.jamCas>0){
+              if(jamInfoToday.jamCas>0){
                 let sub = document.getElementById('txtJamEfektif');
                 if(!sub){
                   let div = document.createElement('div');
                   div.id = 'txtJamEfektif';
                   div.style.cssText = 'font-size:10px; color:#6fb2ff; margin-top:6px; font-weight:600; line-height:1.4;';
-                  el.parentElement.appendChild(div);
+                  let parent = document.getElementById('valEfficiency').parentElement;
+                  if(parent) parent.appendChild(div);
                   sub = div;
                 }
-                sub.innerHTML = `🔋 Cas: ${jamInfoToday.jamCas.toFixed(1)} jam istirahat | Onbit ${jamInfoToday.jamOnbit.toFixed(1)}j → Efektif ${jamInfoToday.efektif.toFixed(1)}j`;
+                sub.innerHTML = `🔋 Cas: ${jamInfoToday.jamCas.toFixed(1)}j istirahat | Onbit ${jamInfoToday.jamOnbit.toFixed(1)}j → Efektif ${jamInfoToday.efektif.toFixed(1)}j`;
               }
             }catch(e){}
-
 
             const globalTarget = Number(localStorage.getItem('siganGlobalTarget')) || 200000;
             document.getElementById('inputTarget').value = globalTarget;
@@ -953,17 +951,14 @@
         // ===== V3.3+ : Ambil jam istirahat cas dari EV Log (BattLog) =====
         function getIstirahatCasForDate(targetDate){
           try{
-            // BattLog simpan di localStorage key bt_log_entries atau similar
             let battEntries = [];
-            // coba beberapa key yang mungkin
-            const keys = ['bt_log_entries', 'EV_LOG_ENTRIES', 'ev_log_entries'];
+            const keys = ['bt_log_entries', 'EV_LOG_ENTRIES', 'ev_log_entries', 'bt_log_entries_v2'];
             for(let k of keys){
               let raw = localStorage.getItem(k);
               if(raw){
                 try{ let arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length>0){ battEntries = arr; break; } }catch(e){}
               }
             }
-            // fallback: universal lake
             if(battEntries.length===0){
               let lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
               if(lakeRaw){
@@ -978,15 +973,12 @@
             battEntries.forEach(e=>{
               try{
                 if(!e.tanggal || e.tanggal !== targetDate) return;
-                // V3.3 punya waktu_dibuat_asli (timestamp mulai cas) dan estimasi_selesai (string jam)
-                // atau jam_mulai_cas & jam_selesai_cas jika sudah V3.5
                 let dur = 0;
                 if(e.jam_mulai_cas && e.jam_selesai_cas){
                   const [h1,m1] = e.jam_mulai_cas.split(':').map(Number);
                   const [h2,m2] = e.jam_selesai_cas.split(':').map(Number);
                   let s = h1*60+m1; let ee = h2*60+m2; if(ee < s) ee+=1440; dur = (ee-s)/60;
                 } else if(e.waktu_dibuat_asli && e.estimasi_selesai){
-                  // estimasi_selesai format "14:30 ke 100%"
                   let jamStr = (e.estimasi_selesai||'').split(' ke ')[0].trim();
                   if(jamStr && jamStr.includes(':')){
                     let start = new Date(Number(e.waktu_dibuat_asli));
@@ -995,11 +987,8 @@
                     if(end < start) end.setDate(end.getDate()+1);
                     dur = (end - start)/1000/3600;
                   }
-                } else if(e.durasi_cas_jam){
-                  dur = Number(e.durasi_cas_jam)||0;
                 }
-                if(dur>0 && dur<12){ // filter aneh
-                  // cek apakah cas di dalam jam onbit (06-22)
+                if(dur>0 && dur<12){
                   let jamMulai = 0;
                   if(e.jam_mulai_cas) jamMulai = Number(e.jam_mulai_cas.split(':')[0]);
                   else if(e.waktu_dibuat_asli){ jamMulai = new Date(Number(e.waktu_dibuat_asli)).getHours(); }
