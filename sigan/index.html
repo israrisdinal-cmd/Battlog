@@ -199,7 +199,7 @@
             AI Engine V2 belajar <strong>Tarif Dasar + Rp/km per layanan + faktor jam sibuk</strong> dari histori. Batas bawah = P15. Tarif flat lama sudah dihapus.
         </div>
         <div id="tariffSettingsFields"></div>
-        <button onclick="saveTariffSettings()">Simpan Tarif Cadangan</button>
+        <button onclick="saveTariffSettings()">💾 Simpan Tarif Cadangan & Belajar Ulang</button>
         <button class="btn-secondary" style="margin-top: 8px;" onclick="resetTariffDefaults()">Kembalikan ke Default</button>
     </div>
 
@@ -392,114 +392,6 @@
             isTimeManuallyLocked = true;
         }
 
-        function getTariffConfig() {
-            const stored = localStorage.getItem('siganTariffConfig');
-            const merged = JSON.parse(JSON.stringify(defaultTariffConfig));
-            if (!stored) return merged;
-            try {
-                const parsed = JSON.parse(stored);
-                for (let cat in merged) {
-                    if (parsed[cat]) Object.assign(merged[cat], parsed[cat]);
-                }
-                return merged;
-            } catch (e) {
-                return merged;
-            }
-        }
-
-        function toggleTariffSettings() {
-            const panel = document.getElementById('tariffSettingsPanel');
-            if (panel.classList.contains('hidden')) renderTariffSettingsForm();
-            panel.classList.toggle('hidden');
-        }
-
-        function renderTariffSettingsForm() {
-            const cfg = getTariffConfig();
-            const container = document.getElementById('tariffSettingsFields');
-            container.innerHTML = "";
-            for (let cat in cfg) {
-                const c = cfg[cat];
-                container.innerHTML += `
-                    <div style="margin-bottom:14px; border-bottom:1px dashed #333333; padding-bottom:10px;">
-                        <div style="font-size:13px; font-weight:bold; color:#ffffff; margin-bottom:6px;">${cat}</div>
-                        <div style="display:flex; gap:8px; align-items:center; font-size:11px; color:var(--muted)aaa; margin-bottom:6px;">
-                            <span style="flex:1;">Tarif ${c.baseKm} km pertama (Rp)</span>
-                            <input type="number" id="cfg-${cat}-base" value="${c.base}" style="width:100px; padding:6px; margin:0;">
-                        </div>
-                        <div style="display:flex; gap:8px; align-items:center; font-size:11px; color:var(--muted)aaa;">
-                            <span style="flex:1;">Tarif per km berikutnya (Rp)</span>
-                            <input type="number" id="cfg-${cat}-perkm" value="${c.perKm}" style="width:100px; padding:6px; margin:0;">
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        function saveTariffSettings() {
-            const cfg = getTariffConfig();
-            for (let cat in cfg) {
-                const baseInput = document.getElementById(`cfg-${cat}-base`);
-                const perKmInput = document.getElementById(`cfg-${cat}-perkm`);
-                const baseVal = Number(baseInput.value);
-                const perKmVal = Number(perKmInput.value);
-                if (baseInput.value !== "" && !isNaN(baseVal)) cfg[cat].base = baseVal;
-                if (perKmInput.value !== "" && !isNaN(perKmVal)) cfg[cat].perKm = perKmVal;
-            }
-            localStorage.setItem('siganTariffConfig', JSON.stringify(cfg));
-            document.getElementById('tariffSettingsPanel').classList.add('hidden');
-            autoFillAmount();
-            alert("Tarif berhasil disimpan!");
-        }
-
-        function resetTariffDefaults() {
-            if (!confirm("Kembalikan semua tarif ke nilai default bawaan?")) return;
-            localStorage.removeItem('siganTariffConfig');
-            renderTariffSettingsForm();
-            autoFillAmount();
-        }
-
-        const LEARN_MIN_ENTRIES = 3;
-        const LEARN_WINDOW = 15;
-
-        function getLearnedRate(cat) {
-            const cfg = getTariffConfig();
-            const rateCfg = cfg[cat];
-            if (!rateCfg) return null;
-
-            const data = JSON.parse(localStorage.getItem('siganData') || '[]');
-            
-            const entries = data.filter(item =>
-                item.type === 'Pendapatan' &&
-                item.cat === cat &&
-                Number(item.dist) > rateCfg.baseKm &&
-                Number(item.amount) > rateCfg.base
-            );
-
-            if (entries.length < LEARN_MIN_ENTRIES) return null;
-
-            entries.sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)));
-            const recent = entries.slice(0, LEARN_WINDOW);
-
-            let individualRates = recent.map(item => {
-                let excessAmt = Number(item.amount) - rateCfg.base;
-                let excessKm = Number(item.dist) - rateCfg.baseKm;
-                return excessAmt / excessKm;
-            });
-
-            individualRates.sort((a, b) => a - b);
-            
-            let robustRatePerKm = 0;
-            let mid = Math.floor(individualRates.length / 2);
-            
-            if (individualRates.length % 2 !== 0) {
-                robustRatePerKm = individualRates[mid];
-            } else {
-                robustRatePerKm = (individualRates[mid - 1] + individualRates[mid]) / 2;
-            }
-
-            return { ratePerKm: robustRatePerKm, count: recent.length };
-        }
-
         function switchTab(tabName) {
             const contents = {
                 'input': document.getElementById('tabContentInput'),
@@ -537,6 +429,13 @@
             loadData();
         }
 
+        function parseDateTime(dateStr, timeStr){
+            if(!dateStr || !timeStr) return null;
+            try{ return new Date(dateStr+'T'+timeStr+':00'); }catch(e){ return null; }
+        }
+        function getPrevDateStr(dateStr){
+            try{ let d=new Date(dateStr); d.setDate(d.getDate()-1); return d.toLocaleDateString('sv-SE'); }catch(e){ return null; }
+        }
         function updateShiftTime() {
             const targetDate = document.getElementById('globalDate').value;
             if (!targetDate) return;
@@ -544,12 +443,41 @@
             const endTime = document.getElementById('globalEndTime').value;
             
             let shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
+            
+            // FIX V3: Handle lintas tengah malam - jika end < start, end adalah besok
+            let startAt = parseDateTime(targetDate, startTime);
+            let endAt = parseDateTime(targetDate, endTime);
+            if(startAt && endAt && endAt <= startAt) { endAt.setDate(endAt.getDate()+1); }
+
+            // FIX V3: Jika user selesai shift jam 00-06 tapi globalDate sudah ganti hari baru,
+            // cek apakah kemarin ada shift yang belum selesai -> simpan end ke kemarin
+            let isEarlyMorning = endTime && parseInt(endTime.split(':')[0]) < 6;
+            if(isEarlyMorning && (!shiftData[targetDate] || !shiftData[targetDate].start)){
+                let prev = getPrevDateStr(targetDate);
+                if(prev && shiftData[prev] && shiftData[prev].start && !shiftData[prev].end){
+                    // Simpan end ke hari sebelumnya
+                    if(!shiftData[prev].startAt) shiftData[prev].startAt = parseDateTime(prev, shiftData[prev].start)?.getTime();
+                    shiftData[prev].end = endTime;
+                    shiftData[prev].endAt = endAt ? endAt.getTime() : parseDateTime(prev, endTime)?.getTime();
+                    if(shiftData[prev].startAt && shiftData[prev].endAt && shiftData[prev].endAt <= shiftData[prev].startAt){
+                        let ea=new Date(shiftData[prev].endAt); ea.setDate(ea.getDate()+1); shiftData[prev].endAt=ea.getTime();
+                    }
+                    localStorage.setItem('siganShiftData', JSON.stringify(shiftData));
+                    loadData();
+                    return;
+                }
+            }
+
             if (!shiftData[targetDate]) {
                 shiftData[targetDate] = { start: '', end: '', isLocked: false };
             }
             
             shiftData[targetDate].start = startTime;
             shiftData[targetDate].end = endTime;
+            shiftData[targetDate].startAt = startAt ? startAt.getTime() : null;
+            shiftData[targetDate].endAt = endAt ? endAt.getTime() : null;
+            shiftData[targetDate].startDate = targetDate;
+            shiftData[targetDate].endDate = endAt ? endAt.toLocaleDateString('sv-SE') : targetDate;
             
             localStorage.setItem('siganShiftData', JSON.stringify(shiftData));
             loadData();
@@ -570,11 +498,13 @@
             }
             
             shiftData[targetDate].start = currentTime;
+            shiftData[targetDate].startAt = now.getTime();
+            shiftData[targetDate].startDate = targetDate;
             document.getElementById('globalStartTime').value = currentTime;
             
             localStorage.setItem('siganShiftData', JSON.stringify(shiftData));
             loadData();
-            alert(`Berhasil log Mulai On-Bid: ${currentTime}`);
+            alert(`Berhasil log Mulai On-Bid: ${currentTime} (V3 FIX)`);
         }
 
         function getDurationInHours(start, end) {
@@ -582,9 +512,87 @@
             const [sH, sM] = start.split(':').map(Number);
             const [eH, eM] = end.split(':').map(Number);
             let diffMins = (eH * 60 + eM) - (sH * 60 + sM);
+            if (diffMins === 0) return 24;
             if (diffMins < 0) diffMins += 24 * 60; 
             return diffMins / 60;
         }
+        function getDurationFromShift(shift){
+            if(!shift) return 0;
+            if(shift.startAt && shift.endAt){
+                let diff = (shift.endAt - shift.startAt)/1000/3600;
+                if(diff<0) diff+=24;
+                if(diff>0 && diff<=24) return diff;
+            }
+            return getDurationInHours(shift.start, shift.end);
+        }
+
+        // ===== FIX BUG MERAH: Ambil jam istirahat cas dari BattLog dengan key yang benar =====
+        function getIstirahatCasForDate(targetDate){
+          try{
+            let battEntries = [];
+            const keys = ['maka_log_v1']; // FIX: BattLog pakai maka_log_v1, bukan bt_log_entries
+            for(let k of keys){
+              let raw = localStorage.getItem(k);
+              if(raw){
+                try{ let arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length>0){ battEntries = arr; break; } }catch(e){}
+              }
+            }
+            if(battEntries.length===0){
+              let lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
+              if(lakeRaw){
+                try{
+                  let lake = JSON.parse(lakeRaw);
+                  if(lake && lake.maka && lake.maka.maka_log_v1 && Array.isArray(lake.maka.maka_log_v1)) battEntries = lake.maka.maka_log_v1; // FIX
+                }catch(e){}
+              }
+            }
+            let totalJamCas = 0;
+            let detail = [];
+            battEntries.forEach(e=>{
+              try{
+                if(!e.tanggal || e.tanggal !== targetDate) return;
+                let dur = 0;
+                if(e.jam_mulai_cas && e.jam_selesai_cas){
+                  const [h1,m1] = e.jam_mulai_cas.split(':').map(Number);
+                  const [h2,m2] = e.jam_selesai_cas.split(':').map(Number);
+                  let s = h1*60+m1; let ee = h2*60+m2; if(ee < s) ee+=1440; dur = (ee-s)/60;
+                } else if(e.waktu_dibuat_asli && e.estimasi_selesai){
+                  let jamStr = (e.estimasi_selesai||'').split(' ke ')[0].trim();
+                  if(jamStr && jamStr.includes(':')){
+                    let start = new Date(Number(e.waktu_dibuat_asli));
+                    let [h2,m2] = jamStr.split(':').map(Number);
+                    let end = new Date(start); end.setHours(h2, m2, 0, 0);
+                    if(end < start) end.setDate(end.getDate()+1);
+                    dur = (end - start)/1000/3600;
+                  }
+                }
+                if(dur>0 && dur<12){
+                  let jamMulai = 0;
+                  if(e.jam_mulai_cas) jamMulai = Number(e.jam_mulai_cas.split(':')[0]);
+                  else if(e.waktu_dibuat_asli){ jamMulai = new Date(Number(e.waktu_dibuat_asli)).getHours(); }
+                  // Hanya hitung cas di jam kerja 06-22 sebagai pengurang jam efektif
+                  if(jamMulai>=6 && jamMulai<=22){
+                    totalJamCas += dur;
+                    detail.push({jam: e.jam_mulai_cas||'', dur, lokasi: e.lokasi||''});
+                  }
+                }
+              }catch(err){}
+            });
+            return {totalJamCas, detail};
+          }catch(err){ return {totalJamCas:0, detail:[]}; }
+        }
+
+        function getJamOnlineEfektif(targetDate){
+          try{
+            let shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
+            let dayShift = shiftData[targetDate] || {start:'', end:''};
+            let jamOnbit = getDurationInHours(dayShift.start, dayShift.end);
+            let casInfo = getIstirahatCasForDate(targetDate);
+            let efektif = Math.max(0, jamOnbit - casInfo.totalJamCas);
+            return {jamOnbit, totalJamCas: casInfo.totalJamCas, efektif, detail: casInfo.detail};
+          }catch(e){ return {jamOnbit:0, totalJamCas:0, efektif:0, detail:[]}; }
+        }
+
 
         function formatRupiah(input) {
             let val = input.value.replace(/[^0-9]/g, '');
@@ -920,21 +928,6 @@
             document.getElementById('valExpense').innerText = "Rp " + expense.toLocaleString('id-ID');
             document.getElementById('valBalance').innerText = "Rp " + netBalance.toLocaleString('id-ID');
             document.getElementById('valEfficiency').innerText = "Rp " + netYieldPerKm.toLocaleString('id-ID') + " /km";
-            try{
-              let jamInfoToday = getJamOnlineEfektif(targetDate);
-              if(jamInfoToday.jamCas>0){
-                let sub = document.getElementById('txtJamEfektif');
-                if(!sub){
-                  let div = document.createElement('div');
-                  div.id = 'txtJamEfektif';
-                  div.style.cssText = 'font-size:10px; color:#6fb2ff; margin-top:6px; font-weight:600; line-height:1.4;';
-                  let parent = document.getElementById('valEfficiency').parentElement;
-                  if(parent) parent.appendChild(div);
-                  sub = div;
-                }
-                sub.innerHTML = `🔋 Cas: ${jamInfoToday.jamCas.toFixed(1)}j istirahat | Onbit ${jamInfoToday.jamOnbit.toFixed(1)}j → Efektif ${jamInfoToday.efektif.toFixed(1)}j`;
-              }
-            }catch(e){}
 
             const globalTarget = Number(localStorage.getItem('siganGlobalTarget')) || 200000;
             document.getElementById('inputTarget').value = globalTarget;
@@ -946,72 +939,6 @@
             document.getElementById('txtTargetProgress').innerText = actualPercent + "% Tercapai " + (actualPercent >= 100 ? "(Tembus! 🎯)" : "(Semangat!)");
 
             loadRekapData();
-        }
-
-        // ===== V3.3+ : Ambil jam istirahat cas dari EV Log (BattLog) =====
-        function getIstirahatCasForDate(targetDate){
-          try{
-            let battEntries = [];
-            const keys = ['bt_log_entries', 'EV_LOG_ENTRIES', 'ev_log_entries', 'bt_log_entries_v2'];
-            for(let k of keys){
-              let raw = localStorage.getItem(k);
-              if(raw){
-                try{ let arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length>0){ battEntries = arr; break; } }catch(e){}
-              }
-            }
-            if(battEntries.length===0){
-              let lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
-              if(lakeRaw){
-                try{
-                  let lake = JSON.parse(lakeRaw);
-                  if(lake && lake.battlog && Array.isArray(lake.battlog)) battEntries = lake.battlog;
-                }catch(e){}
-              }
-            }
-            let totalJamCas = 0;
-            let detail = [];
-            battEntries.forEach(e=>{
-              try{
-                if(!e.tanggal || e.tanggal !== targetDate) return;
-                let dur = 0;
-                if(e.jam_mulai_cas && e.jam_selesai_cas){
-                  const [h1,m1] = e.jam_mulai_cas.split(':').map(Number);
-                  const [h2,m2] = e.jam_selesai_cas.split(':').map(Number);
-                  let s = h1*60+m1; let ee = h2*60+m2; if(ee < s) ee+=1440; dur = (ee-s)/60;
-                } else if(e.waktu_dibuat_asli && e.estimasi_selesai){
-                  let jamStr = (e.estimasi_selesai||'').split(' ke ')[0].trim();
-                  if(jamStr && jamStr.includes(':')){
-                    let start = new Date(Number(e.waktu_dibuat_asli));
-                    let [h2,m2] = jamStr.split(':').map(Number);
-                    let end = new Date(start); end.setHours(h2, m2, 0, 0);
-                    if(end < start) end.setDate(end.getDate()+1);
-                    dur = (end - start)/1000/3600;
-                  }
-                }
-                if(dur>0 && dur<12){
-                  let jamMulai = 0;
-                  if(e.jam_mulai_cas) jamMulai = Number(e.jam_mulai_cas.split(':')[0]);
-                  else if(e.waktu_dibuat_asli){ jamMulai = new Date(Number(e.waktu_dibuat_asli)).getHours(); }
-                  if(jamMulai>=6 && jamMulai<=22){
-                    totalJamCas += dur;
-                    detail.push({jam: e.jam_mulai_cas||'', dur, lokasi: e.lokasi||''});
-                  }
-                }
-              }catch(err){}
-            });
-            return {totalJamCas, detail};
-          }catch(err){ return {totalJamCas:0, detail:[]}; }
-        }
-
-        function getJamOnlineEfektif(targetDate){
-          try{
-            let shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
-            let dayShift = shiftData[targetDate] || {start:'', end:''};
-            let jamOnbit = getDurationInHours(dayShift.start, dayShift.end);
-            let casInfo = getIstirahatCasForDate(targetDate);
-            let efektif = Math.max(0, jamOnbit - casInfo.totalJamCas);
-            return {jamOnbit, jamCas: casInfo.totalJamCas, efektif, detail: casInfo.detail};
-          }catch(e){ return {jamOnbit:0, jamCas:0, efektif:0, detail:[]}; }
         }
 
         function loadRekapData() {
@@ -1055,7 +982,6 @@
             };
 
             let totalHoursPeriod = 0;
-            let totalHoursCasPeriod = 0;
             let daysWithShiftCount = 0;
             let dailyAgg = {};
             
@@ -1143,41 +1069,71 @@
                 let s = shiftData[dStr];
                 let h = 0;
                 if (s && s.start && s.end) {
-                    h = getDurationInHours(s.start, s.end);
+                    h = getDurationFromShift(s);
                 }
 
                 if (h > 0) {
-                    totalHoursPeriod += h;
+                    let casInfoForTotal = getIstirahatCasForDate(dStr);
+                    let hEffForTotal = Math.max(0, h - casInfoForTotal.totalJamCas);
+                    totalHoursPeriod += hEffForTotal;
                     daysWithShiftCount++;
-                    dayOfWeekData[dayIndex].hours += h;
+                    dayOfWeekData[dayIndex].hours += hEffForTotal;
                     
-                    if (h < 5) {
+                    let hForTier = Math.max(0, h - getIstirahatCasForDate(dStr).totalJamCas);
+                    if (hForTier < 5) {
                         tiers.short.net += dayNet;
-                        tiers.short.hours += h;
+                        tiers.short.hours += hForTier;
                         tiers.short.count++;
-                    } else if (h <= 8) {
+                    } else if (hForTier <= 8) {
                         tiers.ideal.net += dayNet;
-                        tiers.ideal.hours += h;
+                        tiers.ideal.hours += hForTier;
                         tiers.ideal.count++;
                     } else {
                         tiers.long.net += dayNet;
-                        tiers.long.hours += h;
+                        tiers.long.hours += hForTier;
                         tiers.long.count++;
                     }
 
-                    let startHour = parseInt(s.start.split(':')[0]);
-                    let endHour = parseInt(s.end.split(':')[0]);
-                    let curr = startHour;
-                    while (curr !== endHour) {
-                        hourlyBlocks.forEach(b => {
-                            if (b.startH <= b.endH) {
-                                if (curr >= b.startH && curr < b.endH) b.hours++;
-                            } else {
-                                if (curr >= b.startH || curr < b.endH) b.hours++;
-                            }
+                    // ===== FIX MINOR: presisi fraksi jam + kurangi cas =====
+                    let casInfoDay = getIstirahatCasForDate(dStr);
+                    let hEff = Math.max(0, h - casInfoDay.totalJamCas);
+                    // alokasi jam efektif ke blok dengan presisi menit
+                    let [sH2,sM2]=s.start.split(':').map(Number);
+                    let [eH2,eM2]=s.end.split(':').map(Number);
+                    let sMin=sH2*60+sM2; let eMin=eH2*60+eM2; if(eMin<=sMin) eMin+=1440;
+                    let durEffMin = hEff*60; // durasi efektif dalam menit
+                    // Bagi durasi efektif proporsional ke blok sesuai overlap shift asli
+                    // Hitung overlap shift asli dengan tiap blok
+                    let rawOverlaps=[];
+                    let totalRawOverlap=0;
+                    hourlyBlocks.forEach(b=>{
+                        let bS=b.startH*60, bE=b.endH*60; if(bE<=bS) bE+=1440;
+                        // cek overlap dengan shift di 2 jendela (0-1440 dan 1440-2880) biar wrap aman
+                        let overlap=0;
+                        for(let off=0; off<=1440; off+=1440){
+                            let bS2=bS+off, bE2=bE+off;
+                            overlap+=Math.max(0, Math.min(eMin, bE2)-Math.max(sMin, bS2));
+                        }
+                        rawOverlaps.push(overlap);
+                        totalRawOverlap+=overlap;
+                    });
+                    // distribusikan hEff sesuai proporsi overlap
+                    hourlyBlocks.forEach((b, idx)=>{
+                        let prop = totalRawOverlap>0 ? rawOverlaps[idx]/totalRawOverlap : 0;
+                        b.hours += (hEff*prop);
+                    });
+                    // kurangi jam cas dari blok tempat cas terjadi (detail)
+                    casInfoDay.detail.forEach(cd=>{
+                        if(!cd.jam) return;
+                        let [cH,cM]=cd.jam.split(':').map(Number);
+                        let cMin=cH*60+(cM||0);
+                        hourlyBlocks.forEach(b=>{
+                            let bS=b.startH*60, bE=b.endH*60; let inBlock=false;
+                            if(bS<=bE){ inBlock = (cMin>=bS && cMin<bE); }
+                            else { inBlock = (cMin>=bS || cMin<bE); }
+                            if(inBlock){ b.hours = Math.max(0, b.hours - cd.dur); }
                         });
-                        curr = (curr + 1) % 24;
-                    }
+                    });
                 }
 
                 let dayOrders = dailyAgg[dStr].orders;
@@ -1194,7 +1150,9 @@
                         }
                         
                         if (match) {
-                            let weight = dayTotalBruto > 0 ? (ord.amount / dayTotalBruto) : 0;
+                            // FIX V3: Bobot by jarak, bukan nominal - biaya operasional linear terhadap jarak
+                            let dayTotalDistForWeight = dailyAgg[dStr].orders ? dailyAgg[dStr].orders.reduce((sum,o)=>sum+Number(o.dist||0),0) : 0;
+                            let weight = dayTotalDistForWeight > 0 ? (Number(ord.dist||0) / dayTotalDistForWeight) : (dayTotalBruto > 0 ? (ord.amount / dayTotalBruto) : 0);
                             let allocatedExpense = dayTotalExpense * weight;
                             b.net += (ord.amount - allocatedExpense);
                         }
@@ -1521,6 +1479,7 @@ const AIEngineV2 = {
         if(perKm>15000) perKm=15000;
         return {base,perKm};
       };
+      const BASE_KM = 2.5; // Tarif flat ojol 2-3km pertama
       for(let cat of categories.Pendapatan){
         let entries=pend.filter(e=>e.cat===cat);
         entries.sort((a,b)=>(a.date<b.date?1:-1));
@@ -1528,18 +1487,33 @@ const AIEngineV2 = {
           models[cat]={count:entries.length, base:0, perKm:0, baseLower:0, perKmLower:0, baseUpper:0, perKmUpper:0, avgRpPerKm:0, medianRpPerKm:0, hourlyFactor:{}, blockFactor:{subuh:1,siang:1,sore:1,malam:1}, jamSibuk:'sore', confidence:'low', lastUpdated:Date.now(), insufficient:true};
           continue;
         }
-        let xs=entries.map(e=>Number(e.dist));
         let ys=entries.map(e=>Number(e.amount));
         let rpkm=entries.map(e=>Number(e.amount)/Number(e.dist));
-        let {base,perKm}=regress(xs,ys);
         let medRpKm=this.helpers.median(rpkm);
         let avgRpKm=this.helpers.mean(rpkm);
-        if(perKm<500 || perKm>10000){ perKm=medRpKm*0.85; }
-        if(base===0 || base>Math.min(...ys)*1.5){
-          let short=entries.filter(e=>Number(e.dist)<=2.5).map(e=>Number(e.amount));
-          if(short.length) base=this.helpers.median(short)*0.7;
-          else base=this.helpers.percentile(ys,20)*0.5;
+        // FIX V3: Deteksi base dari short trip dulu, baru regresi excessKm
+        let shortTrips=entries.filter(e=>Number(e.dist)<=BASE_KM).map(e=>Number(e.amount));
+        let base;
+        if(shortTrips.length>=2){ base=this.helpers.median(shortTrips); }
+        else { base=this.helpers.percentile(ys,25)*0.6; }
+        // Regresi hanya untuk jarak di atas baseKm
+        let longEntries=entries.filter(e=>Number(e.dist)>BASE_KM);
+        let xs, ysExcess, perKm;
+        if(longEntries.length>=2){
+          xs=longEntries.map(e=>Number(e.dist)-BASE_KM);
+          ysExcess=longEntries.map(e=>Math.max(0, Number(e.amount)-base));
+          let reg=regress(xs, ysExcess);
+          perKm=reg.perKm;
+          // base dari regresi jangan dipakai, pakai median short tadi
+        } else {
+          // fallback kalau semua trip pendek
+          xs=entries.map(e=>Number(e.dist));
+          let reg=regress(xs, ys);
+          perKm=reg.perKm;
+          if(!base) base=reg.base;
         }
+        if(!isFinite(perKm) || perKm<300 || perKm>15000){ perKm=medRpKm*0.8; }
+        if(!isFinite(base) || base<1000) base=Math.max(2000, this.helpers.percentile(ys,20));
         base=Math.max(0,Math.round(base));
         perKm=Math.max(300,Math.round(perKm));
         let hourlyGroups={}; let blockGroups={'subuh':[],'siang':[],'sore':[],'malam':[]};
@@ -1623,9 +1597,11 @@ const AIEngineV2 = {
       else factor=model.blockFactor.malam||1;
     }
     let base=model.base||0; let perKm=model.perKm||0;
-    let amount=(base+perKm*dist)*factor;
-    let lower=((model.baseLower||base*0.85)+(model.perKmLower||perKm*0.85)*dist)*Math.max(0.8,factor*0.92);
-    let upper=((model.baseUpper||base*1.15)+(model.perKmUpper||perKm*1.15)*dist)*Math.min(1.4,factor*1.08);
+    // FIX V3: Surge hanya kalikan base (flat minimum), bukan seluruh jarak jauh
+    // Rumus baru: base*factor + perKm*dist => jarak jauh tidak overpriced
+    let amount=(base*factor + perKm*dist);
+    let lower=( (model.baseLower||base*0.85)*Math.max(0.8,factor*0.92) + (model.perKmLower||perKm*0.85)*dist );
+    let upper=( (model.baseUpper||base*1.15)*Math.min(1.4,factor*1.08) + (model.perKmUpper||perKm*1.15)*dist );
     amount=Math.round(amount/100)*100; lower=Math.round(lower/100)*100; upper=Math.round(upper/100)*100;
     if(amount<(model.baseLower||2000)) amount=model.baseLower||2000;
     if(lower<1000) lower=1000;
@@ -1682,8 +1658,48 @@ function renderTariffSettingsForm(){
   container.innerHTML=html;
 }
 function saveTariffSettings(){
+  try{
+    // Simpan tarif AI saat ini sebagai cadangan ke localStorage
+    const cadangan = {
+      savedAt: new Date().toISOString(),
+      tariffs: JSON.parse(JSON.stringify(AIEngineV2.tariffs || {})),
+      factors: JSON.parse(JSON.stringify(AIEngineV2.timeFactors || {})),
+      totalTrips: AIEngineV2.totalTrips || 0
+    };
+    localStorage.setItem('sigan_tarif_cadangan_v2', JSON.stringify(cadangan));
+    // Masukkan juga ke UNIVERSAL LAKE biar kebawa
+    try{
+      const lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
+      if(lakeRaw){
+        const lake = JSON.parse(lakeRaw);
+        lake.cross = lake.cross || {};
+        lake.cross.sigan_tarif_cadangan_v2 = cadangan;
+        lake.lastSync = new Date().toISOString();
+        localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake));
+      }
+    }catch(e){}
+  }catch(e){ console.error('save cadangan error', e); }
   document.getElementById('tariffSettingsPanel').classList.add('hidden');
-  AIEngineV2.learn(); renderTariffSettingsForm(); alert("AI Engine V2 belajar ulang!");
+  AIEngineV2.learn(); 
+  renderTariffSettingsForm(); 
+  alert("✅ Tarif Cadangan Tersimpan!\n\nAI sudah simpan tarif saat ini ("+ (AIEngineV2.totalTrips||0) +" trip) sebagai backup.\nKalau nanti ada layanan baru 0/3 atau data ke-reset, AI akan pakai cadangan ini, bukan balik ke 0.");
+}
+function resetTariffDefaults(){
+  if(!confirm("Kembalikan ke Default? Tarif cadangan akan dihapus dan AI belajar ulang dari 0.")) return;
+  localStorage.removeItem('sigan_tarif_cadangan_v2');
+  try{
+    const lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
+    if(lakeRaw){
+      const lake = JSON.parse(lakeRaw);
+      if(lake.cross) delete lake.cross.sigan_tarif_cadangan_v2;
+      localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake));
+    }
+  }catch(e){}
+  AIEngineV2.tariffs = {};
+  AIEngineV2.timeFactors = {};
+  AIEngineV2.learn();
+  renderTariffSettingsForm();
+  alert("Cadangan dihapus, AI reset ke default.");
 }
 function resetTariffDefaults(){
   if(!confirm("Hapus semua model AI V2 dan belajar ulang dari nol?")) return;
