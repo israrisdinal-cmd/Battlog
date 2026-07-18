@@ -774,20 +774,20 @@ function kalibrasiSohMover() {
   localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(allKmPerPct));
 }
 
-// === V3.6 SoH AI - Backend Only, Multi User, Odo Dinamis ===
+// === V3.6 SoH AI - Backend Only, Multi User, Odo Dinamis - FIX DELTA KM ===
 function hitungSoHAI() {
   try {
     const FACTORY_CAP = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
     const calibKm = parseFloat(localStorage.getItem('factory_calib_km'));
     const calibSoh = parseFloat(localStorage.getItem('factory_calib_soh'));
     if (!entries || !entries.length) return null;
-    let maxOdo = 0, totalKwhLogged = 0, whList = [], fast=0, slow=0, parsial=[];
+    let maxOdo = 0, whList = [], fast=0, slow=0, parsial=[];
     entries.forEach(e=>{
       try{
         const c = calcEntry(e);
         const ka = parseFloat(e.km_akhir)||0;
         if(ka>maxOdo) maxOdo=ka;
-        if(c.jarak>0 && c.wh_per_km>0){ totalKwhLogged+=c.energi_terpakai; whList.push(c.wh_per_km); }
+        if(c.jarak>0 && c.wh_per_km>0){ whList.push(c.wh_per_km); }
         const ch=(e.charger||'').toLowerCase();
         const mm=ch.match(/(\d+(?:\.\d+)?)\s*ah/);
         const ah=mm?parseFloat(mm[1]):0;
@@ -800,35 +800,49 @@ function hitungSoHAI() {
       }catch(_){}
     });
     const avgWh = whList.length ? whList.reduce((a,b)=>a+b,0)/whList.length : 35;
-    const odo = maxOdo>0 ? maxOdo : 0;
-    const totalKwhEst = odo>0 ? (odo*avgWh/1000) : totalKwhLogged;
+    const odo = maxOdo;
+    const totalKwhEst = odo>0 ? (odo*avgWh/1000) : 0;
     const eqCycle = FACTORY_CAP>0 ? totalKwhEst/FACTORY_CAP : 0;
     const totalCh = fast+slow || 1;
     const faktorC = (slow/totalCh)*0.85 + (fast/totalCh)*1.18;
     const faktorSuhu = 1.8, faktorDoD=0.85;
     const degPerCycleLab = 0.0067 * faktorC * faktorSuhu * faktorDoD;
+
+    // Umur hari
     let umurHari=400;
     try{ const oldest=[...entries].sort((a,b)=>new Date(a.tanggal)-new Date(b.tanggal))[0]; if(oldest) umurHari=Math.max(30,Math.floor((Date.now()-new Date(oldest.tanggal).getTime())/86400000)); }catch(_){}
-    const degKal=0.008*umurHari*0.9;
+
     let sohFinal;
-    if(!isNaN(calibKm) && !isNaN(calibSoh) && calibKm>0){
+    if(!isNaN(calibKm) && !isNaN(calibSoh) && calibKm>0 && odo>0){
+      const deltaKm = Math.max(0, odo - calibKm);
       const eqAtCalib = (calibKm*avgWh/1000)/FACTORY_CAP;
-      const degTotalAtCalib = 100-calibSoh;
-      const degKalAtCalib = 0.008*Math.max(30, umurHari*(calibKm/Math.max(1,odo)))*0.9;
-      const degCycAtCalib = Math.max(0, degTotalAtCalib-degKalAtCalib);
-      const degPerCycReal = eqAtCalib>0 ? degCycAtCalib/eqAtCalib : degPerCycleLab;
-      const degPerCycBlend = degPerCycleLab*0.4 + degPerCycReal*0.6;
-      let degNow = eqCycle*degPerCycBlend;
-      sohFinal = 100 - degNow - degKal;
-      if(odo>calibKm && sohFinal>calibSoh){ sohFinal = calibSoh - ((odo-calibKm)*avgWh/1000/FACTORY_CAP)*degPerCycBlend; }
+      // degradasi per cycle real dari kalibrasi (total degradasi sampai kalibrasi dibagi cycle)
+      const degTotalAtCalib = 100 - calibSoh;
+      // Asumsi 40% kalender, 60% cycle sampai kalibrasi (biar gak kegedean kalender)
+      const degCycleAtCalib = degTotalAtCalib * 0.6;
+      const degPerCycleReal = eqAtCalib>0 ? degCycleAtCalib/eqAtCalib : degPerCycleLab;
+      const degPerCycleBlend = degPerCycleLab*0.4 + degPerCycleReal*0.6;
+      // Delta degradasi setelah kalibrasi
+      const deltaKwh = deltaKm * avgWh / 1000;
+      const deltaCycle = deltaKwh / FACTORY_CAP;
+      const degKalenderDelta = 0.008 * (umurHari * (deltaKm/Math.max(1,odo))) * 0.5; // kalender setelah kalibrasi, dikecilin
+      const penurunan = (deltaCycle * degPerCycleBlend) + degKalenderDelta;
+      sohFinal = calibSoh - penurunan;
+
+      // Contoh kamu: delta 10288km *35Wh = 360kWh = 90 cycle *0.012% = 1.08% + kalender 0.2% = 1.3% -> SoH 96.7%
+      // Simpan meta untuk debug
+      localStorage.setItem('maka_soh_ai_debug', JSON.stringify({deltaKm, deltaCycle:deltaCycle.toFixed(2), degPerCycleBlend:degPerCycleBlend.toFixed(5), penurunan:penurunan.toFixed(3)}));
     } else {
+      const degKal=0.008*umurHari*0.9;
       sohFinal = 100 - (eqCycle*degPerCycleLab) - degKal;
     }
+
     if(parsial.length>=3){
       const avgCap = parsial.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,parsial.length);
       const sohP = (avgCap/FACTORY_CAP)*100;
       sohFinal = sohFinal*0.4 + sohP*0.6;
     }
+
     sohFinal = Math.min(100, Math.max(50, sohFinal));
     localStorage.setItem('maka_soh_ai', sohFinal.toFixed(2));
     const elSoh=document.getElementById('stat_soh'), elProg=document.getElementById('soh_progress'), elNote=document.getElementById('soh_note');
@@ -836,14 +850,14 @@ function hitungSoHAI() {
       elSoh.textContent=sohFinal.toFixed(1)+'%';
       elProg.style.width=sohFinal+'%';
       if(sohFinal>=95) elSoh.style.color='#7dffb7'; else if(sohFinal>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d';
-      let note=`AI: Odo ${Math.round(odo)}km • ${eqCycle.toFixed(1)}cyc • ${avgWh.toFixed(0)}Wh/km`;
+      let note=`AI: Odo ${Math.round(odo)}km • Selisih ${(odo-calibKm).toFixed(0)}km dari kalib • ${avgWh.toFixed(0)}Wh/km`;
       if(!isNaN(calibKm)) note+=` • Kalib ${calibKm}km/${calibSoh}%`;
-      if(parsial.length>=3) note+=` • Parsial ${parsial.length}x`;
       if(elNote) elNote.textContent=note;
     }
     return sohFinal;
   }catch(e){ console.log('SoH AI err',e.message); return null; }
 }
+
 
 
 function hitungPrediksiAIWhKm(filtered) {
