@@ -1562,14 +1562,20 @@ function renderDasbor(){
           kmMuter = 0; // kalau SiGan memang kosong, jangan tampilkan ratusan km
         }
       }
-      effRute = jarak>0 && totalKmEfektif>0 ? (totalKmEfektif / jarak * 100) : 0;
+      // V3.5 FIX: efisiensi hanya pakai km kerja (di dalam onbid), bukan total termasuk pribadi
+      let totalEvKerja = Object.values(evKmPerTgl).reduce((a,b)=>a+b,0);
+      effRute = totalEvKerja>0 && totalKmEfektif>0 ? (totalKmEfektif / totalEvKerja * 100) : 0;
+      // simpan untuk debug
+      window._totalEvKerja = totalEvKerja;
+
       // Simpan debug untuk AI insight
       window._debugMuterPerTgl = debugPerTanggal;
       window._muterStats = {hariValid, hariTanpaSiGan, kmMuter, totalEv: jarak, totalSi: totalKmEfektif};
     }catch(e){
       console.error('muter calc error', e);
-      kmMuter = Math.max(0, jarak - totalKmEfektif);
-      effRute = jarak>0 ? (totalKmEfektif / jarak * 100) : 0;
+      let totalEvKerja2 = (window._totalEvKerja||jarak);
+      kmMuter = Math.max(0, totalEvKerja2 - totalKmEfektif);
+      effRute = totalEvKerja2>0 ? (totalKmEfektif / totalEvKerja2 * 100) : 0;
     }
     
     // Laba bersih hanya potong SPKLU (rumah gratis sesuai permintaan)
@@ -1609,7 +1615,9 @@ function renderDasbor(){
         elKmMuterSub.textContent = 'Isi jarak (km) di SiGan tiap order, bukan cuma nominal. Kalau jarak 0, muter gak bisa dihitung & jadi ratusan km ngaco.';
       } else if(window._muterStats){
         let s = window._muterStats;
-        elKmMuterSub.textContent = `${s.hariValid} hari valid, ${s.hariTanpaSiGan} hari tanpa jarak SiGan | ${Math.round(totalKmEfektif)} km efektif dari ${Math.round(jarak)} km total | Buang ${(kmMuter* (totalEnergiKwh/jarak||0)).toFixed(2)} kWh | Per tgl: ` + (window._debugMuterPerTgl||[]).filter(x=>!x.skip).slice(0,3).map(x=>`${x.tgl}:${Math.round(x.muter)}km`).join(', ');
+        let totalEvKerja = window._totalEvKerja || jarak;
+        let personalKm = Math.max(0, jarak - totalEvKerja);
+        elKmMuterSub.textContent = `${s.hariValid} hari valid, ${s.hariTanpaSiGan} hari tanpa jarak SiGan | ${Math.round(totalKmEfektif)} km efektif dari ${Math.round(totalEvKerja)} km kerja (total odometer ${Math.round(jarak)} km, ${Math.round(personalKm)} km pribadi) | Muter kerja ${Math.round(kmMuter)} km | Buang ${(kmMuter* (totalEnergiKwh/totalEvKerja||0)).toFixed(2)} kWh | Per tgl: ` + (window._debugMuterPerTgl||[]).filter(x=>!x.skip).slice(0,3).map(x=>`${x.tgl}:${Math.round(x.muter)}km`).join(', ');
       } else {
         elKmMuterSub.textContent = totalIncome>0 ? `${Math.round(totalKmEfektif)} km efektif dari ${Math.round(jarak)} km total | Buang ${(kmMuter* (totalEnergiKwh/jarak||0)).toFixed(2)} kWh` : 'Selisih odometer vs argo';
       }
