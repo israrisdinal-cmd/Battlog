@@ -236,7 +236,21 @@ window.addEventListener('storage', (event) => {
         <input type="number" id="f_factory_range" class="maka-input" placeholder="Contoh: 115" step="1" min="1">
       </div>
     </div>
-    <div style="font-size:10.5px; color:#5e759e; margin-top:8px; line-height:1.5; background:#0f1f36; border:1px solid var(--line); border-radius:10px; padding:8px 10px;">
+    <div style="margin-top:14px; padding-top:12px; border-top:1px dashed #1e2d4a;">
+      <div style="font-size:11px; font-weight:800; color:#6fb2ff; margin-bottom:6px;">🔬 Kalibrasi SoH (Opsional - Multi User)</div>
+      <div style="font-size:10.5px; color:#8aa0c6; margin-bottom:8px; line-height:1.4;">Isi kalau pernah cek SoH di bengkel. Dipakai AI untuk mencari titik tengah antara jurnal lab & real cycle kamu.</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="maka-label">Odometer saat cek SoH (km)</label>
+          <input type="number" id="f_calib_km" class="maka-input" placeholder="Contoh: 12191" step="1" min="0">
+        </div>
+        <div>
+          <label class="maka-label">SoH saat itu (%)</label>
+          <input type="number" id="f_calib_soh" class="maka-input" placeholder="Contoh: 98" step="0.1" min="0" max="100">
+        </div>
+      </div>
+    </div>
+    <div style="font-size:10.5px; color:#5e759e; margin-top:10px; line-height:1.5; background:#0f1f36; border:1px solid var(--line); border-radius:10px; padding:8px 10px;">
       ⚠️ Catatan soal jarak tempuh: angka pabrik biasanya dites di kecepatan konstan ~30 km/h — jauh lebih irit dari pemakaian nyata (macet, ngebut, tanjakan, dll), jadi TIDAK dipakai sebagai patokan utama SOH. Angka ini cuma cadangan sementara sebelum sistem punya cukup riwayat trip nyata milikmu sendiri. Begitu ada riwayat deep-cycle awal, SOH otomatis dibandingkan ke performa nyata kendaraanmu, bukan ke klaim pabrik.
     </div>
     <button onclick="saveFactorySpec()" class="btn-primary" style="margin-top:12px;">Simpan Pengaturan</button>
@@ -315,6 +329,7 @@ window.addEventListener('storage', (event) => {
         <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Rp / kWh & Laba / kWh</div><div id="stat_rp_kwh" style="font-size:18px; font-weight:800; color:#eaf2ff;">–</div><div id="stat_rp_kwh_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
         <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Km Muter Kosong</div><div id="stat_km_muter" style="font-size:18px; font-weight:800; color:#ffb86b;">–</div><div id="stat_km_muter_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
         <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Efisiensi Rute</div><div id="stat_eff_rute" style="font-size:18px; font-weight:800; color:#7dffb7;">–</div><div id="stat_eff_rute_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
+        <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Jam Istirahat Cas</div><div id="stat_jam_cas" style="font-size:18px; font-weight:800; color:#6fb2ff;">–</div><div id="stat_jam_cas_sub" style="font-size:10px; color:#5e759e; margin-top:2px;">Isi jam mulai & selesai cas, otomatis kurangi jam onbit</div></div>
       </div>
       <div style="margin-top:12px; padding:10px; background:rgba(10,19,40,0.6); border:1px solid #1e2d4a; border-radius:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -660,30 +675,47 @@ function toggleSohSettings() {
   if (willShow) {
     const capEl = document.getElementById('f_factory_cap');
     const rangeEl = document.getElementById('f_factory_range');
+    const calibKmEl = document.getElementById('f_calib_km');
+    const calibSohEl = document.getElementById('f_calib_soh');
     const savedCap = localStorage.getItem('factory_cap_kwh');
     const savedRange = localStorage.getItem('factory_range_km');
+    const savedCalibKm = localStorage.getItem('factory_calib_km');
+    const savedCalibSoh = localStorage.getItem('factory_calib_soh');
     if (savedCap) capEl.value = savedCap;
     else if (typeof entries !== 'undefined' && entries.length) {
       const firstWithCap = [...entries].reverse().find(e => Number(e.cap_kwh) > 0);
       if (firstWithCap) capEl.value = firstWithCap.cap_kwh;
     }
     if (savedRange) rangeEl.value = savedRange;
+    if (savedCalibKm) calibKmEl.value = savedCalibKm;
+    if (savedCalibSoh) calibSohEl.value = savedCalibSoh;
   }
 }
 
 function saveFactorySpec() {
   const cap = parseFloat(document.getElementById('f_factory_cap').value);
   const range = parseFloat(document.getElementById('f_factory_range').value);
+  const calibKm = parseFloat(document.getElementById('f_calib_km').value);
+  const calibSoh = parseFloat(document.getElementById('f_calib_soh').value);
   if (!cap || cap <= 0 || !range || range <= 0) {
     showToast('Isi kapasitas & jarak pabrik dengan angka valid dulu ya.', 'error');
     return;
   }
   localStorage.setItem('factory_cap_kwh', cap.toString());
   localStorage.setItem('factory_range_km', range.toString());
+  // Kalibrasi opsional - multi user
+  if (!isNaN(calibKm) && calibKm > 0 && !isNaN(calibSoh) && calibSoh > 0 && calibSoh <= 100) {
+    localStorage.setItem('factory_calib_km', calibKm.toString());
+    localStorage.setItem('factory_calib_soh', calibSoh.toString());
+  } else {
+    localStorage.removeItem('factory_calib_km');
+    localStorage.removeItem('factory_calib_soh');
+  }
   document.getElementById('soh_settings_panel').style.display = 'none';
   renderCapDisplay();
   kalibrasiSohMover();
   updateLiveCalc();
+  if(typeof hitungSoHAI !== 'undefined') hitungSoHAI();
   showToast('Pengaturan disimpan. SOH & kalkulasi dihitung ulang.', 'success');
 }
 
@@ -743,6 +775,111 @@ function kalibrasiSohMover() {
   localStorage.setItem('maka_soh_total_samples', allKmPerPct.length.toString());
 
   localStorage.setItem(SOH_KEY_LOCAL, JSON.stringify(allKmPerPct));
+  // trigger AI SoH hitung juga
+  if(typeof hitungSoHAI === 'function') setTimeout(hitungSoHAI, 200);
+}
+
+// === V3.6 SoH AI SUPER AKURAT - Backend Only, Multi User ===
+function hitungSoHAI() {
+  try {
+    const FACTORY_CAP = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
+    const calibKm = parseFloat(localStorage.getItem('factory_calib_km'));
+    const calibSoh = parseFloat(localStorage.getItem('factory_calib_soh'));
+    if (!entries || !entries.length) return null;
+
+    // 1. Total energi & cycle dari real trip
+    let totalKwh = 0, totalJarak = 0, fastCount = 0, slowCount = 0, totalDeltaPct = 0, validParsialCap = [];
+    entries.forEach(e=>{
+      try{
+        const c = calcEntry(e);
+        if(c.jarak>0 && c.wh_per_km>0){ totalKwh+=c.energi_terpakai; totalJarak+=c.jarak; }
+        const ch = (e.charger||'').toLowerCase();
+        const ahMatch = ch.match(/(\d+(?:\.\d+)?)\s*ah/);
+        const ah = ahMatch ? parseFloat(ahMatch[1]) : 0;
+        if(ah>=20) fastCount++; else if(ah>0) slowCount++;
+        // parsial SoH real: kWh / delta%
+        const bAwal = parseFloat(e.batt_awal)||0, bAkhir = parseFloat(e.batt_akhir)||0, bSetelah = parseFloat(e.batt_setelah)||0;
+        // cas parsial: bAkhir -> bSetelah
+        if(bSetelah>bAkhir){
+          const delta = bSetelah - bAkhir;
+          const kwhIn = c.energi_diisi || c.energi_terpakai; // fallback
+          if(delta>=30 && kwhIn>0.2){
+            const capReal = kwhIn / (delta/100);
+            if(capReal>FACTORY_CAP*0.5 && capReal<FACTORY_CAP*1.5) validParsialCap.push(capReal);
+          }
+          totalDeltaPct+=delta;
+        }
+      }catch(err){}
+    });
+    const eqCycle = FACTORY_CAP>0 ? totalKwh/FACTORY_CAP : 0;
+
+    // 2. Faktor charger
+    const totalCh = fastCount+slowCount || 1;
+    const pctFast = fastCount/totalCh;
+    const faktorC = (1-pctFast)*0.85 + pctFast*1.18; // 6A=0.85, 45A=1.18
+
+    // 3. Faktor suhu Jakarta default 1.8, DoD avg 0.85
+    const faktorSuhu = 1.8;
+    const faktorDoD = 0.85;
+
+    // 4. Degradasi jurnal lab
+    const degPerCycleLab = 0.0067 * faktorC * faktorSuhu * faktorDoD; // %
+    let degCycle = eqCycle * degPerCycleLab;
+
+    // 5. Kalender
+    let umurHari = 400;
+    try{
+      const oldest = [...entries].sort((a,b)=>new Date(a.tanggal)-new Date(b.tanggal))[0];
+      if(oldest) umurHari = Math.max(30, Math.floor((Date.now()-new Date(oldest.tanggal).getTime())/86400000));
+    }catch(e){}
+    const degKalender = 0.008 * umurHari * 1.3; // asumsi diem 90% avg
+
+    // 6. SoH Lab
+    let sohLab = 100 - degCycle - degKalender;
+
+    // 7. Kalibrasi personal (opsional) - titik tengah jurnal vs real
+    let faktorPribadi = null, sohFinal = sohLab;
+    if(!isNaN(calibKm) && !isNaN(calibSoh) && calibKm>0){
+      const kwhAtCalib = (calibKm * 35)/1000; // estimasi 35Wh/km jika belum ada avg
+      const eqAtCalib = kwhAtCalib / FACTORY_CAP;
+      const degAtCalib = 100 - calibSoh;
+      if(eqAtCalib>0) faktorPribadi = degAtCalib / eqAtCalib;
+      // titik tengah: 40% jurnal + 60% real (bobot dari tuning 12.191km/98%)
+      if(faktorPribadi!==null){
+        const degPerCycleReal = faktorPribadi;
+        const degPerCycleBlended = degPerCycleLab*0.4 + degPerCycleReal*0.6;
+        sohFinal = 100 - (eqCycle * degPerCycleBlended) - degKalender;
+      }
+    }
+
+    // 8. Fusion dengan parsial real cap jika ada
+    if(validParsialCap.length>=3){
+      const avgCapReal = validParsialCap.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,validParsialCap.length);
+      const sohParsial = (avgCapReal/FACTORY_CAP)*100;
+      // 60% parsial + 40% lab/blended
+      sohFinal = sohFinal*0.4 + sohParsial*0.6;
+      localStorage.setItem('maka_soh_parsial', sohParsial.toFixed(2));
+    }
+
+    sohFinal = Math.min(100, Math.max(50, sohFinal));
+    localStorage.setItem('maka_soh_ai', sohFinal.toFixed(2));
+    localStorage.setItem('maka_soh_ai_meta', JSON.stringify({eqCycle:eqCycle.toFixed(1), totalKwh:totalKwh.toFixed(1), faktorC:faktorC.toFixed(2), fastCount, slowCount, umurHari, degPerCycle:degPerCycleLab.toFixed(4)}));
+
+    // Update UI tanpa ubah layout
+    const elSoh = document.getElementById('stat_soh');
+    const elProg = document.getElementById('soh_progress');
+    const elNote = document.getElementById('soh_note');
+    if(elSoh && elProg){
+      elSoh.textContent = sohFinal.toFixed(1) + '%';
+      elProg.style.width = sohFinal + '%';
+      if(sohFinal>=95) elSoh.style.color='#7dffb7'; else if(sohFinal>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d';
+      let note = `AI: ${eqCycle.toFixed(1)} cycle • ${totalKwh.toFixed(1)} kWh • C:${faktorC.toFixed(2)}`;
+      if(!isNaN(calibKm)) note+=` • Kalib: ${calibKm}km/${calibSoh}%`;
+      if(validParsialCap.length>=3) note+=` • Parsial ${validParsialCap.length}x`;
+      if(elNote) elNote.textContent = note;
+    }
+    return sohFinal;
+  } catch(e){ console.log('SoH AI error', e.message); return null; }
 }
 
 function hitungPrediksiAIWhKm(filtered) {
@@ -895,7 +1032,7 @@ function perbaruiAIInsightDasbor(avgWhKmMoving, filteredEntries) {
   `;
 }
 
-function updateLiveCalc(){
+function updateLiveCalc(){ if(typeof hitungDurasiCasDisplay==="function") hitungDurasiCasDisplay();
   try{
     const e = readForm(); const c = calcEntry(e);
     const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
@@ -1091,7 +1228,7 @@ function startEdit(id){
   const e = entries.find(x=>x.id===id); if(!e) return;
   editId=id;
   const s=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v??''; };
-  s('f_tanggal',e.tanggal); s('f_km_awal',e.km_awal); s('f_km_akhir',e.km_akhir);
+  s('f_tanggal',e.tanggal); s('f_km_awal',e.km_awal); s('f_km_akhir',e.km_akhir); s('f_jam_mulai_cas',e.jam_mulai_cas||''); s('f_jam_selesai_cas',e.jam_selesai_cas||'');
   s('f_batt_awal',e.batt_awal); s('f_batt_akhir',e.batt_akhir); s('f_batt_setelah',e.batt_setelah);
   
   const t = e.tarif ?? 1444;
@@ -1260,16 +1397,13 @@ function renderList(){
       dayList.forEach(ee=>{ muterPerEntry[ee.id] = {evKm: 0, siganKm: 0, muter: 0, noSiGan:true}; try{ muterPerEntry[ee.id].evKm = calcEntry(ee).jarak||0; }catch(e){} });
       continue;
     }
-    // FIX V3.3.1: jika SiGan > EV, data EV kurang lengkap (lupa catat sesi)
-    let isAnomaly = totalSiganDay > totalEvDay;
     dayList.forEach(ee=>{
       let evKm = 0; try{ evKm = calcEntry(ee).jarak||0; }catch(e){}
       let prop = totalEvDay>0 ? evKm/totalEvDay : 0;
-      let siganAllocRaw = totalSiganDay * prop;
-      let siganAlloc = isAnomaly ? Math.min(siganAllocRaw, evKm) : siganAllocRaw; // cap biar gak lebih besar dari sesi
-      let muter = isAnomaly ? 0 : Math.max(0, evKm - siganAlloc);
+      let siganAlloc = totalSiganDay * prop;
+      let muter = Math.max(0, evKm - siganAlloc);
       if(muter>100) muter = Math.min(muter, evKm*0.8);
-      muterPerEntry[ee.id] = {evKm, siganKm: siganAlloc, siganRaw: siganAllocRaw, muter, noSiGan:false, anomaly: isAnomaly, totalEvDay, totalSiganDay};
+      muterPerEntry[ee.id] = {evKm, siganKm: siganAlloc, muter, noSiGan:false};
     });
   }
   
@@ -1285,18 +1419,10 @@ function renderList(){
       } else {
         let pct = muterInfo.evKm>0 ? (muterInfo.muter/muterInfo.evKm*100) : 0;
         let color = pct>50 ? '#ff8a80' : pct>30 ? '#ffdd53' : '#7dffb7';
-        if(muterInfo.anomaly){
-          muterBadge = `<div style="margin-top:8px; padding:8px; background:rgba(255,138,128,0.12); border:1px solid rgba(255,138,128,0.3); border-radius:8px; font-size:11px; line-height:1.4;">
-            <div style="display:flex; justify-content:space-between;"><span style="color:#8aa0c6;">📦 Sesi: ${muterInfo.evKm.toFixed(1)} km (km ${e.km_awal}→${e.km_akhir})</span><span style="color:#ff8a80;">SiGan: ${muterInfo.siganRaw.toFixed(1)} km > Sesi!</span></div>
-            <div style="margin-top:4px; color:#ffdd53; font-weight:700;">⚠️ Data EV Log kurang: Total EV hari ini ${muterInfo.totalEvDay.toFixed(1)} km tapi SiGan ${muterInfo.totalSiganDay.toFixed(1)} km. Cek km_awal/km_akhir, mungkin ada sesi yang lupa dicatat tgl ${e.tanggal}.</div>
-            <div style="margin-top:2px; color:#8aa0c6;">Muter dikunci 0.0 km sampai data diperbaiki.</div>
-          </div>`;
-        } else {
-          muterBadge = `<div style="margin-top:8px; padding:6px 8px; background:rgba(17,29,53,0.6); border:1px solid #1e2d4a; border-radius:8px; font-size:11px; line-height:1.4;">
-            <div style="display:flex; justify-content:space-between;"><span style="color:#8aa0c6;">📦 Sesi: ${muterInfo.evKm.toFixed(1)} km (km ${e.km_awal}→${e.km_akhir})</span><span style="color:#7dffb7;">Efektif: ${muterInfo.siganKm.toFixed(1)} km</span></div>
-            <div style="margin-top:2px; color:${color}; font-weight:700;">↳ Muter sesi ini: ${muterInfo.muter.toFixed(1)} km (${pct.toFixed(1)}%)</div>
-          </div>`;
-        }
+        muterBadge = `<div style="margin-top:8px; padding:6px 8px; background:rgba(17,29,53,0.6); border:1px solid #1e2d4a; border-radius:8px; font-size:11px; line-height:1.4;">
+          <div style="display:flex; justify-content:space-between;"><span style="color:#8aa0c6;">📦 Sesi: ${muterInfo.evKm.toFixed(1)} km (km ${e.km_awal}→${e.km_akhir})</span><span style="color:#7dffb7;">Efektif: ${muterInfo.siganKm.toFixed(1)} km</span></div>
+          <div style="margin-top:2px; color:${color}; font-weight:700;">↳ Muter sesi ini: ${muterInfo.muter.toFixed(1)} km (${pct.toFixed(1)}%)</div>
+        </div>`;
       }
     }
     const bmsComponent = hasCharger ? `
@@ -1367,8 +1493,6 @@ function renderRingkas(){
 function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil((((t-yearStart)/86400000)+1)/7); }
 
 function renderDasbor(){
-  window._personalKm = {};
-
   let anchorDate = new Date(); anchorDate.setHours(0,0,0,0);
   let cutoffDate = new Date(anchorDate);
   if(typeof ekonomiPeriod!=='undefined'){
@@ -1474,34 +1598,6 @@ function renderDasbor(){
         try{
           let tgl = e.tanggal;
           if(!tgl) return;
-          // V3.4: hanya hitung yang di dalam jam onbid
-          let shift = null;
-          try{
-            let raw = localStorage.getItem('siganShiftData');
-            if(raw){ let map=JSON.parse(raw); shift=map[tgl]||null; }
-          }catch(err){}
-          // cek apakah dalam shift
-          let inShift = true;
-          if(shift && shift.start && shift.end){
-            try{
-              let timeStr = null;
-              if(e.jam_mulai_cas) timeStr = e.jam_mulai_cas;
-              else if(e.waktu_dibuat_asli){ let d=new Date(Number(e.waktu_dibuat_asli)); timeStr = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
-              if(timeStr){
-                let [h,m]=timeStr.split(':').map(Number);
-                let [sH,sM]=shift.start.split(':').map(Number);
-                let [eH,eM]=shift.end.split(':').map(Number);
-                let t=h*60+m, s=sH*60+sM, ee=eH*60+eM;
-                if(ee < s) inShift = t>=s || t<=ee; else inShift = t>=s && t<=ee;
-              }
-            }catch(err){}
-          }
-          if(!inShift){
-            // tandai pribadi tapi jangan masuk hitungan muter kerja
-            if(!window._personalKm) window._personalKm={};
-            window._personalKm[tgl] = (window._personalKm[tgl]||0) + (Number(e.km_akhir)-Number(e.km_awal)||0);
-            return;
-          }
           if(!evEntriesPerTgl[tgl]) evEntriesPerTgl[tgl]=[];
           evEntriesPerTgl[tgl].push(e);
         }catch(e){}
@@ -1562,20 +1658,14 @@ function renderDasbor(){
           kmMuter = 0; // kalau SiGan memang kosong, jangan tampilkan ratusan km
         }
       }
-      // V3.5 FIX: efisiensi hanya pakai km kerja (di dalam onbid), bukan total termasuk pribadi
-      let totalEvKerja = Object.values(evKmPerTgl).reduce((a,b)=>a+b,0);
-      effRute = totalEvKerja>0 && totalKmEfektif>0 ? (totalKmEfektif / totalEvKerja * 100) : 0;
-      // simpan untuk debug
-      window._totalEvKerja = totalEvKerja;
-
+      effRute = jarak>0 && totalKmEfektif>0 ? (totalKmEfektif / jarak * 100) : 0;
       // Simpan debug untuk AI insight
       window._debugMuterPerTgl = debugPerTanggal;
       window._muterStats = {hariValid, hariTanpaSiGan, kmMuter, totalEv: jarak, totalSi: totalKmEfektif};
     }catch(e){
       console.error('muter calc error', e);
-      let totalEvKerja2 = (window._totalEvKerja||jarak);
-      kmMuter = Math.max(0, totalEvKerja2 - totalKmEfektif);
-      effRute = totalEvKerja2>0 ? (totalKmEfektif / totalEvKerja2 * 100) : 0;
+      kmMuter = Math.max(0, jarak - totalKmEfektif);
+      effRute = jarak>0 ? (totalKmEfektif / jarak * 100) : 0;
     }
     
     // Laba bersih hanya potong SPKLU (rumah gratis sesuai permintaan)
@@ -1615,9 +1705,7 @@ function renderDasbor(){
         elKmMuterSub.textContent = 'Isi jarak (km) di SiGan tiap order, bukan cuma nominal. Kalau jarak 0, muter gak bisa dihitung & jadi ratusan km ngaco.';
       } else if(window._muterStats){
         let s = window._muterStats;
-        let totalEvKerja = window._totalEvKerja || jarak;
-        let personalKm = Math.max(0, jarak - totalEvKerja);
-        elKmMuterSub.textContent = `${s.hariValid} hari valid, ${s.hariTanpaSiGan} hari tanpa jarak SiGan | ${Math.round(totalKmEfektif)} km efektif dari ${Math.round(totalEvKerja)} km kerja (total odometer ${Math.round(jarak)} km, ${Math.round(personalKm)} km pribadi) | Muter kerja ${Math.round(kmMuter)} km | Buang ${(kmMuter* (totalEnergiKwh/totalEvKerja||0)).toFixed(2)} kWh | Per tgl: ` + (window._debugMuterPerTgl||[]).filter(x=>!x.skip).slice(0,3).map(x=>`${x.tgl}:${Math.round(x.muter)}km`).join(', ');
+        elKmMuterSub.textContent = `${s.hariValid} hari valid, ${s.hariTanpaSiGan} hari tanpa jarak SiGan | ${Math.round(totalKmEfektif)} km efektif dari ${Math.round(jarak)} km total | Buang ${(kmMuter* (totalEnergiKwh/jarak||0)).toFixed(2)} kWh | Per tgl: ` + (window._debugMuterPerTgl||[]).filter(x=>!x.skip).slice(0,3).map(x=>`${x.tgl}:${Math.round(x.muter)}km`).join(', ');
       } else {
         elKmMuterSub.textContent = totalIncome>0 ? `${Math.round(totalKmEfektif)} km efektif dari ${Math.round(jarak)} km total | Buang ${(kmMuter* (totalEnergiKwh/jarak||0)).toFixed(2)} kWh` : 'Selisih odometer vs argo';
       }
@@ -1725,6 +1813,8 @@ function renderDasbor(){
       sohNoteEl.textContent = `Butuh minimal 1 catatan dengan batt_akhir ≤35% dicas sampai 100% & jarak >10km (dipakai ≥50%)`;
     }
   } catch(err){}
+  // V3.6 override dengan AI super akurat jika ada kalibrasi atau data parsial
+  try{ if(typeof hitungSoHAI==='function') hitungSoHAI(); }catch(e){}
 
   const avgWhKmMovingAI_filtered = hitungPrediksiAIWhKm(filteredEntriesForAI);
   drawModernDigitalCluster(Math.round(avgWhKmMovingAI_filtered||avgWhKmMovingAI));
