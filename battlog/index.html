@@ -819,9 +819,9 @@ function hitungSoHAI() {
       // degradasi per cycle real dari kalibrasi (total degradasi sampai kalibrasi dibagi cycle)
       const degTotalAtCalib = 100 - calibSoh;
       // Asumsi 40% kalender, 60% cycle sampai kalibrasi (biar gak kegedean kalender)
-      const degCycleAtCalib = degTotalAtCalib * 0.6;
+      const degCycleAtCalib = degTotalAtCalib * 0.85;
       const degPerCycleReal = eqAtCalib>0 ? degCycleAtCalib/eqAtCalib : degPerCycleLab;
-      const degPerCycleBlend = degPerCycleLab*0.4 + degPerCycleReal*0.6;
+      const degPerCycleBlend = degPerCycleLab*0.2 + degPerCycleReal*0.8;
       // Delta degradasi setelah kalibrasi
       const deltaKwh = deltaKm * avgWh / 1000;
       const deltaCycle = deltaKwh / FACTORY_CAP;
@@ -837,10 +837,15 @@ function hitungSoHAI() {
       sohFinal = 100 - (eqCycle*degPerCycleLab) - degKal;
     }
 
-    if(parsial.length>=3){
+    // Parsial dimatikan dulu untuk mode kalibrasi biar gak naikin SoH di atas kalibrasi
+    if(parsial.length>=3 && (isNaN(calibKm) || odo <= calibKm)){
       const avgCap = parsial.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,parsial.length);
       const sohP = (avgCap/FACTORY_CAP)*100;
       sohFinal = sohFinal*0.4 + sohP*0.6;
+    }
+    // Hard cap: kalau odo sudah lewat kalibrasi, SoH gak boleh naik di atas kalibrasi
+    if(!isNaN(calibKm) && odo > calibKm && sohFinal > calibSoh){
+      sohFinal = calibSoh - 0.01; // paksa turun minimal
     }
 
     sohFinal = Math.min(100, Math.max(50, sohFinal));
