@@ -1367,6 +1367,8 @@ function renderRingkas(){
 function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil((((t-yearStart)/86400000)+1)/7); }
 
 function renderDasbor(){
+  window._personalKm = {};
+
   let anchorDate = new Date(); anchorDate.setHours(0,0,0,0);
   let cutoffDate = new Date(anchorDate);
   if(typeof ekonomiPeriod!=='undefined'){
@@ -1472,6 +1474,34 @@ function renderDasbor(){
         try{
           let tgl = e.tanggal;
           if(!tgl) return;
+          // V3.4: hanya hitung yang di dalam jam onbid
+          let shift = null;
+          try{
+            let raw = localStorage.getItem('siganShiftData');
+            if(raw){ let map=JSON.parse(raw); shift=map[tgl]||null; }
+          }catch(err){}
+          // cek apakah dalam shift
+          let inShift = true;
+          if(shift && shift.start && shift.end){
+            try{
+              let timeStr = null;
+              if(e.jam_mulai_cas) timeStr = e.jam_mulai_cas;
+              else if(e.waktu_dibuat_asli){ let d=new Date(Number(e.waktu_dibuat_asli)); timeStr = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+              if(timeStr){
+                let [h,m]=timeStr.split(':').map(Number);
+                let [sH,sM]=shift.start.split(':').map(Number);
+                let [eH,eM]=shift.end.split(':').map(Number);
+                let t=h*60+m, s=sH*60+sM, ee=eH*60+eM;
+                if(ee < s) inShift = t>=s || t<=ee; else inShift = t>=s && t<=ee;
+              }
+            }catch(err){}
+          }
+          if(!inShift){
+            // tandai pribadi tapi jangan masuk hitungan muter kerja
+            if(!window._personalKm) window._personalKm={};
+            window._personalKm[tgl] = (window._personalKm[tgl]||0) + (Number(e.km_akhir)-Number(e.km_awal)||0);
+            return;
+          }
           if(!evEntriesPerTgl[tgl]) evEntriesPerTgl[tgl]=[];
           evEntriesPerTgl[tgl].push(e);
         }catch(e){}
