@@ -779,7 +779,7 @@ function kalibrasiSohMover() {
   if(typeof hitungSoHAI === 'function') setTimeout(hitungSoHAI, 200);
 }
 
-// === V3.6 SoH AI SUPER AKURAT - Backend Only, Multi User ===
+// === V3.6 SoH AI SUPER AKURAT - Backend Only, Multi User - FIX ODO ===
 function hitungSoHAI() {
   try {
     const FACTORY_CAP = parseFloat(localStorage.getItem('factory_cap_kwh')) || 4.0;
@@ -787,85 +787,91 @@ function hitungSoHAI() {
     const calibSoh = parseFloat(localStorage.getItem('factory_calib_soh'));
     if (!entries || !entries.length) return null;
 
-    // 1. Total energi & cycle dari real trip
-    let totalKwh = 0, totalJarak = 0, fastCount = 0, slowCount = 0, totalDeltaPct = 0, validParsialCap = [];
+    // 1. Ambil odometer terakhir REAL, bukan sum jarak
+    let maxOdo = 0, firstOdo = Infinity, totalKwhLogged = 0, totalJarakLogged = 0;
+    let fastCount = 0, slowCount = 0, validParsialCap = [];
+    let whList = [];
     entries.forEach(e=>{
       try{
         const c = calcEntry(e);
-        if(c.jarak>0 && c.wh_per_km>0){ totalKwh+=c.energi_terpakai; totalJarak+=c.jarak; }
+        const kmAkhir = parseFloat(e.km_akhir)||0;
+        const kmAwal = parseFloat(e.km_awal)||0;
+        if(kmAkhir>maxOdo) maxOdo = kmAkhir;
+        if(kmAwal<firstOdo) firstOdo = kmAwal;
+        if(c.jarak>0 && c.wh_per_km>0){ 
+          totalKwhLogged+=c.energi_terpakai; 
+          totalJarakLogged+=c.jarak;
+          whList.push(c.wh_per_km);
+        }
         const ch = (e.charger||'').toLowerCase();
         const ahMatch = ch.match(/(\d+(?:\.\d+)?)\s*ah/);
         const ah = ahMatch ? parseFloat(ahMatch[1]) : 0;
         if(ah>=20) fastCount++; else if(ah>0) slowCount++;
-        // parsial SoH real: kWh / delta%
-        const bAwal = parseFloat(e.batt_awal)||0, bAkhir = parseFloat(e.batt_akhir)||0, bSetelah = parseFloat(e.batt_setelah)||0;
-        // cas parsial: bAkhir -> bSetelah
+        const bAkhir = parseFloat(e.batt_akhir)||0, bSetelah = parseFloat(e.batt_setelah)||0;
         if(bSetelah>bAkhir){
           const delta = bSetelah - bAkhir;
-          const kwhIn = c.energi_diisi || c.energi_terpakai; // fallback
+          const kwhIn = c.energi_diisi || 0;
           if(delta>=30 && kwhIn>0.2){
             const capReal = kwhIn / (delta/100);
             if(capReal>FACTORY_CAP*0.5 && capReal<FACTORY_CAP*1.5) validParsialCap.push(capReal);
           }
-          totalDeltaPct+=delta;
         }
       }catch(err){}
     });
-    const eqCycle = FACTORY_CAP>0 ? totalKwh/FACTORY_CAP : 0;
+    const avgWh = whList.length ? whList.reduce((a,b)=>a+b,0)/whList.length : 35;
+    // ODOMETER REAL dipakai untuk cycle, bukan sum trip
+    const odoForCalc = maxOdo>0 ? maxOdo : totalJarakLogged;
+    const totalKwhEst = (odoForCalc * avgWh)/1000; // estimasi total dari 0 km
+    // Kalau user log dari tengah (firstOdo besar), tetap pakai odo penuh biar cycle gak kekecilan
+    const eqCycle = FACTORY_CAP>0 ? totalKwhEst/FACTORY_CAP : 0;
 
     // 2. Faktor charger
     const totalCh = fastCount+slowCount || 1;
     const pctFast = fastCount/totalCh;
-    const faktorC = (1-pctFast)*0.85 + pctFast*1.18; // 6A=0.85, 45A=1.18
+    const faktorC = (1-pctFast)*0.85 + pctFast*1.18;
 
-    // 3. Faktor suhu Jakarta default 1.8, DoD avg 0.85
+    // 3. Faktor suhu & DoD
     const faktorSuhu = 1.8;
     const faktorDoD = 0.85;
+    const degPerCycleLab = 0.0067 * faktorC * faktorSuhu * faktorDoD;
 
-    // 4. Degradasi jurnal lab
-    const degPerCycleLab = 0.0067 * faktorC * faktorSuhu * faktorDoD; // %
-    let degCycle = eqCycle * degPerCycleLab;
-
-    // 5. Kalender
+    // 4. Kalender - hitung umur
     let umurHari = 400;
     try{
       const oldest = [...entries].sort((a,b)=>new Date(a.tanggal)-new Date(b.tanggal))[0];
       if(oldest) umurHari = Math.max(30, Math.floor((Date.now()-new Date(oldest.tanggal).getTime())/86400000));
     }catch(e){}
-    const degKalender = 0.008 * umurHari * 1.3; // asumsi diem 90% avg
+    const degKalender = 0.008 * umurHari * 0.9; // dikurangi dari 1.3 ke 0.9 biar gak dobel
 
-    // 6. SoH Lab
-    let sohLab = 100 - degCycle - degKalender;
-
-    // 7. Kalibrasi personal (opsional) - titik tengah jurnal vs real
-    let faktorPribadi = null, sohFinal = sohLab;
+    // 5. Kalibrasi personal - titik tengah jurnal vs real
+    let sohFinal;
     if(!isNaN(calibKm) && !isNaN(calibSoh) && calibKm>0){
-      const kwhAtCalib = (calibKm * 35)/1000; // estimasi 35Wh/km jika belum ada avg
-      const eqAtCalib = kwhAtCalib / FACTORY_CAP;
-      const degAtCalib = 100 - calibSoh;
-      if(eqAtCalib>0) faktorPribadi = degAtCalib / eqAtCalib;
-      // titik tengah: 40% jurnal + 60% real (bobot dari tuning 12.191km/98%)
-      if(faktorPribadi!==null){
-        const degPerCycleReal = faktorPribadi;
-        const degPerCycleBlended = degPerCycleLab*0.4 + degPerCycleReal*0.6;
-        sohFinal = 100 - (eqCycle * degPerCycleBlended) - degKalender;
-      }
+      const eqAtCalib = (calibKm * avgWh /1000)/FACTORY_CAP;
+      const degAtCalibTotal = 100 - calibSoh;
+      const degKalenderAtCalib = 0.008 * Math.max(30, umurHari * (calibKm/Math.max(1,odoForCalc))) * 0.9;
+      const degCycleAtCalib = Math.max(0, degAtCalibTotal - degKalenderAtCalib);
+      const degPerCycleReal = eqAtCalib>0 ? degCycleAtCalib/eqAtCalib : degPerCycleLab;
+      const degPerCycleBlended = degPerCycleLab*0.4 + degPerCycleReal*0.6;
+      const degCycleNow = eqCycle * degPerCycleBlended;
+      sohFinal = 100 - degCycleNow - degKalender;
+      // JANGAN PERNAH naik di atas SoH kalibrasi kalau odo sekarang > odo kalibrasi
+      if(odoForCalc > calibKm && sohFinal > calibSoh) sohFinal = calibSoh - ((odoForCalc - calibKm)*avgWh/1000/FACTORY_CAP)*degPerCycleBlended;
+    } else {
+      sohFinal = 100 - (eqCycle * degPerCycleLab) - degKalender;
     }
 
-    // 8. Fusion dengan parsial real cap jika ada
+    // 6. Fusion parsial
     if(validParsialCap.length>=3){
       const avgCapReal = validParsialCap.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,validParsialCap.length);
       const sohParsial = (avgCapReal/FACTORY_CAP)*100;
-      // 60% parsial + 40% lab/blended
       sohFinal = sohFinal*0.4 + sohParsial*0.6;
       localStorage.setItem('maka_soh_parsial', sohParsial.toFixed(2));
     }
 
     sohFinal = Math.min(100, Math.max(50, sohFinal));
     localStorage.setItem('maka_soh_ai', sohFinal.toFixed(2));
-    localStorage.setItem('maka_soh_ai_meta', JSON.stringify({eqCycle:eqCycle.toFixed(1), totalKwh:totalKwh.toFixed(1), faktorC:faktorC.toFixed(2), fastCount, slowCount, umurHari, degPerCycle:degPerCycleLab.toFixed(4)}));
+    localStorage.setItem('maka_soh_ai_meta', JSON.stringify({maxOdo, avgWh:avgWh.toFixed(1), eqCycle:eqCycle.toFixed(1), totalKwhEst:totalKwhEst.toFixed(1), faktorC:faktorC.toFixed(2), fastCount, slowCount, umurHari, degPerCycleLab:degPerCycleLab.toFixed(5)}));
 
-    // Update UI tanpa ubah layout
     const elSoh = document.getElementById('stat_soh');
     const elProg = document.getElementById('soh_progress');
     const elNote = document.getElementById('soh_note');
@@ -873,8 +879,8 @@ function hitungSoHAI() {
       elSoh.textContent = sohFinal.toFixed(1) + '%';
       elProg.style.width = sohFinal + '%';
       if(sohFinal>=95) elSoh.style.color='#7dffb7'; else if(sohFinal>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d';
-      let note = `AI: ${eqCycle.toFixed(1)} cycle • ${totalKwh.toFixed(1)} kWh • C:${faktorC.toFixed(2)}`;
-      if(!isNaN(calibKm)) note+=` • Kalib: ${calibKm}km/${calibSoh}%`;
+      let note = `AI: Odo ${maxOdo}km • ${eqCycle.toFixed(1)}cyc • ${avgWh.toFixed(0)}Wh/km • C:${faktorC.toFixed(2)}`;
+      if(!isNaN(calibKm)) note+=` • Kalib ${calibKm}km/${calibSoh}%`;
       if(validParsialCap.length>=3) note+=` • Parsial ${validParsialCap.length}x`;
       if(elNote) elNote.textContent = note;
     }
@@ -882,6 +888,7 @@ function hitungSoHAI() {
   } catch(e){ console.log('SoH AI error', e.message); return null; }
 }
 
+function hitungPrediksiAIWhKm(filtered) {
 function hitungPrediksiAIWhKm(filtered) {
   // V3: kalau ada filtered (sesuai periode SiGan), pakai itu. Kalau tidak, fallback 5 trip terakhir
   let source = filtered && filtered.length ? filtered : entries;
