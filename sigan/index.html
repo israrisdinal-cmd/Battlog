@@ -1467,7 +1467,7 @@ const AIEngineV2 = {
       const pend = data.filter(x=>x.type==='Pendapatan' && Number(x.dist)>0 && Number(x.amount)>0);
       const models = {};
       const regress = (xs,ys)=>{
-        const n=xs.length; if(n<2) return {base:0,perKm:0};
+        const n=xs.length; if(n<2) return {base:0,perKm:0, rmse:999999};
         let sumX=0,sumY=0,sumXY=0,sumX2=0;
         for(let i=0;i<n;i++){ sumX+=xs[i]; sumY+=ys[i]; sumXY+=xs[i]*ys[i]; sumX2+=xs[i]*xs[i]; }
         const denom=(n*sumX2 - sumX*sumX);
@@ -1477,45 +1477,104 @@ const AIEngineV2 = {
         if(!isFinite(base)) base=0;
         if(base<0) base=0;
         if(perKm>15000) perKm=15000;
-        return {base,perKm};
+        // hitung RMSE
+        let err=0; for(let i=0;i<n;i++){ let pred=base+perKm*xs[i]; err+=Math.pow(ys[i]-pred,2); }
+        let rmse=Math.sqrt(err/n);
+        return {base,perKm, rmse};
       };
-      const BASE_KM = 2.5; // Tarif flat ojol 2-3km pertama
+      const CANDIDATE_KM = [1.0,1.5,1.8,2.0,2.2,2.5,2.8,3.0,3.5,4.0];
+      const kmeans1D = (arr, k=2, iter=12)=>{
+        if(arr.length<k) return null;
+        let sorted=[...arr].sort((a,b)=>a-b);
+        let c1=sorted[Math.floor(sorted.length*0.25)];
+        let c2=sorted[Math.floor(sorted.length*0.75)];
+        let centroids=[c1,c2];
+        for(let it=0; it<iter; it++){
+          let clusters=[[],[]];
+          for(let v of arr){
+            let d0=Math.abs(v-centroids[0]), d1=Math.abs(v-centroids[1]);
+            clusters[d0<=d1?0:1].push(v);
+          }
+          if(!clusters[0].length || !clusters[1].length) break;
+          centroids[0]=clusters[0].reduce((a,b)=>a+b,0)/clusters[0].length;
+          centroids[1]=clusters[1].reduce((a,b)=>a+b,0)/clusters[1].length;
+        }
+        let cl0=[], cl1=[];
+        for(let v of arr){
+          if(Math.abs(v-centroids[0]) <= Math.abs(v-centroids[1])) cl0.push(v); else cl1.push(v);
+        }
+        return {c1:Math.round(centroids[0]), c2:Math.round(centroids[1]), cluster0:cl0, cluster1:cl1};
+      };
       for(let cat of categories.Pendapatan){
         let entries=pend.filter(e=>e.cat===cat);
         entries.sort((a,b)=>(a.date<b.date?1:-1));
         if(entries.length<3){
-          models[cat]={count:entries.length, base:0, perKm:0, baseLower:0, perKmLower:0, baseUpper:0, perKmUpper:0, avgRpPerKm:0, medianRpPerKm:0, hourlyFactor:{}, blockFactor:{subuh:1,siang:1,sore:1,malam:1}, jamSibuk:'sore', confidence:'low', lastUpdated:Date.now(), insufficient:true};
+          models[cat]={count:entries.length, base:0, base2:null, baseKm:2.5, perKm:0, baseLower:0, perKmLower:0, baseUpper:0, perKmUpper:0, avgRpPerKm:0, medianRpPerKm:0, hourlyFactor:{}, blockFactor:{subuh:1,siang:1,sore:1,malam:1}, jamSibuk:'sore', confidence:'low', lastUpdated:Date.now(), insufficient:true, autoFlatKm:2.5, dualFlat:false};
           continue;
         }
         let ys=entries.map(e=>Number(e.amount));
         let rpkm=entries.map(e=>Number(e.amount)/Number(e.dist));
         let medRpKm=this.helpers.median(rpkm);
         let avgRpKm=this.helpers.mean(rpkm);
-        // FIX V3: Deteksi base dari short trip dulu, baru regresi excessKm
-        let shortTrips=entries.filter(e=>Number(e.dist)<=BASE_KM).map(e=>Number(e.amount));
-        let base;
-        if(shortTrips.length>=2){ base=this.helpers.median(shortTrips); }
-        else { base=this.helpers.percentile(ys,25)*0.6; }
-        // Regresi hanya untuk jarak di atas baseKm
-        let longEntries=entries.filter(e=>Number(e.dist)>BASE_KM);
-        let xs, ysExcess, perKm;
-        if(longEntries.length>=2){
-          xs=longEntries.map(e=>Number(e.dist)-BASE_KM);
-          ysExcess=longEntries.map(e=>Math.max(0, Number(e.amount)-base));
-          let reg=regress(xs, ysExcess);
-          perKm=reg.perKm;
-          // base dari regresi jangan dipakai, pakai median short tadi
-        } else {
-          // fallback kalau semua trip pendek
-          xs=entries.map(e=>Number(e.dist));
-          let reg=regress(xs, ys);
-          perKm=reg.perKm;
-          if(!base) base=reg.base;
+
+        // === AUTO LEARN BASE_KM via elbow ===
+        let bestKm=2.5, bestError=Infinity, bestBase=0, bestPerKm=0;
+        for(let candKm of CANDIDATE_KM){
+          let shortC=entries.filter(e=>Number(e.dist)<=candKm);
+          let longC=entries.filter(e=>Number(e.dist)>candKm);
+          if(shortC.length<3 || longC.length<3) continue;
+          let baseC=this.helpers.median(shortC.map(e=>Number(e.amount)));
+          let xsC=longC.map(e=>Number(e.dist)-candKm);
+          let ysC=longC.map(e=>Math.max(0, Number(e.amount)-baseC));
+          let reg=regress(xsC, ysC);
+          if(!reg.perKm || reg.perKm<200) continue;
+          // error = variance short + rmse long
+          let varShort=0; for(let s of shortC){ varShort+=Math.pow(Number(s.amount)-baseC,2); } varShort=Math.sqrt(varShort/shortC.length);
+          let totalErr=varShort*0.5 + reg.rmse;
+          if(totalErr<bestError){ bestError=totalErr; bestKm=candKm; bestBase=baseC; bestPerKm=reg.perKm; }
         }
+        // fallback kalau tidak ketemu
+        if(bestError===Infinity){
+          let shortTrips=entries.filter(e=>Number(e.dist)<=2.5).map(e=>Number(e.amount));
+          if(shortTrips.length>=2){ bestBase=this.helpers.median(shortTrips); bestKm=2.5; }
+          else { bestBase=this.helpers.percentile(ys,25)*0.6; bestKm=2.5; }
+          let longEntries=entries.filter(e=>Number(e.dist)>bestKm);
+          if(longEntries.length>=2){
+            let xsL=longEntries.map(e=>Number(e.dist)-bestKm);
+            let ysL=longEntries.map(e=>Math.max(0, Number(e.amount)-bestBase));
+            bestPerKm=regress(xsL, ysL).perKm;
+          } else {
+            bestPerKm=medRpKm*0.8;
+          }
+        }
+        let base=bestBase, perKm=bestPerKm, baseKm=bestKm;
+
         if(!isFinite(perKm) || perKm<300 || perKm>15000){ perKm=medRpKm*0.8; }
         if(!isFinite(base) || base<1000) base=Math.max(2000, this.helpers.percentile(ys,20));
-        base=Math.max(0,Math.round(base));
+
+        // === DETEKSI 2 TARIF FLAT via clustering short trips ===
+        let shortForCluster=entries.filter(e=>Number(e.dist)<=baseKm).map(e=>Number(e.amount));
+        let dualFlat=false, base2=null, flatCluster=null;
+        if(shortForCluster.length>=6){
+          let kmRes=kmeans1D(shortForCluster,2);
+          if(kmRes){
+            let diff=Math.abs(kmRes.c1-kmRes.c2);
+            let avgC=(kmRes.c1+kmRes.c2)/2;
+            let ratio=diff/avgC;
+            let minSize=Math.min(kmRes.cluster0.length, kmRes.cluster1.length);
+            if(ratio>0.15 && minSize>=3 && diff>1500){
+              dualFlat=true;
+              // urutkan: base = yang lebih murah, base2 = yang mahal
+              if(kmRes.c1<=kmRes.c2){ base=kmRes.c1; base2=kmRes.c2; flatCluster=kmRes; }
+              else { base=kmRes.c2; base2=kmRes.c1; flatCluster=kmRes; }
+            }
+          }
+        }
+        base=Math.round(base);
+        if(base2) base2=Math.round(base2);
         perKm=Math.max(300,Math.round(perKm));
+        // simpan info flat
+        let flatInfo = {baseKm: baseKm, dual: dualFlat, base2: base2 || null};
         let hourlyGroups={}; let blockGroups={'subuh':[],'siang':[],'sore':[],'malam':[]};
         for(let e of entries){
           if(!e.time) continue;
@@ -1547,9 +1606,11 @@ const AIEngineV2 = {
         let perKmUpper=this.helpers.percentile(rpkm,85)*1.05;
         let baseLower=Math.round(base*0.85);
         let baseUpper=Math.round(base*1.15);
+        let baseLower2=base2?Math.round(base2*0.85):0;
+        let baseUpper2=base2?Math.round(base2*1.15):0;
         if(perKmLower<300) perKmLower=300;
         let conf=entries.length>=25?'high':entries.length>=10?'medium':'low';
-        models[cat]={count:entries.length, base, perKm, baseLower, perKmLower:Math.round(perKmLower), baseUpper, perKmUpper:Math.round(perKmUpper), avgRpPerKm:Math.round(avgRpKm), medianRpPerKm:Math.round(medRpKm), hourlyFactor, blockFactor, jamSibuk, confidence:conf, lastUpdated:Date.now(), insufficient:false};
+        models[cat]={count:entries.length, base, base2: base2||null, baseKm: baseKm, autoFlatKm: baseKm, dualFlat: dualFlat, baseLower, baseLower2, perKmLower:Math.round(perKmLower), baseUpper, baseUpper2, perKmUpper:Math.round(perKmUpper), avgRpPerKm:Math.round(avgRpKm), medianRpPerKm:Math.round(medRpKm), hourlyFactor, blockFactor, jamSibuk, confidence:conf, lastUpdated:Date.now(), insufficient:false, flatClusters: flatCluster? {c0: flatCluster.cluster0.length, c1: flatCluster.cluster1.length}: null};
       }
       if(pend.length>=3){
         let gxs=pend.map(e=>Number(e.dist)); let gys=pend.map(e=>Number(e.amount));
@@ -1596,16 +1657,32 @@ const AIEngineV2 = {
       else if(hour>=16&&hour<22) factor=model.blockFactor.sore||1;
       else factor=model.blockFactor.malam||1;
     }
-    let base=model.base||0; let perKm=model.perKm||0;
-    // FIX V3: Surge hanya kalikan base (flat minimum), bukan seluruh jarak jauh
-    // Rumus baru: base*factor + perKm*dist => jarak jauh tidak overpriced
-    let amount=(base*factor + perKm*dist);
-    let lower=( (model.baseLower||base*0.85)*Math.max(0.8,factor*0.92) + (model.perKmLower||perKm*0.85)*dist );
-    let upper=( (model.baseUpper||base*1.15)*Math.min(1.4,factor*1.08) + (model.perKmUpper||perKm*1.15)*dist );
+    let base=model.base||0; let base2=model.base2||null; let perKm=model.perKm||0;
+    const BASE_KM_PRED = model.baseKm || model.autoFlatKm || 2.5;
+    // FIX V3.2: Auto flat km + dual flat detection
+    let chosenBase = base;
+    let chosenBaseLower = model.baseLower||base*0.85;
+    let chosenBaseUpper = model.baseUpper||base*1.15;
+    let isPeakFlat = false;
+    if(model.dualFlat && base2){
+        if(factor>1.15){ chosenBase=base2; chosenBaseLower=model.baseLower2||base2*0.85; chosenBaseUpper=model.baseUpper2||base2*1.15; isPeakFlat=true; }
+        else { chosenBase=base; }
+    }
+    let amount, lower, upper;
+    if(dist <= BASE_KM_PRED){
+        amount = chosenBase*factor;
+        lower = chosenBaseLower*Math.max(0.8,factor*0.92);
+        upper = chosenBaseUpper*Math.min(1.4,factor*1.08);
+    } else {
+        let excess = dist - BASE_KM_PRED;
+        amount = (chosenBase*factor + perKm*excess);
+        lower = chosenBaseLower*Math.max(0.8,factor*0.92) + (model.perKmLower||perKm*0.85)*excess;
+        upper = chosenBaseUpper*Math.min(1.4,factor*1.08) + (model.perKmUpper||perKm*1.15)*excess;
+    }
     amount=Math.round(amount/100)*100; lower=Math.round(lower/100)*100; upper=Math.round(upper/100)*100;
     if(amount<(model.baseLower||2000)) amount=model.baseLower||2000;
     if(lower<1000) lower=1000;
-    return {amount, lowerBound:lower, upperBound:upper, base, perKm, baseLower:model.baseLower, perKmLower:model.perKmLower, factor, hour, jamSibuk:model.jamSibuk||'sore', confidence:model.confidence, count:model.count, isFallback, avgRpPerKm:model.avgRpPerKm, blockFactor:model.blockFactor};
+    return {amount, lowerBound:lower, upperBound:upper, base:chosenBase, base2:base2, baseKm:BASE_KM_PRED, perKm, baseLower:chosenBaseLower, perKmLower:model.perKmLower, factor, hour, jamSibuk:model.jamSibuk||'sore', confidence:model.confidence, count:model.count, isFallback, avgRpPerKm:model.avgRpPerKm, blockFactor:model.blockFactor, dualFlat:model.dualFlat||false, isPeakFlat};
   }
 };
 AIEngineV2.load();
@@ -1615,8 +1692,10 @@ function getTariffConfig(){
   const cfg={};
   for(let cat of categories.Pendapatan){
     let m=AIEngineV2.models[cat];
-    if(m && !m.insufficient){ cfg[cat]={baseKm:2, base:m.base, perKm:m.perKm}; }
-    else { cfg[cat]=defaultTariffConfig[cat]||{baseKm:2, base:10000, perKm:2500}; }
+    if(m && !m.insufficient){ 
+      cfg[cat]={baseKm: m.baseKm||m.autoFlatKm||2.5, base:m.base, base2:m.base2||null, perKm:m.perKm, dualFlat: m.dualFlat||false}; 
+    }
+    else { cfg[cat]=defaultTariffConfig[cat]||{baseKm:2.5, base:10000, perKm:2500}; }
   }
   return cfg;
 }
@@ -1631,7 +1710,7 @@ function renderTariffSettingsForm(){
   const models=AIEngineV2.models;
   let html=`<div style="background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; padding:10px; margin-bottom:12px; font-size:11px; line-height:1.5; color:#8aa0c6;">
     <div style="font-weight:800; color:#7dffb7; font-size:12px; margin-bottom:4px;">🤖 AI ENGINE V2 AKTIF - PENGGANTI TARIF DASAR FLAT</div>
-    Tarif flat lama sudah dihapus. AI belajar dari <strong>${Object.values(models).reduce((a,m)=>a+(m.count||0),0)} trip</strong> per layanan + jam sibuk. Batas bawah = P15.
+    Tarif flat lama sudah dihapus. AI V3.2 auto-belajar <strong>km flat</strong> per layanan + deteksi <strong>2 flat</strong>. Belajar dari <strong>${Object.values(models).reduce((a,m)=>a+(m.count||0),0)} trip</strong>. Batas bawah = P15.
   </div>`;
   for(let cat of categories.Pendapatan){
     const m=models[cat]; if(!m) continue;
