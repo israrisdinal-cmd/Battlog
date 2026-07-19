@@ -157,6 +157,66 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             <button id="btnCancelEdit" class="btn-secondary hidden" style="margin-top:8px;" onclick="cancelEdit()">Batal Edit</button>
             <div style="font-size:10px; color:#5a7096; margin-top:6px;">* Untuk pendapatan sebaiknya via OCR biar lengkap ID, alamat, jam awal-akhir.</div>
         </div>
+
+        <!-- DEBUG PANEL V5.3 -->
+        <div class="card" style="border:1px solid #ff5252; background:#1a1212;">
+            <div style="font-weight:800; color:#ff8a80; font-size:12px; margin-bottom:8px;">🔍 DEBUG - Data Bersembunyi</div>
+            <div style="font-size:10px; color:#8aa0c6; margin-bottom:8px;">Kalau data OCR tidak muncul di riwayat, cek di sini:</div>
+            <button onclick="debugShowAll()" style="width:100%; background:#2a1212; border:1px solid #5a2a2a; color:#ff8a80; padding:8px; border-radius:8px; font-size:11px;">📋 Lihat Semua Tanggal & Jumlah Data</button>
+            <div id="debugOutput" style="margin-top:8px; font-size:10px; background:#0a1328; padding:8px; border-radius:8px; max-height:200px; overflow:auto; display:none; white-space:pre-wrap;"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;">
+                <button onclick="clearToday()" style="background:#1a1212; border:1px solid #5a2a2a; color:#ff8a80; padding:6px; border-radius:8px; font-size:10px;">🗑️ Hapus Hari Ini</button>
+                <button onclick="clearAllDataFull()" style="background:#5a1212; border:1px solid #ff5252; color:#fff; padding:6px; border-radius:8px; font-size:10px;">💣 HAPUS SEMUA</button>
+            </div>
+        </div>
+        <script>
+        function debugShowAll(){
+            try{
+                let data=JSON.parse(localStorage.getItem('siganData')||'[]');
+                let perDate={};
+                data.forEach(d=>{ perDate[d.date]=(perDate[d.date]||0)+1; });
+                let txt=`Total data: ${data.length} trip\n`;
+                txt+=`Tanggal di HP:\n`;
+                Object.entries(perDate).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([d,c])=>{
+                    txt+=`- ${d}: ${c} trip\n`;
+                });
+                txt+=`\n5 data terakhir:\n`;
+                data.slice(-5).forEach(d=>{
+                    txt+=`${d.date} ${d.time}-${d.endTime} ${d.idTrans} Rp${d.amount} ${d.dist}km\n`;
+                });
+                let out=document.getElementById('debugOutput');
+                out.style.display='block';
+                out.textContent=txt;
+            }catch(e){ alert('Error '+e.message); }
+        }
+        function clearToday(){
+            let date=document.getElementById('globalDate').value;
+            if(!date) return alert('Pilih tanggal dulu');
+            if(!confirm(`Hapus semua data tanggal ${date}?`)) return;
+            let data=JSON.parse(localStorage.getItem('siganData')||'[]');
+            let filtered=data.filter(d=>d.date!==date);
+            localStorage.setItem('siganData', JSON.stringify(filtered));
+            let shift=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+            delete shift[date];
+            localStorage.setItem('siganShiftData', JSON.stringify(shift));
+            loadData();
+            alert('Data '+date+' dihapus');
+        }
+        function clearAllDataFull(){
+            if(!confirm('HAPUS SEMUA DATA SIGAN? Ketik OK untuk lanjut')) return;
+            let c=prompt('Ketik HAPUS untuk konfirmasi');
+            if(c!=='HAPUS') return;
+            localStorage.removeItem('siganData');
+            localStorage.removeItem('siganShiftData');
+            localStorage.removeItem('siganGlobalTarget');
+            localStorage.removeItem('UNIVERSAL_LAKE_V1');
+            localStorage.removeItem('maka_cross_sigan_income');
+            localStorage.removeItem('maka_cross_sigan_km');
+            alert('Semua data dihapus, reload...');
+            location.reload();
+        }
+        </script>
+
     </div>
 
     <div id="tabContentHistory" class="hidden">
@@ -511,8 +571,14 @@ function loadData(){
     });
 
     container.innerHTML="";
+    // DEBUG: cek semua tanggal yang ada data
+    let allDates = {};
+    data.forEach(it=>{ if(it.date) allDates[it.date]=(allDates[it.date]||0)+1; });
+    let allDatesList = Object.entries(allDates).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,10).map(([d,c])=>`${d} (${c})`).join(', ');
+    
     if(Object.keys(grouped).length===0){
-        container.innerHTML=`<div style="text-align:center; color:#777; padding:20px; font-size:13px;">Tidak ada riwayat pada tanggal ini.</div>`;
+        let hint = allDatesList ? `<br><br><div style="font-size:11px; color:#ff8a80; background:#2a1212; padding:8px; border-radius:8px; text-align:left;">Data kamu ada tapi di tanggal lain:<br><strong>${allDatesList}</strong><br><br>Tap tanggal di atas untuk pindah, atau upload foto tadi sudah auto pindah ke tanggal terbaru.</div><div style="margin-top:8px;"><button onclick="document.getElementById('globalDate').value=Object.keys(allDates).sort().reverse()[0]; loadData();" style="background:#1e3a5f; border:1px solid #2b5a9a; padding:6px 12px; border-radius:8px; font-size:11px;">🔍 Loncat ke tanggal ada data</button></div>` : '';
+        container.innerHTML=`<div style="text-align:center; color:#777; padding:20px; font-size:13px;">Tidak ada riwayat pada tanggal ${targetDate}.${hint}</div>`;
     }
     for(let cat in grouped){
         grouped[cat].sort((a,b)=>(a.time||'00:00').localeCompare(b.time||'00:00'));
@@ -570,7 +636,20 @@ function loadRekapData(){
     const period=document.getElementById('rekapPeriod').value;
     const data=JSON.parse(localStorage.getItem('siganData')||'[]');
     const shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
-    const targetDateStr=document.getElementById('globalDate').value;
+    let targetDateStr=document.getElementById('globalDate').value;
+    if(!targetDateStr) return;
+    // FIX: jika ada data di masa depan (seperti 11 Juli 2026), anchor pakai tanggal terbaru biar rekap tidak kosong
+    try{
+        let allDataForAnchor=JSON.parse(localStorage.getItem('siganData')||'[]');
+        let maxDateStr=allDataForAnchor.map(d=>d.date).filter(Boolean).sort().reverse()[0];
+        if(maxDateStr && maxDateStr > targetDateStr){
+            // jika max date lebih baru dari globalDate dan selisih < 90 hari, pakai max date sebagai anchor
+            let diffDays = (new Date(maxDateStr) - new Date(targetDateStr))/1000/3600/24;
+            if(diffDays>0 && diffDays<90){
+                targetDateStr = maxDateStr;
+            }
+        }
+    }catch(e){}
     if(!targetDateStr) return;
     const parts=targetDateStr.split('-'); const anchorDate=new Date(parts[0],parts[1]-1,parts[2]); anchorDate.setHours(0,0,0,0);
     let cutoffDate=new Date(anchorDate); let daysToSubtract=parseInt(period)-1; cutoffDate.setDate(anchorDate.getDate()-daysToSubtract);
@@ -794,14 +873,13 @@ window.onload=function(){
 };
 </script>
 
-<!-- OCR V5.1 MULTI-DATE PER FOTO -->
+<!-- OCR V5.4 ROBUST - FIX TIDAK MAU BACA -->
 <script>
 (function(){
   const fileInput=document.getElementById('ocrFileInput');
   const statusEl=document.getElementById('ocrStatus');
   const previewEl=document.getElementById('ocrPreview');
   if(!fileInput) return;
-
   function normalizeDate(str){
     if(!str) return new Date().toLocaleDateString('sv-SE');
     str=str.trim();
@@ -811,7 +889,6 @@ window.onload=function(){
     }
     return str;
   }
-
   function parseDateFromOcrText(fullText){
     if(!fullText) return null;
     const txt=fullText;
@@ -840,7 +917,6 @@ window.onload=function(){
     }
     return null;
   }
-
   function getIdCategory(idTrans){
     if(!idTrans) return 'Goride';
     idTrans=idTrans.toUpperCase();
@@ -850,28 +926,41 @@ window.onload=function(){
     if(idTrans.startsWith('GK')) return 'Gosend';
     return 'Goride';
   }
-
-  function cropImageTop(file, ratio){
+  function resizeImageForOCR(file, maxWidth){
+    maxWidth=maxWidth||1200;
     return new Promise((resolve,reject)=>{
-      try{
-        const img=new Image();
-        img.onload=()=>{
-          try{
-            const canvas=document.createElement('canvas');
-            const w=img.width, h=img.height;
-            const cropH=Math.floor(h*ratio);
-            canvas.width=w; canvas.height=cropH;
-            const ctx=canvas.getContext('2d');
-            ctx.drawImage(img,0,0,w,cropH,0,0,w,cropH);
-            canvas.toBlob((blob)=>{ URL.revokeObjectURL(img.src); if(blob) resolve(blob); else reject('crop fail'); }, 'image/jpeg', 0.9);
-          }catch(e){ reject(e); }
-        };
-        img.onerror=()=>reject('img load fail');
-        img.src=URL.createObjectURL(file);
-      }catch(e){ reject(e); }
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width, h=img.height;
+        if(w>maxWidth){ let ratio=maxWidth/w; w=maxWidth; h=Math.floor(h*ratio); }
+        const canvas=document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        canvas.toBlob((blob)=>{ URL.revokeObjectURL(img.src); if(blob) resolve(blob); else reject('resize fail'); }, 'image/jpeg', 0.85);
+      };
+      img.onerror=()=>reject('load fail');
+      img.src=URL.createObjectURL(file);
     });
   }
-
+  function cropImageTop(file, ratio){
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const canvas=document.createElement('canvas');
+          const w=img.width, h=img.height;
+          const cropH=Math.floor(h*ratio);
+          canvas.width=w; canvas.height=cropH;
+          const ctx=canvas.getContext('2d');
+          ctx.drawImage(img,0,0,w,cropH,0,0,w,cropH);
+          canvas.toBlob((blob)=>{ URL.revokeObjectURL(img.src); if(blob) resolve(blob); else reject('crop fail'); }, 'image/jpeg', 0.9);
+        }catch(e){ reject(e); }
+      };
+      img.onerror=()=>reject('img load fail');
+      img.src=URL.createObjectURL(file);
+    });
+  }
   function parseGojekText(fullText){
     let txt=fullText.replace(/\r/g,'').replace(/\n+/g,'\n');
     let results=[];
@@ -888,7 +977,6 @@ window.onload=function(){
       let dist=parseFloat(rawKm.replace(',','.'))||0;
       if(!rawKm.includes('.')&&!rawKm.includes(',')&&dist>100) dist=dist/100;
       if(dist>100) dist=dist/100;
-
       let searchArea=txt.substring(m.index, m.index+900);
       let idMatch=searchArea.match(/ID transaksi:\s*([A-Z0-9\-]+)/i);
       if(!idMatch) idMatch=searchArea.match(/(RB|F-|MT-|GK-)[\d\-]{6,}/i);
@@ -939,7 +1027,6 @@ window.onload=function(){
     }
     return results;
   }
-
   function isDuplicateById(idTrans){
     if(!idTrans) return false;
     try{
@@ -952,61 +1039,77 @@ window.onload=function(){
     }catch(e){}
     return false;
   }
-
-  async function processFile(file, fallbackDate){
-    statusEl.innerHTML='🔍 Membaca '+file.name+' ...';
-    previewEl.style.display='block';
-    previewEl.innerHTML='OCR...';
+  async function ocrWithWorker(blob, label){
+    let worker=null;
     try{
-      const {data:{text: fullText}} = await Tesseract.recognize(file, 'ind+eng', { logger: m=>{ if(m.status=='recognizing text') previewEl.innerHTML=`OCR full ${Math.round(m.progress*100)}%`; } });
+      worker = await Tesseract.createWorker({
+        logger: m=>{ if(m.status==='recognizing text'){ previewEl.innerHTML=label+' '+Math.round(m.progress*100)+'%'; } }
+      });
+      await worker.loadLanguage('ind+eng');
+      await worker.initialize('ind+eng');
+      const {data:{text}} = await worker.recognize(blob);
+      await worker.terminate();
+      return text;
+    }catch(err){
+      try{ if(worker) await worker.terminate(); }catch(_){}
+      throw err;
+    }
+  }
+  async function processFile(file, fallbackDate){
+    statusEl.innerHTML='🔍 Siapkan foto '+file.name+' ...';
+    previewEl.style.display='block';
+    previewEl.innerHTML='Resize & OCR...';
+    try{
+      let resizedBlob = await resizeImageForOCR(file, 1200);
+      statusEl.innerHTML='🔍 Membaca '+file.name+' (resized)...';
+      let fullText = await ocrWithWorker(resizedBlob, 'OCR full');
       previewEl.innerHTML='<div style="color:#8aa0c6;white-space:pre-wrap;max-height:120px;overflow:auto">'+fullText.substring(0,900)+'</div>';
-      
       let ocrDate=parseDateFromOcrText(fullText);
       if(!ocrDate){
         try{
-          statusEl.innerHTML='🔍 Tanggal tidak ketemu di full, coba crop atas...';
-          let topBlob=await cropImageTop(file, 0.22);
-          const {data:{text: topText}} = await Tesseract.recognize(topBlob, 'ind+eng');
+          statusEl.innerHTML='🔍 Cari tanggal di header atas...';
+          let topBlob=await cropImageTop(resizedBlob, 0.25);
+          let topText = await ocrWithWorker(topBlob, 'OCR header');
           ocrDate=parseDateFromOcrText(topText);
-          if(ocrDate) statusEl.innerHTML=`✅ Tanggal dari header foto: ${ocrDate}`;
+          if(ocrDate) statusEl.innerHTML='✅ Tanggal dari header: '+ocrDate;
         }catch(e){ console.log('crop date fail',e); }
       }
       if(!ocrDate) ocrDate=fallbackDate;
-
       let parsed=parseGojekText(fullText);
       parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
-      if(!parsed.length){ statusEl.innerHTML='⚠️ Tidak ada trip di '+file.name+' (tanggal deteksi: '+ocrDate+')'; return []; }
-      statusEl.innerHTML=`✅ ${parsed.length} trip dari ${file.name} | <strong>TANGGAL FOTO: ${ocrDate}</strong> | ${parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end+' ['+p.cat+']').join(', ')}`;
+      if(!parsed.length){ statusEl.innerHTML='⚠️ Tidak ada trip di '+file.name+' (tanggal deteksi: '+ocrDate+')<br>Text: '+fullText.substring(0,200); return []; }
+      statusEl.innerHTML='✅ '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL FOTO: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end).join(', ');
       return parsed;
-    }catch(err){ statusEl.innerHTML='❌ OCR gagal: '+err.message; return []; }
+    }catch(err){
+      statusEl.innerHTML='❌ OCR gagal: '+err.message+'<br>Coba foto ulang lebih terang.';
+      console.error(err);
+      return [];
+    }
   }
-
   fileInput.addEventListener('change', async (e)=>{
     let files=Array.from(e.target.files||[]);
     if(!files.length) return;
     let rawGlobal=(document.getElementById('globalDate')&&document.getElementById('globalDate').value)||'';
     let fallbackDate=normalizeDate(rawGlobal);
-    statusEl.innerHTML=`📷 ${files.length} foto, fallback tanggal global: <strong>${fallbackDate}</strong>. Sistem akan deteksi tanggal PER FOTO dari header (contoh: 11 Juli 2026 di foto kamu).`;
-
+    statusEl.innerHTML='📷 '+files.length+' foto, fallback: <strong>'+fallbackDate+'</strong>. Deteksi tanggal PER FOTO aktif.';
+    if(typeof Tesseract==='undefined'){ statusEl.innerHTML='❌ Tesseract.js belum ke-load, cek internet. Coba reload.'; return; }
     let allParsed=[];
     for(let f of files){
       let r=await processFile(f, fallbackDate);
       allParsed=allParsed.concat(r);
     }
     if(!allParsed.length){ statusEl.innerHTML+='<br>❌ Tidak ada data valid'; fileInput.value=''; return; }
-
     let unique=[]; let seenId=new Set();
     let perDateCount={};
     for(let p of allParsed){
-      if(!p.idTrans){ statusEl.innerHTML+=`<br>⚠️ Tanpa ID, lewati: Rp${p.amount} ${p.start}`; continue; }
+      if(!p.idTrans){ statusEl.innerHTML+='<br>⚠️ Tanpa ID, lewati: Rp'+p.amount+' '+p.start; continue; }
       let idKey=p.idTrans.toUpperCase();
-      if(seenId.has(idKey)){ statusEl.innerHTML+=`<br>⏭️ Duplikat batch ID ${idKey}`; continue; }
-      if(isDuplicateById(idKey)){ statusEl.innerHTML+=`<br>⏭️ Duplikat tolak ID ${idKey} sudah ada`; continue; }
+      if(seenId.has(idKey)){ statusEl.innerHTML+='<br>⏭️ Duplikat batch ID '+idKey; continue; }
+      if(isDuplicateById(idKey)){ statusEl.innerHTML+='<br>⏭️ Duplikat tolak ID '+idKey+' sudah ada'; continue; }
       seenId.add(idKey);
       unique.push(p);
       perDateCount[p.date]=(perDateCount[p.date]||0)+1;
     }
-
     if(unique.length){
       let siganData=JSON.parse(localStorage.getItem('siganData')||'[]');
       let saved=0; let datesAffected=new Set();
@@ -1018,27 +1121,28 @@ window.onload=function(){
           predictedEndTime: p.end||'',
           type: 'Pendapatan',
           cat: p.cat||'Goride',
-          note: `OCR ${p.start}-${p.end} ${p.idTrans} | ${p.pickup||''} -> ${p.destination||''}`.substring(0,300),
+          note: ('OCR '+p.start+'-'+p.end+' '+p.idTrans+' | '+(p.pickup||'')+' -> '+(p.destination||'')).substring(0,300),
           dist: p.dist,
           amount: p.amount,
           idTrans: p.idTrans,
           idPrefix: p.idTrans ? p.idTrans.split('-')[0] : '',
           pickup: p.pickup||'',
           destination: p.destination||'',
-          source: 'ocr_v5_1_multidate'
+          source: 'ocr_v5_4_robust'
         };
         siganData.push(entry);
         saved++; datesAffected.add(entry.date);
       }
       localStorage.setItem('siganData', JSON.stringify(siganData));
       datesAffected.forEach(d=>{ if(window.updateShiftFromOrders) window.updateShiftFromOrders(d); });
-
-      let perDateTxt=Object.entries(perDateCount).map(([d,c])=>`${d}: ${c} trip`).join(', ');
-      statusEl.innerHTML+=`<br><br>✅ <strong>${saved} trip tercatat dengan multi-tanggal!</strong><br>📅 Rincian: ${perDateTxt}<br>Group: RB=Goride, F=Gofood, MT=Gomart, GK=Gosend. Jam online auto first-last PER TANGGAL.`;
+      let perDateTxt=Object.entries(perDateCount).map(([d,c])=>d+': '+c+' trip').join(', ');
+      statusEl.innerHTML+='<br><br>✅ <strong>'+saved+' trip tercatat!</strong><br>📅 '+perDateTxt+'<br>Kalender auto pindah ke tanggal terbaru.';
       try{
+        let latestDate=[...datesAffected].sort().reverse()[0];
+        if(latestDate) document.getElementById('globalDate').value=latestDate;
         if(typeof loadData==='function') loadData();
         if(window.buildAndSendSiGan) window.buildAndSendSiGan();
-        setTimeout(()=>{ try{ if(typeof switchTab==='function') switchTab('history'); }catch(_){} }, 400);
+        setTimeout(()=>{ try{ if(typeof switchTab==='function') switchTab('history'); }catch(_){} }, 500);
       }catch(err){ console.log(err); }
       setTimeout(()=>{ fileInput.value=''; previewEl.style.display='none'; }, 2500);
     } else {
@@ -1048,6 +1152,7 @@ window.onload=function(){
   });
 })();
 </script>
+
 
 
 <!-- Sync Lake (tetap) -->
