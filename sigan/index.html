@@ -78,7 +78,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                 <div>
                     <label style="font-size:10px; color:var(--muted)">Tanggal</label>
-                    <input type="date" id="globalDate">
+                    <input type="date" id="globalDate" onchange="handleDateChange()">
                 </div>
                 <div>
                     <label style="font-size:10px; color:var(--muted)">Target Harian</label>
@@ -342,6 +342,15 @@ function getDurationFromShift(shift){
         if(diff>0 && diff<=24) return diff;
     }
     return getDurationInHours(shift.start, shift.end);
+}
+
+function handleDateChange(){
+    const targetDate=document.getElementById('globalDate').value;
+    const shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    const dayShift=shiftData[targetDate]||{start:'',end:''};
+    document.getElementById('globalStartTime').value=dayShift.start||'';
+    document.getElementById('globalEndTime').value=dayShift.end||'';
+    loadData();
 }
 
 function updateShiftTime(){
@@ -1006,213 +1015,93 @@ window.onload=function(){
         if(candidates.length>=1) pickup=candidates[0].substring(0,120);
         if(candidates.length>=2) destination=candidates[1].substring(0,120);
       }
-      results.push({amount, dist, start, end, cat, idTrans, pickup, destination, loc: (pickup?pickup:'') + (destination?' -> '+destination:''), raw:m[0].substring(0,80)});
-    }
-    if(results.length===0){
-      const am=[...txt.matchAll(/Rp\s*[^\d]{0,3}([\d\.]{3,})/g)];
-      const km=[...txt.matchAll(/([\d]+[\.,]?\d*)\s*km/gi)];
-      const tm=[...txt.matchAll(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/g)];
-      const ids=[...txt.matchAll(/(RB|F-|MT-|GK-)[\d\-]{6,}/gi)];
-      let cnt=Math.min(am.length, km.length, tm.length, ids.length);
-      for(let i=0;i<cnt;i++){
-        let amount=parseInt(am[i][1].replace(/\./g,'').replace(/[^\d]/g,''))||0;
-        let dist=parseFloat(km[i][1].replace(',','.'))||0;
-        if(!km[i][1].includes('.')&&!km[i][1].includes(',')&&dist>100) dist=dist/100;
-        let start=tm[i][1], end=tm[i][2];
-        let idTrans=ids[i]?ids[i][0].toUpperCase():'';
-        if(!idTrans) continue;
-        let cat=getIdCategory(idTrans);
-        results.push({amount, dist, start, end, cat, idTrans, pickup:'', destination:'', loc:'', raw:''});
-      }
+      results.push({amount, dist, start, end, cat, idTrans, pickup, destination, loc: (pickup?pickup:'') + (destination?' -> '+destination:''), raw:m[0].substring(0,60)});
     }
     return results;
   }
-  function isDuplicateById(idTrans){
-    if(!idTrans) return false;
-    try{
-      let data=JSON.parse(localStorage.getItem('siganData')||'[]');
-      idTrans=idTrans.toUpperCase();
-      for(let e of data){
-        if(e.idTrans && e.idTrans.toUpperCase()===idTrans) return true;
-        if(e.note && e.note.toUpperCase().includes(idTrans)) return true;
-      }
-    }catch(e){}
-    return false;
-  }
-  async function ocrWithWorker(blob, label){
-    let worker=null;
-    try{
-      worker = await Tesseract.createWorker({
-        logger: m=>{ if(m.status==='recognizing text'){ previewEl.innerHTML=label+' '+Math.round(m.progress*100)+'%'; } }
-      });
-      await worker.loadLanguage('ind+eng');
-      await worker.initialize('ind+eng');
-      const {data:{text}} = await worker.recognize(blob);
-      await worker.terminate();
-      return text;
-    }catch(err){
-      try{ if(worker) await worker.terminate(); }catch(_){}
-      throw err;
-    }
-  }
-  async function processFile(file, fallbackDate){
-    statusEl.innerHTML='🔍 Siapkan foto '+file.name+' ...';
+  
+  async function processMultipleOCR(files){
+    statusEl.innerHTML=`⏳ Memulai analisis ${files.length} gambar...`;
     previewEl.style.display='block';
-    previewEl.innerHTML='Resize & OCR...';
+    previewEl.innerHTML='';
+    let totalFound=0, totalSuccess=0;
+    let siganData=JSON.parse(localStorage.getItem('siganData')||'[]');
+    let currentGlobalDate=document.getElementById('globalDate').value;
+    let detectedOcrDate=null;
+    
+    for(let i=0; i<files.length; i++){
+      let file=files[i];
+      statusEl.innerHTML=`⏳ [${i+1}/${files.length}] Menyiapkan gambar...`;
+      try{
+        let resizedBlob=await resizeImageForOCR(file, 1100);
+        let topBlob=await cropImageTop(file, 0.35);
+        statusEl.innerHTML=`⏳ [${i+1}/${files.length}] Sedang men-scan teks via OCR...`;
+        
+        const worker1=await Tesseract.createWorker('ind');
+        const resFull=await worker1.recognize(resizedBlob);
+        let textFull=resFull.data.text;
+        await worker1.terminate();
+        
+        const worker2=await Tesseract.createWorker('ind');
+        const resTop=await worker2.recognize(topBlob);
+        let textTop=resTop.data.text;
+        await worker2.terminate();
+        
+        let targetDate=parseDateFromOcrText(textTop)||parseDateFromOcrText(textFull);
+        if(!targetDate) targetDate=currentGlobalDate;
+        else detectedOcrDate=targetDate;
+        
+        let trips=parseGojekText(textFull);
+        if(trips.length===0){
+          let cleaned=textFull.replace(/\n/g,' ');
+          let fallbackAmt=cleaned.match(/Total\s*Pendapatan.*?Rp\s*([\d\.]+)/i);
+          if(!fallbackAmt) fallbackAmt=cleaned.match(/Rp\s*([\d\.,]{4,})/);
+          let rawAmt=fallbackAmt?fallbackAmt[1].replace(/[^\d]/g,''):'0';
+          let amount=parseInt(rawAmt)||0;
+          if(amount>1000){
+             let idGen='MANUAL-OCR-'+Date.now().toString().substring(7);
+             let entry={ date: targetDate, time:'00:00', type:'Pendapatan', cat:'Goride', amount, dist:0, idTrans:idGen, idPrefix:'OCR', pickup:'Gagal deteksi detail (Scan global)', destination:'', source:'ocr_fallback', note:'Gagal deteksi per trip, nominal global masuk' };
+             let isDup=siganData.some(x=>x.idTrans===idGen);
+             if(!isDup){ siganData.push(entry); totalSuccess++; }
+          }
+          previewEl.innerHTML+=`<div style='color:#ff8a80;margin-bottom:4px;'>❌ Gbr ${i+1}: Tidak ketemu baris detail (Sudah discan global)</div>`;
+          continue;
+        }
+        
+        trips.forEach(t=>{
+          let isDup=siganData.some(x=>x.idTrans===t.idTrans);
+          if(!isDup){
+            let entry={ date: targetDate, time: t.start, endTime: t.end, type:'Pendapatan', cat: t.cat, amount: t.amount, dist: t.dist, idTrans: t.idTrans, idPrefix: t.idTrans.substring(0,2), pickup: t.pickup, destination: t.destination, source:'ocr_v5', note:`OCR V5.0: ${t.cat} Alamat Lengkap` };
+            siganData.push(entry);
+            totalSuccess++;
+          }
+        });
+        totalFound+=trips.length;
+        previewEl.innerHTML+=`<div style='color:#7dffb7;margin-bottom:4px;'>✓ Gbr ${i+1}: Berhasil baca ${trips.length} order (${targetDate})</div>`;
+      }catch(err){
+        previewEl.innerHTML+=`<div style='color:#ff5252;margin-bottom:4px;'>❌ Gbr ${i+1} Error: ${err}</div>`;
+      }
+    }
+    
     try{
-      let resizedBlob = await resizeImageForOCR(file, 1200);
-      statusEl.innerHTML='🔍 Membaca '+file.name+' (resized)...';
-      let fullText = await ocrWithWorker(resizedBlob, 'OCR full');
-      previewEl.innerHTML='<div style="color:#8aa0c6;white-space:pre-wrap;max-height:120px;overflow:auto">'+fullText.substring(0,900)+'</div>';
-      let ocrDate=parseDateFromOcrText(fullText);
-      if(!ocrDate){
-        try{
-          statusEl.innerHTML='🔍 Cari tanggal di header atas...';
-          let topBlob=await cropImageTop(resizedBlob, 0.25);
-          let topText = await ocrWithWorker(topBlob, 'OCR header');
-          ocrDate=parseDateFromOcrText(topText);
-          if(ocrDate) statusEl.innerHTML='✅ Tanggal dari header: '+ocrDate;
-        }catch(e){ console.log('crop date fail',e); }
-      }
-      if(!ocrDate) ocrDate=fallbackDate;
-      let parsed=parseGojekText(fullText);
-      parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
-      if(!parsed.length){ statusEl.innerHTML='⚠️ Tidak ada trip di '+file.name+' (tanggal deteksi: '+ocrDate+')<br>Text: '+fullText.substring(0,200); return []; }
-      statusEl.innerHTML='✅ '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL FOTO: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end).join(', ');
-      return parsed;
-    }catch(err){
-      statusEl.innerHTML='❌ OCR gagal: '+err.message+'<br>Coba foto ulang lebih terang.';
-      console.error(err);
-      return [];
-    }
-  }
-  fileInput.addEventListener('change', async (e)=>{
-    let files=Array.from(e.target.files||[]);
-    if(!files.length) return;
-    let rawGlobal=(document.getElementById('globalDate')&&document.getElementById('globalDate').value)||'';
-    let fallbackDate=normalizeDate(rawGlobal);
-    statusEl.innerHTML='📷 '+files.length+' foto, fallback: <strong>'+fallbackDate+'</strong>. Deteksi tanggal PER FOTO aktif.';
-    if(typeof Tesseract==='undefined'){ statusEl.innerHTML='❌ Tesseract.js belum ke-load, cek internet. Coba reload.'; return; }
-    let allParsed=[];
-    for(let f of files){
-      let r=await processFile(f, fallbackDate);
-      allParsed=allParsed.concat(r);
-    }
-    if(!allParsed.length){ statusEl.innerHTML+='<br>❌ Tidak ada data valid'; fileInput.value=''; return; }
-    let unique=[]; let seenId=new Set();
-    let perDateCount={};
-    for(let p of allParsed){
-      if(!p.idTrans){ statusEl.innerHTML+='<br>⚠️ Tanpa ID, lewati: Rp'+p.amount+' '+p.start; continue; }
-      let idKey=p.idTrans.toUpperCase();
-      if(seenId.has(idKey)){ statusEl.innerHTML+='<br>⏭️ Duplikat batch ID '+idKey; continue; }
-      if(isDuplicateById(idKey)){ statusEl.innerHTML+='<br>⏭️ Duplikat tolak ID '+idKey+' sudah ada'; continue; }
-      seenId.add(idKey);
-      unique.push(p);
-      perDateCount[p.date]=(perDateCount[p.date]||0)+1;
-    }
-    if(unique.length){
-      let siganData=JSON.parse(localStorage.getItem('siganData')||'[]');
-      let saved=0; let datesAffected=new Set();
-      for(let p of unique){
-        let entry={
-          date: p.date||fallbackDate,
-          time: p.start||new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}),
-          endTime: p.end||'',
-          predictedEndTime: p.end||'',
-          type: 'Pendapatan',
-          cat: p.cat||'Goride',
-          note: ('OCR '+p.start+'-'+p.end+' '+p.idTrans+' | '+(p.pickup||'')+' -> '+(p.destination||'')).substring(0,300),
-          dist: p.dist,
-          amount: p.amount,
-          idTrans: p.idTrans,
-          idPrefix: p.idTrans ? p.idTrans.split('-')[0] : '',
-          pickup: p.pickup||'',
-          destination: p.destination||'',
-          source: 'ocr_v5_4_robust'
-        };
-        siganData.push(entry);
-        saved++; datesAffected.add(entry.date);
-      }
       localStorage.setItem('siganData', JSON.stringify(siganData));
-      datesAffected.forEach(d=>{ if(window.updateShiftFromOrders) window.updateShiftFromOrders(d); });
-      let perDateTxt=Object.entries(perDateCount).map(([d,c])=>d+': '+c+' trip').join(', ');
-      statusEl.innerHTML+='<br><br>✅ <strong>'+saved+' trip tercatat!</strong><br>📅 '+perDateTxt+'<br>Kalender auto pindah ke tanggal terbaru.';
-      try{
-        let latestDate=[...datesAffected].sort().reverse()[0];
-        if(latestDate) document.getElementById('globalDate').value=latestDate;
-        if(typeof loadData==='function') loadData();
-        if(window.buildAndSendSiGan) window.buildAndSendSiGan();
-        setTimeout(()=>{ try{ if(typeof switchTab==='function') switchTab('history'); }catch(_){} }, 500);
-      }catch(err){ console.log(err); }
-      setTimeout(()=>{ fileInput.value=''; previewEl.style.display='none'; }, 2500);
-    } else {
-      statusEl.innerHTML+='<br>⚠️ Semua duplikat/tanpa ID';
-      fileInput.value='';
-    }
-  });
+      if(detectedOcrDate){
+        document.getElementById('globalDate').value=detectedOcrDate;
+        let shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+        let dayShift=shiftData[detectedOcrDate]||{start:'',end:''};
+        document.getElementById('globalStartTime').value=dayShift.start||'';
+        document.getElementById('globalEndTime').value=dayShift.end||'';
+        updateShiftFromOrders(detectedOcrDate);
+      } else {
+        updateShiftFromOrders(currentGlobalDate);
+      }
+      loadData();
+      statusEl.innerHTML=`🎉 Selesai! Berhasil rekam ${totalSuccess} data baru dari total ${totalFound} order terdeteksi.`;
+    }catch(e){ alert('Penyimpanan penuh, hapus data lama di panel debug'); statusEl.innerHTML='❌ Memori penuh'; }
+  }
+  
+  fileInput.addEventListener('change', (e)=>{ if(e.target.files.length>0) processMultipleOCR(e.target.files); });
 })();
 </script>
-
-
-
-<!-- Sync Lake (tetap) -->
-<script>
-(function(){
-  var KEYS_SIGAN=['siganData','siganShiftData','siganGlobalTarget'];
-  var KEYS_MAKA=['maka_log_v1','maka_bms_history','maka_soh_history','factory_cap_kwh','factory_range_km','maka_soh_baseline','maka_soh_baseline_is_fallback','maka_soh_total_samples','maka_log_v1_lokasi_history','maka_charger_history','universal_custom_v','universal_custom_ah','maka_chat_id','sigan_hub_data','sigan_riwayat_harian','sigan_cross_ev_cost','maka_cross_summary'];
-  var LAKE_KEY='UNIVERSAL_LAKE_V1';
-  function safeParse(k){ try{ var v=localStorage.getItem(k); if(v==null) return null; try{ return JSON.parse(v); }catch(e){ return v; } }catch(e){ return null; } }
-  function getExistingLake(){ try{ var raw=localStorage.getItem(LAKE_KEY); if(!raw) return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; var obj=JSON.parse(raw); obj.sigan=obj.sigan||{}; obj.maka=obj.maka||{}; obj.cross=obj.cross||{}; obj._sources=obj._sources||{}; return obj; }catch(e){ return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; } }
-  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); }catch(e){}
-  function buildAndSendSiGan(){
-    try{
-      var lake=getExistingLake();
-      for(var i=0;i<KEYS_SIGAN.length;i++){ var v=safeParse(KEYS_SIGAN[i]); if(v!==null) lake.sigan[KEYS_SIGAN[i]]=v; }
-      for(var i=0;i<KEYS_MAKA.length;i++){ var v2=safeParse(KEYS_MAKA[i]); if(v2!==null) lake.maka[KEYS_MAKA[i]]=v2; }
-      var siganData=safeParse('siganData')||[]; var incomeMap={}, kmMap={};
-      for(var j=0;j<siganData.length;j++){ var it=siganData[j]; if(it.type==='Pendapatan'){ incomeMap[it.date]=(incomeMap[it.date]||0)+Number(it.amount||0); kmMap[it.date]=(kmMap[it.date]||0)+Number(it.dist||0); } }
-      try{
-        localStorage.setItem('maka_cross_sigan_income', JSON.stringify(incomeMap));
-        localStorage.setItem('maka_cross_sigan_km', JSON.stringify(kmMap));
-        localStorage.setItem('sigan_hub_last_update', String(Date.now()));
-        lake.cross['maka_cross_sigan_income']=incomeMap; lake.cross['maka_cross_sigan_km']=kmMap;
-        lake.cross['sigan_hub_data_from_sigan']={siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()};
-      }catch(e){}
-      var biayaEv=safeParse('sigan_cross_ev_cost'); var summaryEv=safeParse('maka_cross_summary'); if(biayaEv) lake.cross['sigan_cross_ev_cost']=biayaEv; if(summaryEv) lake.cross['maka_cross_summary']=summaryEv;
-      var riwayatEv=safeParse('sigan_riwayat_harian'); if(riwayatEv) lake.cross['sigan_riwayat_harian']=riwayatEv;
-      try{ localStorage.setItem('sigan_hub_data_from_sigan', JSON.stringify({siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()})); }catch(e){}
-      lake._updated=Date.now(); lake._sources['sigan_sempurna']=Date.now(); lake._source=Object.keys(lake._sources).join('+');
-      try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
-      try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update',from:'sigan',ts:Date.now()}); }catch(e){}
-    }catch(e){ console.log('SiGan Sender error', e.message); }
-  }
-  function bacaDataEvLog(){ try{ var lake=safeParse(LAKE_KEY)||{}; var riwayatEv=safeParse('sigan_riwayat_harian')||(lake.cross&&lake.cross.sigan_riwayat_harian)||[]; var biayaEv=safeParse('sigan_cross_ev_cost')||(lake.cross&&lake.cross.sigan_cross_ev_cost)||{}; var summaryEv=safeParse('maka_cross_summary')||(lake.cross&&lake.cross.maka_cross_summary)||{}; var hubData=safeParse('sigan_hub_data')||(lake.cross&&lake.cross.sigan_hub_data)||{}; window.__CROSS_EV_RIWAYAT=riwayatEv; window.__CROSS_EV_COST_MAP=biayaEv; window.__CROSS_EV_SUMMARY=summaryEv; window.__CROSS_EV_HUB=hubData; window.__CROSS_EV_LAKE=lake; window.__CROSS_EV_LAST_UPDATE=localStorage.getItem('sigan_hub_last_update'); return {riwayat:riwayatEv,biaya:biayaEv,summary:summaryEv}; }catch(e){ return null; } }
-  function hookSiGan(){
-    if(window.saveData&&!window.saveData.__hooked){ var origSave=window.saveData; window.saveData=function(){ var res=origSave.apply(this,arguments); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },200); return res; }; window.saveData.__hooked=true; }
-    if(window.deleteItem&&!window.deleteItem.__hooked){ var origDel=window.deleteItem; window.deleteItem=function(){ var res=origDel.apply(this,arguments); setTimeout(buildAndSendSiGan,200); return res; }; window.deleteItem.__hooked=true; }
-    if(window.updateShiftTime&&!window.updateShiftTime.__hooked){ var origShift=window.updateShiftTime; window.updateShiftTime=function(){ var res=origShift.apply(this,arguments); setTimeout(buildAndSendSiGan,200); return res; }; window.updateShiftTime.__hooked=true; }
-  }
-  window.addEventListener('storage',function(e){ if(!e) return; if(e.key==='sigan_riwayat_harian'||e.key==='sigan_cross_ev_cost'||e.key==='sigan_hub_last_update'||e.key==='UNIVERSAL_LAKE_V1'||e.key==='sigan_hub_data'){ setTimeout(bacaDataEvLog,100); } });
-  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); window.__siganBC.onmessage=function(ev){ if(ev.data&&ev.data.type==='lake_update'&&ev.data.from==='maka'){ setTimeout(bacaDataEvLog,80); } }; }catch(e){}
-  setTimeout(hookSiGan,600); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },1000); setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); },60000);
-  window.kirimSiGanKeEvLog=buildAndSendSiGan; window.bacaDataEvLog=bacaDataEvLog; window.getUniversalLake=window.getUniversalLake||function(){ try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; } }; console.log('SiGan V5 Receiver+Sender aktif: MERGE mode + OCR FULL');
-})();
-</script>
-
-<script id="sync-lamp-script">
-(function(){
-  function fmt(t){ if(!t) return ""; var d=new Date(t); return d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
-  function cek(){
-    var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); var tm=document.getElementById('sigan-sync-time');
-    if(!dot||!txt) return; var last=parseInt(localStorage.getItem('sigan_hub_last_update')||'0'); var diff=Date.now()-last; var hasLake=!!localStorage.getItem('UNIVERSAL_LAKE_V1');
-    if(hasLake && diff<8000){ dot.classList.add('active'); dot.style.background='#00e676'; txt.textContent='AUTO-SYNC AKTIF'; txt.style.color='#00e676'; if(tm) tm.textContent='update '+fmt(last); }
-    else if(hasLake){ dot.style.background='#7dffb7'; txt.textContent='TERHUBUNG'; txt.style.color='#7dffb7'; if(tm) tm.textContent='last '+fmt(last); }
-    else { dot.style.background='#555'; txt.textContent='SYNC STANDBY'; txt.style.color='#aaaaaa'; if(tm) tm.textContent=''; }
-  }
-  setInterval(cek,3000); setTimeout(cek,800);
-  window.addEventListener('storage', function(e){ if(e.key==='sigan_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1'){ var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); if(dot){ dot.style.background='#00e676'; txt.textContent='BERTUKAR DATA...'; setTimeout(cek,1300); } } });
-})();
-</script>
-
 </body>
 </html>
