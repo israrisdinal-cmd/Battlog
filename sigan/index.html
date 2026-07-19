@@ -900,11 +900,14 @@ function loadRekapData(){
                     if(dur===0) dur=0.25;
                     blockMatch.hours+=dur;
                     blockMatch.orderCount++;
-                    // heatmap area: pakai pickup sebagai sumber order
+                    // heatmap area: pakai pickup + dominan layanan
                     try{
                         let areaKey=extractAreaSimple(ord.pickup||ord.destination||'');
                         if(areaKey){
-                            blockMatch.areas[areaKey]=(blockMatch.areas[areaKey]||0)+1;
+                            if(!blockMatch.areas[areaKey]) blockMatch.areas[areaKey]={count:0, cats:{}, totalAmt:0};
+                            blockMatch.areas[areaKey].count++;
+                            blockMatch.areas[areaKey].cats[ord.cat]=(blockMatch.areas[areaKey].cats[ord.cat]||0)+1;
+                            blockMatch.areas[areaKey].totalAmt+=(ord.amount||0);
                         }
                     }catch(e){}
                 }
@@ -1013,21 +1016,32 @@ function loadRekapData(){
 
 
     const tiersContainer=document.getElementById('rekapTiersContainer'); tiersContainer.innerHTML="";
-    // No.1 Heatmap nongkrong per waktu
+    // No.1 Heatmap nongkrong per waktu + layanan dominan
     hourlyBlocks.forEach(b=>{
         if(b.orderCount===0){
             tiersContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;"><div style="font-weight:700; color:#eaf2ff;">${b.label}</div><div style="font-size:11px; color:#5a7096; font-style:italic;">Belum ada data order di jam ini</div></div>`;
             return;
         }
-        let sortedAreas=Object.entries(b.areas||{}).sort((a,b)=>b[1]-a[1]).slice(0,3);
-        let areaHtml=sortedAreas.length>0?sortedAreas.map(([area,cnt],i)=>{
+        let sortedAreas=Object.entries(b.areas||{}).sort((a,b)=>b[1].count-a[1].count).slice(0,3);
+        let areaHtml=sortedAreas.length>0?sortedAreas.map(([area,data],i)=>{
             let medal=i===0?'🥇':i===1?'🥈':'🥉';
-            return `<div style="display:flex; justify-content:space-between; font-size:11px; background:#0f1f36; border-radius:6px; padding:4px 8px; margin-top:4px;"><span>${medal} ${area}</span><span style="color:#7dffb7; font-weight:700;">${cnt} order</span></div>`;
+            let cats=data.cats||{};
+            let total=data.count||0;
+            let dominant=Object.entries(cats).sort((a,b)=>b[1]-a[1])[0];
+            let domCat=dominant?dominant[0]:'-';
+            let domCnt=dominant?dominant[1]:0;
+            let domPct=total>0?Math.round(domCnt/total*100):0;
+            let icon=domCat==='Goride'?'🏍️':domCat==='Gofood'?'🍔':domCat==='Gomart'?'🛒':domCat==='Gosend'?'📦':'';
+            let domLabel=domCat!=='-'?`${icon} ${domCat} ${domPct}%`:'-';
+            return `<div style="display:flex; flex-direction:column; font-size:11px; background:#0f1f36; border:1px solid #1e2d4a; border-radius:8px; padding:6px 8px; margin-top:5px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:600; color:#eaf2ff;">${medal} ${area}</span><span style="color:#7dffb7; font-weight:700;">${total} order</span></div>
+                <div style="display:flex; justify-content:space-between; margin-top:3px; font-size:10px; color:var(--muted);"><span>Dominan: <strong style="color:#40c4ff;">${domLabel}</strong></span><span>Rp ${(data.totalAmt||0).toLocaleString('id-ID')}</span></div>
+            </div>`;
         }).join(''):`<div style="font-size:10px; color:#5a7096;">Alamat belum lengkap</div>`;
         let rpPerJam=b.hours>0?Math.round(b.net/b.hours):0;
         tiersContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:10px; margin-bottom:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:700; color:#eaf2ff;">${b.label}</span><span style="font-size:11px; color:#ffb300; font-weight:700;">${b.orderCount} order • Rp ${rpPerJam.toLocaleString('id-ID')}/jam</span></div>
-            <div style="font-size:10px; color:var(--muted); margin-top:6px;">📍 Top nongkrong:</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:6px;">📍 Top nongkrong + layanan tinggi:</div>
             ${areaHtml}
         </div>`;
     });
