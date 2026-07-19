@@ -169,7 +169,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
         <div class="card">
             <div style="font-weight:800; font-size:13px; margin-bottom:8px;">✍️ Input Manual (Pengeluaran / Koreksi)</div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                <input type="time" id="txTime">
+                <input type="time" id="txTime" onfocus="lockTimeManual()" onchange="lockTimeManual()" oninput="lockTimeManual()" onclick="lockTimeManual()">
                 <select id="type" onchange="updateCategories()"><option value="Pendapatan">Pendapatan</option><option value="Pengeluaran">Pengeluaran</option></select>
             </div>
             <select id="category" style="margin-top:8px;"></select>
@@ -255,7 +255,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 
     <div id="tabContentRekap" class="hidden">
         <div class="filter-container">
-            <select id="rekapPeriod" onchange="loadRekapData()">
+            <select id="rekapPeriod" onchange="handleRekapPeriodChange()">
                 <option value="7">7 Hari Terakhir</option>
                 <option value="14">14 Hari Terakhir</option>
                 <option value="30">30 Hari Terakhir</option>
@@ -342,6 +342,15 @@ function switchTab(tabName){
     const buttons = { 'input': document.getElementById('btnTabInput'), 'history': document.getElementById('btnTabHistory'), 'rekap': document.getElementById('btnTabRekap') };
     for(let k in contents){ if(k===tabName){ contents[k].classList.remove('hidden'); buttons[k].classList.add('active'); } else { contents[k].classList.add('hidden'); buttons[k].classList.remove('active'); } }
     if(tabName==='rekap') loadRekapData();
+}
+function handleRekapPeriodChange(){
+    try{
+        console.log('rekap period change to', document.getElementById('rekapPeriod').value);
+        loadRekapData();
+    }catch(e){
+        console.error('rekap error', e);
+        alert('Error rekap: '+e.message);
+    }
 }
 
 function updateCategories(){
@@ -775,7 +784,6 @@ function loadRekapData(){
     function extractAreaSimple(addr){
         if(!addr) return '';
         addr=addr.replace(/\n/g,' ').trim();
-        // ambil 3 kata pertama yang bermakna, buang Jl, No, dll
         let clean=addr.replace(/\b(Jl\.?|Jalan|No\.?|RT|RW|Kav|Blok)\b/gi,'').replace(/\d+/g,'').trim();
         let parts=clean.split(/[,.]/)[0].split(/\s+/).filter(w=>w.length>2);
         if(parts.length===0) return addr.substring(0,20);
