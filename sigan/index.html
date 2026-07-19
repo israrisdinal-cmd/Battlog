@@ -69,7 +69,7 @@
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                 <div>
                     <label style="font-size:10px; color:var(--muted)">Tanggal</label>
-                    <input type="date" id="globalDate">
+                    <input type="date" id="globalDate" onchange="handleDateChange()">
                 </div>
                 <div>
                     <label style="font-size:10px; color:var(--muted)">Target Harian</label>
@@ -324,6 +324,16 @@ function getDurationInHours(start,end){
     if(diffMins===0) return 0;
     if(diffMins<0) diffMins+=24*60;
     return diffMins/60;
+}
+function handleDateChange(){
+  const t=document.getElementById("globalDate").value;
+  if(!t) return;
+  const shiftData=JSON.parse(localStorage.getItem("siganShiftData")||"{}");
+  const dayShift=shiftData[t]||{start:"",end:""};
+  document.getElementById("globalStartTime").value=dayShift.start||"";
+  document.getElementById("globalEndTime").value=dayShift.end||"";
+  localStorage.setItem("sigan_last_date", t);
+  loadData();
 }
 function getDurationFromShift(shift){
     if(!shift) return 0;
