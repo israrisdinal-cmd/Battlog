@@ -1,595 +1,162 @@
 <!--
 LOCKED CODE - SiGan Analytics Pro
-Version: V4.0 OCR ID RB/F/MT/GK - Rebuild from V3.2
-Locked: 20260718_054638
-Philosophy: Delta dinamis 10.288km (BattLog) + Auto Flat KM + Dual Flat (SiGan V3.2)
+Version: V5.0 OCR Full Data - RB/F/MT/GK
+Locked: 20260719_OCR_FULL
+Philosophy: OCR Full Data (harga, jam awal/akhir, ID, km, alamat jemput/tujuan) + Auto Jam Online First-Last + Group by ID + Dedup ID Only
 JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
-Jika mau ubah, edit file kerja lalu kunci ulang via Meta AI
 -->
-
 <!DOCTYPE html>
 <html lang="id">
-<head><!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
-(function() {
-  if (window.__playableTouchPatchInstalled) return;
-  window.__playableTouchPatchInstalled = true;
-  var origAdd = EventTarget.prototype.addEventListener;
-  var blockedTypes = { touchstart: 1, touchmove: 1, wheel: 1 };
-  EventTarget.prototype.addEventListener = function(type, listener, options) {
-    var isFileInput = this && this.tagName === 'INPUT' && this.type === 'file';
-    var isLabelForFile = this && this.tagName === 'LABEL';
-    if (blockedTypes[type] && !isFileInput && !isLabelForFile) {
-      if (options === undefined || options === null) {
-        options = { passive: true };
-      } else if (typeof options === 'boolean') {
-        options = { capture: options, passive: true };
-      } else {
-        try{
-          if(options.passive===false) {}
-          else { options = Object.assign({}, options, { passive: true }); }
-        }catch(e){ options = { passive: true }; }
-      }
-    }
-    return origAdd.call(this, type, listener, options);
-  };
-})();
-</script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V4.0 ID Logic</title>
-    
+    <title>SiGan V5.0 OCR Full Data</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-        window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand();
-    </script>
-
-    
+    <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <style>
         :root{--bg:#0a1328;--card:#111d35;--line:#1e2d4a;--blue:#2b8cff;--green:#7dffb7;--text:#dbe8ff;--muted:#8aa0c6}
         *{font-family:'Inter',system-ui,sans-serif;box-sizing:border-box}
-        body { 
-            font-family:'Inter',system-ui,sans-serif; 
-            padding: 15px; 
-            background: var(--bg); 
-            color: var(--text); 
-            margin: 0; 
-            padding-bottom: 80px;
-        }
-        
-        .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .card { 
-            background: var(--card); 
-            border: 1px solid var(--line);
-            padding: 15px; 
-            border-radius: 18px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
-            margin-bottom: 10px; 
-        }
-        .stat-label { font-size: 0.65em; color: var(--muted); text-transform: uppercase; display: block; text-align: center; letter-spacing:0.5px; font-weight:600 }
-        .stat-val { font-size: 1em; font-weight: 800; background: linear-gradient(180deg, #eaf2ff 0%, #8ab4f8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: block; text-align: center; margin-top: 5px; }
-        
-        .btn-grid-on {
-            grid-column: span 2;
-            background: linear-gradient(180deg,#2b8cff,#1a6fd8); 
-            color: #ffffff; 
-            border: none; 
-            border-radius: 14px; 
-            font-weight: 700; 
-            cursor: pointer; 
-            font-size: 13px; 
-            display: flex; 
-            flex-direction: row; 
-            justify-content: center; 
-            align-items: center; 
-            gap: 8px; 
-            box-shadow: 0 4px 12px rgba(43,140,255,0.25); 
-            padding: 12px; 
-            margin: 5px 0 0 0;
-            transition: all 0.2s;
-        }
-        .btn-grid-on:active { background: #1a6fd8; transform:scale(0.98) }
-
-        .progress-container { background: #0f1f36; border:1px solid var(--line); border-radius: 8px; height: 12px; width: 100%; margin-top: 6px; overflow: hidden; }
-        .progress-bar { background: linear-gradient(90deg, var(--green), #2b8cff); height: 100%; width: 0%; transition: width 0.3s ease; }
-        .target-input { 
-            width: 85px; 
-            padding: 4px 8px; 
-            margin: 0; 
-            display: inline-block; 
-            font-size: 11px; 
-            border: 1px solid var(--line); 
-            background: #0f1f36;
-            color: #eaf2ff;
-            border-radius: 8px; 
-            text-align: right; 
-            font-weight: bold; 
-        }
-        
-        .tab-bar { display: flex; background: rgba(17,29,53,0.9); border:1px solid var(--line); border-radius: 12px; margin-bottom: 15px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); padding: 3px; backdrop-filter:blur(8px); }
-        .tab-btn { 
-            flex: 1; 
-            padding: 12px; 
-            border: none; 
-            background: transparent; 
-            font-weight: 700; 
-            color: #6b7fa2; 
-            cursor: pointer; 
-            font-size: 12px; 
-            text-align: center; 
-            transition: all 0.2s;
-            border-radius: 8px;
-        }
-        .tab-btn.active { background: rgba(43,140,255,0.15); color: #6fb2ff; border:1px solid #2b5a9a; }
-        .tab-btn#btnTabInput.active { background: linear-gradient(180deg,#2b8cff,#1a6fd8); color: #ffffff; border:none }
-        .tab-btn#btnTabHistory.active { background: #13223d; color: #8ab4f8; border:1px solid var(--line) }
-        .tab-btn#btnTabRekap.active { background: linear-gradient(180deg, #1a2a4a, #111d35); color: var(--green); border:1px solid rgba(125,255,183,0.2) }
-        
-        input, select { 
-            width: 100%; 
-            padding: 12px 14px; 
-            margin: 5px 0; 
-            border: 1px solid var(--line); 
-            background: #0f1f36;
-            color: #eaf2ff;
-            border-radius: 12px; 
-            box-sizing: border-box; 
-            font-size: 14px; 
-            transition: border-color 0.2s;
-        }
-        input:focus, select:focus { outline:none; border-color: var(--blue); }
-        input::placeholder { color: #5a7096; }
-        
-        button { background: linear-gradient(180deg,#2b8cff,#1a6fd8); color: white; border: none; font-weight: 700; cursor: pointer; transition: all 0.2s; border-radius:14px; padding:12px; font-size:14px }
+        body { padding:15px; background:var(--bg); color:var(--text); margin:0; padding-bottom:80px; }
+        .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+        .card { background:var(--card); border:1px solid var(--line); padding:15px; border-radius:18px; box-shadow:0 4px 15px rgba(0,0,0,0.2); margin-bottom:10px; }
+        .stat-label { font-size:0.65em; color:var(--muted); text-transform:uppercase; display:block; text-align:center; letter-spacing:0.5px; font-weight:600 }
+        .stat-val { font-size:1em; font-weight:800; background:linear-gradient(180deg, #eaf2ff 0%, #8ab4f8 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; display:block; text-align:center; margin-top:5px; }
+        .btn-grid-on { grid-column:span 2; background:linear-gradient(180deg,#2b8cff,#1a6fd8); color:#fff; border:none; border-radius:14px; font-weight:700; cursor:pointer; font-size:13px; display:flex; justify-content:center; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(43,140,255,0.25); padding:12px; margin:5px 0 0 0; transition:all 0.2s; }
+        .btn-grid-on:active { background:#1a6fd8; transform:scale(0.98) }
+        .progress-container { background:#0f1f36; border:1px solid var(--line); border-radius:8px; height:12px; width:100%; margin-top:6px; overflow:hidden; }
+        .progress-bar { background:linear-gradient(90deg, var(--green), #2b8cff); height:100%; width:0%; transition:width 0.3s ease; }
+        .target-input { width:85px; padding:4px 8px; margin:0; display:inline-block; font-size:11px; border:1px solid var(--line); background:#0f1f36; color:#eaf2ff; border-radius:8px; text-align:right; font-weight:bold; }
+        .tab-bar { display:flex; background:rgba(17,29,53,0.9); border:1px solid var(--line); border-radius:12px; margin-bottom:15px; overflow:hidden; box-shadow:0 4px 10px rgba(0,0,0,0.2); padding:3px; backdrop-filter:blur(8px); }
+        .tab-btn { flex:1; padding:12px; border:none; background:transparent; font-weight:700; color:#6b7fa2; cursor:pointer; font-size:12px; text-align:center; transition:all 0.2s; border-radius:8px; }
+        .tab-btn.active { background:rgba(43,140,255,0.15); color:#6fb2ff; border:1px solid #2b5a9a; }
+        .tab-btn#btnTabInput.active { background:linear-gradient(180deg,#2b8cff,#1a6fd8); color:#ffffff; border:none }
+        .tab-btn#btnTabHistory.active { background:#13223d; color:#8ab4f8; border:1px solid var(--line) }
+        .tab-btn#btnTabRekap.active { background:linear-gradient(180deg, #1a2a4a, #111d35); color:var(--green); border:1px solid rgba(125,255,183,0.2) }
+        input, select { width:100%; padding:12px 14px; margin:5px 0; border:1px solid var(--line); background:#0f1f36; color:#eaf2ff; border-radius:12px; box-sizing:border-box; font-size:14px; transition:border-color 0.2s; }
+        input:focus, select:focus { outline:none; border-color:var(--blue); }
+        input::placeholder { color:#5a7096; }
+        button { background:linear-gradient(180deg,#2b8cff,#1a6fd8); color:white; border:none; font-weight:700; cursor:pointer; transition:all 0.2s; border-radius:14px; padding:12px; font-size:14px }
         button:active { transform:scale(0.98) }
-        .btn-secondary { background: #13223d; color: #a8c0e8; margin-top: 15px; border: 1px solid var(--line); }
-        .btn-secondary:active { background: #0f1f36; }
-        
-        .quick-notes { display: flex; gap: 6px; margin: 2px 0 10px 0; flex-wrap: wrap; }
-        .note-chip { 
-            background: #0f1f36; 
-            border: 1px solid var(--line); 
-            padding: 6px 12px; 
-            border-radius: 999px; 
-            font-size: 11px; 
-            cursor: pointer; 
-            width: auto; 
-            margin: 0; 
-            color: #8aa0c6; 
-            font-weight: 600; 
-        }
-        .note-chip:active { background: #13223d; color:#6fb2ff }
-        
-        .filter-container { margin-bottom: 15px; }
-        .cat-wrapper { border-radius: 14px; overflow: hidden; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border:1px solid var(--line) }
-        .cat-header { background: #0f1f36; padding: 12px; border-radius: 12px; margin-bottom: 5px; cursor: pointer; display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; color: #dbe8ff; }
-        .sub-row { padding: 10px; border-bottom: 1px solid rgba(30,45,74,0.5); display: flex; flex-direction: column; background: var(--card); }
-        .row-main { display: flex; justify-content: space-between; align-items: center; }
-        .row-note { font-size: 11px; color: #6b7fa2; margin-top: 4px; font-style: italic; }
-        
-        .btn-del { background: rgba(255,77,77,0.15); border:1px solid #ff4d4d; padding: 5px 10px; font-size: 10px; border-radius: 8px; color: #ff6b6b; font-weight: bold; width: auto; margin: 0; }
-        .btn-del:active { background: rgba(255,77,77,0.25); }
-        .btn-edit { background: rgba(43,140,255,0.15); border:1px solid #2b5a9a; padding: 5px 10px; font-size: 10px; border-radius: 8px; color: #6fb2ff; font-weight: bold; width: auto; margin: 0; }
-        .btn-edit:active { background: rgba(43,140,255,0.25); }
-        
-        .breakdown-row { margin-bottom: 12px; font-size: 12px; }
-        .breakdown-label { display: flex; justify-content: space-between; margin-bottom: 4px; color: #8aa0c6; font-weight:600 }
-        .breakdown-bg { background: #0f1f36; border:1px solid var(--line); border-radius: 8px; height: 8px; width: 100%; overflow: hidden; }
-        .breakdown-fill { background: linear-gradient(90deg, #7dffb7, #2b8cff); height: 100%; width: 0%; transition: width 0.4s ease-out; }
-
-        .hidden { display: none; }
-        /* Gradasi tulisan judul biar seragam BattLog */
-        h2, h3 { background: linear-gradient(180deg, #eaf2ff 0%, #8ab4f8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight:800 }
+        .hidden { display:none !important; }
+        .cat-wrapper { background:#0f1f36; border:1px solid var(--line); border-radius:12px; margin-bottom:8px; overflow:hidden; }
+        .cat-header { display:flex; justify-content:space-between; padding:10px 12px; background:#111d35; font-weight:700; font-size:13px; cursor:pointer; }
+        .sub-row { padding:10px 12px; border-top:1px solid #1e2d4a; background:#0a1328; }
+        .row-main { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+        .row-note { font-size:11px; color:#8aa0c6; margin-top:6px; line-height:1.4; word-break:break-word; }
+        .btn-edit { background:#13223d; color:#8ab4f8; border:1px solid #2b5a9a; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:700 }
+        .btn-del { background:#2a1323; color:#ff8a80; border:1px solid #5a2a3a; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:700 }
+        .breakdown-row { margin-bottom:10px; }
+        .breakdown-label { display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; }
+        .breakdown-bg { background:#0f1f36; border-radius:6px; height:8px; overflow:hidden; }
+        .breakdown-fill { height:100%; background:linear-gradient(90deg, #2b8cff, #7dffb7); }
+        .filter-container { margin-bottom:12px; }
+        .btn-secondary { background:#111d35; border:1px solid var(--line); color:#8aa0c6; width:100%; margin-top:8px; }
     </style>
-
-
-<style id="sync-lamp-style">
-.sync-status-bar{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:12px}
-.sync-left{display:flex;align-items:center;gap:8px}
-#sigan-sync-dot{width:9px;height:9px;border-radius:50%;background:#3a4a6a;transition:all 0.3s}
-#sigan-sync-dot.active{background:#00e676;box-shadow:0 0 0 4px rgba(0,230,118,0.18);animation:pulseNeat 1.6s infinite}
-@keyframes pulseNeat{0%{box-shadow:0 0 0 0 rgba(0,230,118,0.6)}70%{box-shadow:0 0 0 7px rgba(0,230,118,0)}100%{box-shadow:0 0 0 0 rgba(0,230,118,0)}}
-#sigan-sync-text{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.4px}
-#sigan-sync-time{font-size:10px;color:#5a7096}
-</style>
-
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
-
-<div class="sync-status-bar" id="sigan-sync-lamp">
-  <div class="sync-left">
-    <span id="sigan-sync-dot"></span>
-    <span id="sigan-sync-text">SYNC STANDBY</span>
-  </div>
-  <span id="sigan-sync-time"></span>
-</div>
-
-
-    <button class="btn-secondary" style="margin: 0 0 10px 0;" onclick="toggleTariffSettings()">⚙️ Atur Tarif Layanan</button>
-
-    <div id="tariffSettingsPanel" class="card hidden" style="border-left: 5px solid #00e676; margin-bottom: 15px;">
-        <div style="font-size: 13px; font-weight:bold; color:#ffffff; margin-bottom: 4px;">Pengaturan Tarif Auto-Isi</div>
-        <div style="font-size: 11px; color:var(--muted)aaa; margin-bottom: 12px; line-height:1.5;">
-            AI Engine V2 belajar <strong>Tarif Dasar + Rp/km per layanan + faktor jam sibuk</strong> dari histori. Batas bawah = P15. Tarif flat lama sudah dihapus.
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">SiGan V5.0 <span style="color:#7dffb7">OCR FULL</span></div>
+        <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
+            <div id="sigan-sync-dot" style="width:8px; height:8px; border-radius:50%; background:#555;"></div>
+            <span id="sigan-sync-text" style="color:#aaa;">SYNC STANDBY</span>
+            <span id="sigan-sync-time" style="color:#5a7096;"></span>
         </div>
-        <div id="tariffSettingsFields"></div>
-        <button onclick="saveTariffSettings()">💾 Simpan Tarif Cadangan & Belajar Ulang</button>
-        <button class="btn-secondary" style="margin-top: 8px;" onclick="resetTariffDefaults()">Kembalikan ke Default</button>
     </div>
 
-    <div class="summary-grid">
-        <div class="card"><span class="stat-label">Bruto Hari Ini</span><span class="stat-val" id="valIncome">Rp 0</span></div>
-        <div class="card"><span class="stat-label">Pengeluaran</span><span class="stat-val" id="valExpense" style="color:#ff5252;">Rp 0</span></div>
-        <div class="card"><span class="stat-label">Netto Hari Ini</span><span class="stat-val" id="valBalance" style="color:#00e676;">Rp 0</span></div>
-        <div class="card"><span class="stat-label">RP/KM (Netto)</span><span class="stat-val" id="valEfficiency" style="color:#40c4ff;">Rp 0 /km</span></div>
-        
-        <button class="btn-grid-on" onclick="pressOnBid()">
-            <span>Mulai Jam On-Bid Otomatis</span>
-            <span>🟢</span>
-        </button>
+    <div class="tab-bar">
+        <button id="btnTabInput" class="tab-btn active" onclick="switchTab('input')">Input</button>
+        <button id="btnTabHistory" class="tab-btn" onclick="switchTab('history')">Riwayat</button>
+        <button id="btnTabRekap" class="tab-btn" onclick="switchTab('rekap')">Rekap</button>
     </div>
 
-    <div class="card" style="margin-bottom: 15px; padding: 12px 15px;">
-        <div style="display:flex; justify-content: space-between; align-items:center; font-size: 12px; margin-bottom: 8px;">
-            <span style="font-weight: bold; color: #aaaaaa;">Target Bruto Hari Ini:</span>
-            <span>Rp <input type="number" id="inputTarget" class="target-input" value="200000" min="0" onchange="updateTarget()"></span>
-        </div>
-        
-        <div style="margin: 10px 0; border-top: 1px dashed #333333; padding-top: 10px;">
-            <label style="font-size: 11px; color: #aaaaaa; display: block; margin-bottom: 4px; font-weight: bold;">📅 Tanggal Operasional</label>
-            <input type="date" id="globalDate" onchange="loadData()" style="margin: 0; padding: 8px; font-size: 13px;">
-        </div>
-        
-        <div style="display: flex; gap: 10px; margin: 10px 0 5px 0; border-top: 1px dashed #333333; padding-top: 10px;">
-            <div style="flex: 1;">
-                <label style="font-size: 11px; color: #aaaaaa; display: block; margin-bottom: 4px; font-weight: bold;">⏱️ Jam Mulai On-Bid</label>
-                <input type="time" id="globalStartTime" style="margin: 0; padding: 6px; font-size: 12px;" onchange="updateShiftTime()">
+    <!-- TAB INPUT -->
+    <div id="tabContentInput">
+        <!-- Global Date & Shift -->
+        <div class="card">
+            <div style="font-size:12px; font-weight:800; margin-bottom:8px; color:#7dffb7;">📅 Tanggal Operasional & Jam Online</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div>
+                    <label style="font-size:10px; color:var(--muted)">Tanggal</label>
+                    <input type="date" id="globalDate">
+                </div>
+                <div>
+                    <label style="font-size:10px; color:var(--muted)">Target Harian</label>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-size:11px">Rp</span>
+                        <input type="number" id="inputTarget" class="target-input" onchange="updateTarget()">
+                    </div>
+                </div>
             </div>
-            <div style="flex: 1;">
-                <label style="font-size: 11px; color: #aaaaaa; display: block; margin-bottom: 4px; font-weight: bold;">⏱️ Jam Selesai Off-Bid</label>
-                <input type="time" id="globalEndTime" style="margin: 0; padding: 6px; font-size: 12px;" onchange="updateShiftTime()">
+            <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:8px; margin-top:8px; align-items:end;">
+                <div>
+                    <label style="font-size:10px; color:var(--muted)">Jam Mulai (auto dari order pertama)</label>
+                    <input type="time" id="globalStartTime" onchange="updateShiftTime()">
+                </div>
+                <div>
+                    <label style="font-size:10px; color:var(--muted)">Jam Selesai (auto dari order terakhir)</label>
+                    <input type="time" id="globalEndTime" onchange="updateShiftTime()">
+                </div>
+                <button class="btn-grid-on" style="padding:8px 12px; margin:0;" onclick="pressOnBid()">ON</button>
+            </div>
+            <div style="font-size:10px; color:#5a7096; margin-top:6px;">* Jam online akan otomatis terisi dari jam awal order pertama & jam akhir order terakhir saat OCR. Input manual tetap bisa diedit.</div>
+        </div>
+
+        <!-- OCR Card V5 -->
+        <div class="card" style="border:2px dashed #2b8cff; background: linear-gradient(180deg, #111d35, #0f1f36);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-weight:800;color:#7dffb7">📷 Scan Screenshot Gojek</div>
+            <div style="font-size:10px;color:#8aa0c6">V5.0 FULL • ID Anti Duplikat • Alamat Lengkap</div>
+          </div>
+          <label for="ocrFileInput" style="display:block;border:2px dashed #2b8cff;padding:24px;text-align:center;cursor:pointer;border-radius:12px;background:#0f1f36;color:#8ab4f8;font-weight:700">
+            📷 Tap pilih screenshot (bisa banyak)<br><span style="font-size:11px;color:#5a7096">Otomatis ambil: harga, jam awal-akhir, ID, km, alamat jemput & tujuan, tanggal</span>
+          </label>
+          <input type="file" id="ocrFileInput" accept="image/*" multiple style="display:none">
+          <div id="ocrStatus" style="margin-top:10px;font-size:12px;color:#8aa0c6"></div>
+          <div id="ocrPreview" style="margin-top:8px;max-height:160px;overflow:auto;font-size:11px;background:#0a1328;border-radius:8px;padding:8px;display:none"></div>
+          <div style="margin-top:6px;font-size:10px;color:#5a7096">Aturan V5: RB=Goride, F=Gofood, MT=Gomart, GK=Gosend. Duplikasi cegah HANYA via ID transaksi. Tanggal riwayat ikut tanggal di screenshot jika terdeteksi. Jam online = order pertama - terakhir.</div>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-grid">
+            <div class="card" style="text-align:center;">
+                <span class="stat-label">Pendapatan Hari Ini</span>
+                <span class="stat-val" id="valIncome">Rp 0</span>
+            </div>
+            <div class="card" style="text-align:center;">
+                <span class="stat-label">Pengeluaran Hari Ini</span>
+                <span class="stat-val" id="valExpense" style="color:#ff8a80">Rp 0</span>
+            </div>
+            <div class="card" style="text-align:center;">
+                <span class="stat-label">Netto Hari Ini</span>
+                <span class="stat-val" id="valBalance">Rp 0</span>
+                <div class="progress-container"><div id="progressBar" class="progress-bar"></div></div>
+                <div style="font-size:10px; color:var(--muted); margin-top:4px;" id="txtTargetProgress">0% Tercapai</div>
+            </div>
+            <div class="card" style="text-align:center;">
+                <span class="stat-label">Efisiensi</span>
+                <span class="stat-val" id="valEfficiency">Rp 0 /km</span>
+                <div style="font-size:10px; color:var(--muted); margin-top:4px;" id="valOnlineInfo"></div>
             </div>
         </div>
 
-        <div class="progress-container" style="margin-top: 10px;">
-            <div id="progressBar" class="progress-bar"></div>
+        <!-- Manual Input Pengeluaran (Pendapatan manual tetap ada tapi tanpa prediksi) -->
+        <div class="card">
+            <div style="font-weight:800; font-size:13px; margin-bottom:8px;">✍️ Input Manual (Pengeluaran / Koreksi)</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <input type="time" id="txTime">
+                <select id="type" onchange="updateCategories()"><option value="Pendapatan">Pendapatan</option><option value="Pengeluaran">Pengeluaran</option></select>
+            </div>
+            <select id="category" style="margin-top:8px;"></select>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+                <input type="number" id="distance" placeholder="Jarak km (mis 2.5)" step="0.1">
+                <input type="text" id="amount" placeholder="Nominal Rp" oninput="formatRupiah(this)">
+            </div>
+            <input type="text" id="note" placeholder="Catatan / alamat jemput -> tujuan / ID" style="margin-top:8px;">
+            <button id="btnSubmit" onclick="saveData()" style="width:100%; margin-top:10px;">Rekam Data</button>
+            <button id="btnCancelEdit" class="btn-secondary hidden" style="margin-top:8px;" onclick="cancelEdit()">Batal Edit</button>
+            <div style="font-size:10px; color:#5a7096; margin-top:6px;">* Untuk pendapatan sebaiknya via OCR biar lengkap ID, alamat, jam awal-akhir.</div>
         </div>
-        <div style="font-size: 11px; color: #bbbbbb; margin-top: 5px; text-align: right; font-weight: bold;" id="txtTargetProgress">0% Tercapai</div>
-    </div>
-
-    
-<!-- V4.0 OCR - Rebuild from V3.2 with ID Logic RB/F/MT/GK -->
-<div class="card" style="border:2px dashed #2b8cff; background: linear-gradient(180deg, #111d35, #0f1f36);">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <div style="font-weight:800;color:#7dffb7">📷 Scan Screenshot Gojek/Grab</div>
-    <div style="font-size:10px;color:#8aa0c6">V4.0 ID RB/F/MT/GK • anti duplikat ID</div>
-  </div>
-  <label for="ocrFileInput" style="display:block;border:2px dashed #2b8cff;padding:24px;text-align:center;cursor:pointer;border-radius:12px;background:#0f1f36;color:#8ab4f8;font-weight:700">
-    📷 Tap pilih screenshot<br><span style="font-size:11px;color:#5a7096">Bisa banyak foto, ID jadi penanda duplikat</span>
-  </label>
-  <input type="file" id="ocrFileInput" accept="image/*" multiple style="display:none">
-  <div id="ocrStatus" style="margin-top:10px;font-size:12px;color:#8aa0c6"></div>
-  <div id="ocrPreview" style="margin-top:8px;max-height:160px;overflow:auto;font-size:11px;background:#0a1328;border-radius:8px;padding:8px;display:none"></div>
-  <div style="margin-top:6px;font-size:10px;color:#5a7096">Aturan: RB=Goride, F=Gofood, MT=Gomart, GK=Gosend. ID sama auto tolak. Data masuk ke Riwayat sama kayak input manual.</div>
-</div>
-<script>
-(function(){
-  const fileInput = document.getElementById('ocrFileInput');
-  const statusEl = document.getElementById('ocrStatus');
-  const previewEl = document.getElementById('ocrPreview');
-  if(!fileInput) return;
-
-  function normalizeDate(str){
-    if(!str) return new Date().toLocaleDateString('sv-SE');
-    str=str.trim();
-    if(str.includes('/')){
-      let p=str.split('/');
-      if(p.length===3){
-        let dd=p[0].padStart(2,'0'), mm=p[1].padStart(2,'0'), yyyy=p[2];
-        if(yyyy.length===4) return `${yyyy}-${mm}-${dd}`;
-      }
-    }
-    return str;
-  }
-
-  function getIdCategory(idTrans){
-    if(!idTrans) return 'Goride';
-    idTrans=idTrans.toUpperCase();
-    if(idTrans.startsWith('RB')) return 'Goride';
-    if(idTrans.startsWith('F-') || idTrans.startsWith('F')) return 'Gofood';
-    if(idTrans.startsWith('MT')) return 'Gomart';
-    if(idTrans.startsWith('GK')) return 'Gosend';
-    return 'Goride';
-  }
-
-  function parseGojekText(fullText){
-    let txt = fullText.replace(/\n+/g,'\n');
-    let results = [];
-    // Regex utama: Rp amount, time-time, km
-    const tripRegex = /Rp\s*[^\d]{0,3}([\d\.\,]{3,})[\s\S]{0,80}?(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})[^\d]{0,10}([\d]+[\.,]?\d*)\s*km/gi;
-    let m;
-    while((m = tripRegex.exec(txt)) !== null){
-      let rawAmt = m[1].replace(/[^\d\.]/g,'');
-      let amount = parseInt(rawAmt.replace(/\./g,''))||0;
-      // Fix amount kecil karena OCR error: 8 -> cari lagi 4 digit di dekatnya
-      if(amount<1000){
-        let near = txt.substring(m.index, m.index+80).match(/Rp[^\d]{0,5}([\d\.]{4,})/);
-        if(near){
-          let cand = near[1].replace(/\./g,'').replace(/[^\d]/g,'');
-          if(cand && parseInt(cand)>amount) amount=parseInt(cand);
-        }
-      }
-      let start = m[2];
-      let end = m[3];
-      let rawKm = m[4];
-      let dist = parseFloat(rawKm.replace(',','.'))||0;
-      if(!rawKm.includes('.') && !rawKm.includes(',') && dist>100) dist=dist/100;
-      if(dist>100) dist=dist/100;
-
-      // Cari ID transaksi SETELAH trip ini (paling akurat)
-      let searchArea = txt.substring(m.index, m.index+600);
-      let idMatch = searchArea.match(/ID transaksi:\s*([A-Z]+-\d[\d\-]*)/i);
-      if(!idMatch) idMatch = searchArea.match(/(RB|F-|MT-|GK-)[\d\-]{6,}/i);
-      let idTrans = idMatch ? (idMatch[1]||idMatch[0]).toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9\-]/g,'') : '';
-      // Jika idMatch pakai grup ID transaksi:
-      if(idMatch && idMatch[0].toUpperCase().includes('ID TRANSAKSI')){
-        let full = searchArea.match(/ID transaksi:\s*([A-Z\d\-]+)/i);
-        if(full) idTrans = full[1].toUpperCase().replace(/\s+/g,'');
-      }
-      let cat = getIdCategory(idTrans);
-      let loc = searchArea.split('\n').slice(2,4).join(' ').substring(0,100);
-      results.push({amount, dist, start, end, cat, idTrans, loc, raw: m[0].substring(0,80)});
-    }
-    // Fallback jika regex utama gagal
-    if(results.length===0){
-      const am = [...txt.matchAll(/Rp\s*[^\d]{0,3}([\d\.]{3,})/g)];
-      const km = [...txt.matchAll(/([\d]+[\.,]?\d*)\s*km/gi)];
-      const tm = [...txt.matchAll(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/g)];
-      const ids = [...txt.matchAll(/(RB|F-|MT-|GK-)[\d\-]{6,}/gi)];
-      let cnt = Math.min(am.length, km.length, tm.length);
-      for(let i=0;i<cnt;i++){
-        let amount = parseInt(am[i][1].replace(/\./g,'').replace(/[^\d]/g,''))||0;
-        let dist = parseFloat(km[i][1].replace(',','.'))||0;
-        if(!km[i][1].includes('.') && !km[i][1].includes(',') && dist>100) dist=dist/100;
-        let start = tm[i][1], end = tm[i][2];
-        let idTrans = ids[i] ? ids[i][0].toUpperCase() : '';
-        let cat = getIdCategory(idTrans);
-        results.push({amount, dist, start, end, cat, idTrans, loc:'', raw:''});
-      }
-    }
-    return results;
-  }
-
-  function isDuplicateById(idTrans){
-    if(!idTrans) return false;
-    try{
-      let data = JSON.parse(localStorage.getItem('siganData')||'[]');
-      idTrans=idTrans.toUpperCase();
-      for(let e of data){
-        if(e.idTrans && e.idTrans.toUpperCase()===idTrans) return true;
-        // Cek juga di note jika idTrans lama disimpan di note
-        if(e.note && e.note.toUpperCase().includes(idTrans)) return true;
-      }
-    }catch(e){}
-    return false;
-  }
-
-  function isDuplicateByTimeKm(newEntry, forcedDate){
-    try{
-      let data = JSON.parse(localStorage.getItem('siganData')||'[]');
-      let today = normalizeDate(forcedDate || (document.getElementById('globalDate')&&document.getElementById('globalDate').value) || '');
-      for(let e of data){
-        if(e.date!==today) continue;
-        let sameDist = Math.abs(Number(e.dist)-Number(newEntry.dist))<0.05;
-        let sameStart = e.time===newEntry.start;
-        if(sameStart && sameDist) return true;
-      }
-    }catch(e){}
-    return false;
-  }
-
-  async function detectGoRideSubCat(file, tripCount){
-    // Untuk RB: bedakan Goride biasa (lingkaran) vs Comfort (tanpa lingkaran)
-    return new Promise((resolve)=>{
-      try{
-        const img = new Image();
-        img.onload = ()=>{
-          try{
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img,0,0);
-            let out=[];
-            for(let i=0;i<tripCount;i++){
-              let estY = canvas.height * (0.255 + i*0.255);
-              let x = Math.floor(canvas.width*0.035);
-              let y = Math.floor(estY - canvas.height*0.035);
-              let w = Math.floor(canvas.width*0.095);
-              let h = Math.floor(canvas.height*0.065);
-              x=Math.max(0,x); y=Math.max(0,y);
-              w=Math.min(w, canvas.width-x); h=Math.min(h, canvas.height-y);
-              let d = ctx.getImageData(x,y,w,h).data;
-              let nonWhite=0;
-              for(let p=0;p<d.length;p+=4){
-                let bright=(d[p]+d[p+1]+d[p+2])/3;
-                if(bright>235) continue;
-                nonWhite++;
-              }
-              let ratio = nonWhite/(w*h);
-              out.push({hasCircle: ratio>0.28, ratio: ratio.toFixed(2)});
-            }
-            URL.revokeObjectURL(img.src);
-            resolve(out);
-          }catch(e){ resolve([]); }
-        };
-        img.onerror=()=>resolve([]);
-        img.src = URL.createObjectURL(file);
-      }catch(e){ resolve([]); }
-    });
-  }
-
-  async function processFile(file){
-    statusEl.innerHTML = '🔍 Membaca '+file.name+' ...';
-    previewEl.style.display='block';
-    previewEl.innerHTML = 'OCR...';
-    try{
-      const {data:{text}} = await Tesseract.recognize(file, 'ind+eng', {
-        logger: m => { if(m.status=='recognizing text') previewEl.innerHTML = `OCR ${Math.round(m.progress*100)}%`; }
-      });
-      previewEl.innerHTML = '<div style="color:#8aa0c6;white-space:pre-wrap;max-height:100px;overflow:auto">'+text.substring(0,600)+'</div>';
-      let parsed = parseGojekText(text);
-      if(!parsed.length){
-        statusEl.innerHTML = '⚠️ Tidak ada trip di '+file.name;
-        return [];
-      }
-      // Sub-kategori RB: cek ikon
-      let iconInfo = await detectGoRideSubCat(file, parsed.length);
-      if(iconInfo.length===parsed.length){
-        for(let i=0;i<parsed.length;i++){
-          if(parsed[i].cat==='Goride'){
-            // Jika tanpa lingkaran -> Comfort
-            if(!iconInfo[i].hasCircle){
-              parsed[i].cat = 'Goride Comfort';
-            }
-          }
-        }
-      }
-      statusEl.innerHTML = `✅ ${parsed.length} trip dari ${file.name}: ${parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+' ['+p.cat+']').join(', ')}`;
-      return parsed;
-    }catch(err){
-      statusEl.innerHTML = '❌ OCR gagal: '+err.message;
-      return [];
-    }
-  }
-
-  fileInput.addEventListener('change', async (e)=>{
-    let files = Array.from(e.target.files||[]);
-    if(!files.length) return;
-    let rawGlobal = (document.getElementById('globalDate')&&document.getElementById('globalDate').value)||'';
-    let targetDate = normalizeDate(rawGlobal);
-    statusEl.innerHTML = `📷 ${files.length} foto, tanggal operasional: <strong>${targetDate}</strong>. ID jadi penanda duplikat.`;
-    let allParsed=[];
-    for(let f of files){
-      let r = await processFile(f);
-      allParsed=allParsed.concat(r);
-    }
-    if(!allParsed.length){
-      statusEl.innerHTML += '<br>❌ Tidak ada data valid';
-      fileInput.value='';
-      return;
-    }
-    // Deduplicate dalam batch by ID dan by jam+km
-    let unique=[];
-    let seenId=new Set();
-    let seenTime=new Set();
-    for(let p of allParsed){
-      if(!p.idTrans){
-        statusEl.innerHTML += `<br>⚠️ Tanpa ID transaksi, dilewati: Rp${p.amount} ${p.start}`;
-        continue;
-      }
-      let idKey = p.idTrans.toUpperCase();
-      if(seenId.has(idKey)){
-        statusEl.innerHTML += `<br>⏭️ Duplikat dalam batch (ID sama ${idKey})`;
-        continue;
-      }
-      if(isDuplicateById(idKey)){
-        statusEl.innerHTML += `<br>⏭️ Duplikat tolak (ID ${idKey} sudah ada di data)`;
-        continue;
-      }
-      let timeKey = p.start+'|'+p.dist+'|'+targetDate;
-      if(seenTime.has(timeKey)){
-        statusEl.innerHTML += `<br>⏭️ Duplikat jam+km ${p.start} ${p.dist}km`;
-        continue;
-      }
-      if(isDuplicateByTimeKm(p, targetDate)){
-        statusEl.innerHTML += `<br>⏭️ Duplikat jam+km sudah ada di ${targetDate}`;
-        continue;
-      }
-      seenId.add(idKey);
-      seenTime.add(timeKey);
-      unique.push(p);
-    }
-
-    if(unique.length){
-      let siganData = JSON.parse(localStorage.getItem('siganData')||'[]');
-      let saved=0;
-      for(let p of unique){
-        let predEnd = p.end||'';
-        if(p.dist>0 && p.start){
-          try{
-            let [h,m]=p.start.split(':').map(Number);
-            let tot=h*60+m+Math.round(p.dist*2);
-            let ph=Math.floor(tot/60)%24;
-            let pm=tot%60;
-            if(!predEnd) predEnd=String(ph).padStart(2,'0')+':'+String(pm).padStart(2,'0');
-          }catch(_){}
-        }
-        // Simpan ke tempat yang sama seperti input manual (siganData)
-        let entry = {
-          date: targetDate,
-          time: p.start||new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}),
-          type: 'Pendapatan',
-          cat: p.cat||'Goride',
-          note: `OCR ${p.start}-${p.end} ${p.idTrans} ${p.loc||''}`.substring(0,180),
-          dist: p.dist,
-          amount: p.amount,
-          predictedEndTime: predEnd,
-          idTrans: p.idTrans,
-          idPrefix: p.idTrans ? p.idTrans.split('-')[0] : ''
-        };
-        siganData.push(entry);
-        saved++;
-      }
-      localStorage.setItem('siganData', JSON.stringify(siganData));
-      statusEl.innerHTML += `<br><br>✅ <strong>${saved} trip tercatat di ${targetDate}!</strong> (RB=Goride, F=Gofood, MT=Gomart, GK=Gosend). Data masuk ke Riwayat sama kayak manual.`;
-      try{
-        if(typeof loadData==='function') loadData();
-        if(window.buildAndSendSiGan) window.buildAndSendSiGan();
-        if(window.AIEngineV2){ window.AIEngineV2.learn(); window.AIEngineV2.save(); }
-        setTimeout(()=>{ try{ if(typeof switchTab==='function') switchTab('history'); }catch(_){} }, 300);
-      }catch(e){ console.log(e); }
-      setTimeout(()=>{ fileInput.value=''; previewEl.style.display='none'; }, 2000);
-    } else {
-      statusEl.innerHTML += '<br>⚠️ Semua duplikat/tanpa ID, tidak ada yang disimpan';
-      fileInput.value='';
-    }
-  });
-})();
-</script>
-
-
-<div class="tab-bar">
-        <button class="tab-btn active" id="btnTabInput" onclick="switchTab('input')">Catat</button>
-        <button class="tab-btn" id="btnTabHistory" onclick="switchTab('history')">Riwayat Hari Ini</button>
-        <button class="tab-btn" id="btnTabRekap" onclick="switchTab('rekap')">Rekap Periode</button>
-    </div>
-
-    <div id="tabContentInput" class="card">
-        <select id="type" onchange="updateCategories()">
-            <option value="Pendapatan">Pendapatan</option>
-            <option value="Pengeluaran">Pengeluaran</option>
-        </select>
-        <select id="category" onchange="autoFillAmount()"></select>
-        
-        <label style="font-size: 11px; color: #aaaaaa; font-weight: bold; margin-bottom: 2px; display: block; margin-top: 10px;">🕒 Jam Waktu Transaksi</label>
-        <input type="time" id="txTime" style="margin-bottom: 10px; padding: 10px;" onchange="lockTimeManual()">
-
-        <input type="number" id="distance" placeholder="Jarak (km)" step="0.1" min="0" oninput="autoFillAmount()">
-        <input type="text" id="amount" inputmode="numeric" onkeyup="formatRupiah(this)" placeholder="Jumlah (Rp)">
-        <div id="amountSourceHint" style="font-size:10px; color:#777777; margin: -2px 0 8px 2px;"></div>
-        
-        <input type="text" id="note" placeholder="Keterangan / Catatan">
-        
-        <div class="quick-notes">
-            <button class="note-chip" onclick="setQuickNote('Parkir')">+ Parkir</button>
-            <button class="note-chip" onclick="setQuickNote('Tip konsumen')">+ Tip</button>
-            <button class="note-chip" onclick="setQuickNote('Sewa motor')">+ Sewa Motor</button>
-        </div>
-
-        <button id="btnSubmit" onclick="saveData()">Rekam Data</button>
-        <button id="btnCancelEdit" class="btn-secondary hidden" style="margin-top: 8px;" onclick="cancelEdit()">Batal Edit</button>
     </div>
 
     <div id="tabContentHistory" class="hidden">
@@ -606,1742 +173,939 @@ Jika mau ubah, edit file kerja lalu kunci ulang via Meta AI
             </select>
         </div>
         
-        <div class="card" style="border-left: 5px solid #e040fb;">
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Efisiensi Waktu (Modal Waktu)</div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-size: 13px; color:var(--muted)aaa;">Total Waktu Mengaspal:</span>
-                <span style="font-size: 14px; font-weight:bold; color:#ffffff;" id="rekapTotalHours">0 jam</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-size: 13px; color:var(--muted)aaa;">Rata<sup>2</sup> Durasi Shift Kerja:</span>
-                <span style="font-size: 14px; font-weight:bold; color:#ffffff;" id="rekapAvgShift">0 jam/hari</span>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-                <span style="font-size: 13px; color:var(--muted)aaa;">Rata<sup>2</sup> Netto RP/JAM:</span>
-                <span style="font-size: 15px; font-weight:bold; color:#e040fb;" id="rekapAvgRpPerHour">Rp 0 /jam</span>
-            </div>
+        <div class="card" style="border-left:5px solid #e040fb;">
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Analisis Efisiensi Waktu (Presisi OCR First-Last)</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:var(--muted)">Total Waktu Online (First-Last Order):</span><span style="font-size:14px; font-weight:bold; color:#fff;" id="rekapTotalHours">0 jam</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:var(--muted)">Rata-rata Durasi / Hari:</span><span style="font-size:14px; font-weight:bold; color:#fff;" id="rekapAvgShift">0 jam/hari</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="font-size:13px; color:var(--muted)">Rata-rata Netto Rp/Jam:</span><span style="font-size:15px; font-weight:bold; color:#e040fb;" id="rekapAvgRpPerHour">Rp 0 /jam</span></div>
+            <div style="font-size:10px; color:#5a7096; margin-top:8px;" id="rekapOnlineDetail"></div>
         </div>
 
-        <div class="card" style="border-left: 5px solid #ff5252;">
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">📊 Analisis Efisiensi Blok Jam Kerja (Jam Gurih)</div>
+        <div class="card" style="border-left:5px solid #ff5252;">
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">📊 Jam Gurih Presisi (Berdasarkan Jam Mulai Order)</div>
             <div id="rekapHourlyContainer"></div>
         </div>
 
         <div class="card">
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Kontribusi Layanan (Pendapatan)</div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Kontribusi Layanan (Berdasarkan ID Transaksi RB/F/MT/GK)</div>
             <div id="rekapBreakdownContainer"></div>
         </div>
         
-        <div class="card" style="border-left: 5px solid #40c4ff;">
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Analisis Margin & Tip per Layanan</div>
-            <div id="rekapRatesContainer" style="font-size: 13px; color: #ffffff; display: flex; flex-direction: column; gap: 12px;"></div>
+        <div class="card" style="border-left:5px solid #40c4ff;">
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Analisis Margin per Layanan</div>
+            <div id="rekapRatesContainer" style="font-size:13px; color:#fff; display:flex; flex-direction:column; gap:12px;"></div>
         </div>
 
-        <div class="card" style="border-left: 5px solid #ffb300;">
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Batas Waktu Optimal (Evaluasi Lelah vs Cuan)</div>
-            <div id="rekapTiersContainer" style="font-size: 13px; color: #ffffff; display: flex; flex-direction: column; gap: 12px;"></div>
+        <div class="card" style="border-left:5px solid #ffb300;">
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Batas Waktu Optimal</div>
+            <div id="rekapTiersContainer" style="font-size:13px; color:#fff; display:flex; flex-direction:column; gap:12px;"></div>
         </div>
 
-        <div class="card" style="border-left: 5px solid #00e676;">
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Tren Efisiensi Netto per Jam (Hari Gurih)</div>
+        <div class="card" style="border-left:5px solid #00e676;">
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Tren Harian</div>
             <div id="rekapDaysContainer"></div>
         </div>
         
-        <div class="card" style="border-left: 5px solid #00e676;">
-            <div style="font-size: 13px; color:var(--muted)aaa;">Total Bruto</div>
-            <div style="font-size: 18px; font-weight:bold; color:#ffffff; margin: 5px 0;" id="rekapIncome">Rp 0</div>
-            
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-top: 10px;">Total Pengeluaran</div>
-            <div style="font-size: 18px; font-weight:bold; color:#ff5252; margin: 5px 0;" id="rekapExpense">Rp 0</div>
-            <hr style="border: 0; border-top: 1px solid #333333; margin: 10px 0;">
-            
-            <div style="font-size: 13px; color:var(--muted)aaa;">Total Netto</div>
-            <div style="font-size: 20px; font-weight:bold; color:#00e676; margin: 5px 0;" id="rekapBalance">Rp 0</div>
+        <div class="card" style="border-left:5px solid #00e676;">
+            <div style="font-size:13px; color:var(--muted)">Total Bruto</div><div style="font-size:18px; font-weight:bold; color:#fff; margin:5px 0;" id="rekapIncome">Rp 0</div>
+            <div style="font-size:13px; color:var(--muted); margin-top:10px;">Total Pengeluaran (Manual + SPKLU)</div><div style="font-size:18px; font-weight:bold; color:#ff5252; margin:5px 0;" id="rekapExpense">Rp 0</div><hr style="border:0; border-top:1px solid #333; margin:10px 0;">
+            <div style="font-size:13px; color:var(--muted)">Total Netto</div><div style="font-size:20px; font-weight:bold; color:#00e676; margin:5px 0;" id="rekapBalance">Rp 0</div>
         </div>
 
-        <div class="card" style="border-left: 5px solid #888888;">
-            <div style="font-size: 13px; color:var(--muted)aaa;">Total Jarak Produktif</div>
-            <div style="font-size: 16px; font-weight:bold; color:#ffffff; margin: 5px 0;" id="rekapKm">0 km</div>
-            
-            <div style="font-size: 13px; color:var(--muted)aaa; margin-top: 10px;">Rata-rata RP/KM (Total)</div>
-            <div style="font-size: 16px; font-weight:bold; color:#40c4ff; margin: 5px 0;" id="rekapEfficiency">Rp 0 /km</div>
+        <div class="card" style="border-left:5px solid #888;">
+            <div style="font-size:13px; color:var(--muted)">Total Jarak Produktif</div><div style="font-size:16px; font-weight:bold; color:#fff; margin:5px 0;" id="rekapKm">0 km</div>
+            <div style="font-size:13px; color:var(--muted); margin-top:10px;">Rata-rata Rp/Km</div><div style="font-size:16px; font-weight:bold; color:#40c4ff; margin:5px 0;" id="rekapEfficiency">Rp 0 /km</div>
         </div>
 
-        <div class="card" style="border-left: 5px solid #ff5252; background: #221818;">
-            <div style="font-size: 13px; color:#ff8a80; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">🤖 REKOMENDASI TAKTIS AI (INTELLIGENT INSIGHTS)</div>
+        <div class="card" style="border-left:5px solid #ff5252; background:#221818;">
+            <div style="font-size:13px; color:#ff8a80; margin-bottom:12px; font-weight:bold; text-transform:uppercase;">🤖 Insight Presisi V5</div>
             <div id="rekapInsightContainer"></div>
         </div>
     </div>
 
-    <script>
-        let editIndex = null;
-        let isTimeManuallyLocked = false;
-        let clockInterval = null;
-
-        const categories = {
-            "Pendapatan": ["Goride", "Goride Hemat", "Goride Comfort", "Gofood", "Gomart", "Gosend"],
-            "Pengeluaran": ["Bahan bakar", "Makan/minum", "Lain-lain"]
-        };
-
-        const defaultTariffConfig = {
-            "Goride":         { baseKm: 4, base: 11200, perKm: 2800 },
-            "Goride Hemat":   { baseKm: 4, base: 10200, perKm: 2550 },
-            "Goride Comfort": { baseKm: 4, base: 13500, perKm: 3300 },
-            "Gofood":         { baseKm: 2, base: 9600,  perKm: 2535 },
-            "Gomart":         { baseKm: 2, base: 9600,  perKm: 2535 },
-            "Gosend":         { baseKm: 2, base: 11400, perKm: 2350 }
-        };
-
-        function startLiveClock() {
-            if(clockInterval) clearInterval(clockInterval);
-            clockInterval = setInterval(() => {
-                if (!isTimeManuallyLocked && editIndex === null) {
-                    const now = new Date();
-                    const hh = String(now.getHours()).padStart(2, '0');
-                    const mm = String(now.getMinutes()).padStart(2, '0');
-                    const txTimeEl = document.getElementById('txTime');
-                    if(txTimeEl) txTimeEl.value = `${hh}:${mm}`;
-                }
-            }, 1000);
-        }
-
-        function lockTimeManual() {
-            isTimeManuallyLocked = true;
-        }
-
-        function switchTab(tabName) {
-            const contents = {
-                'input': document.getElementById('tabContentInput'),
-                'history': document.getElementById('tabContentHistory'),
-                'rekap': document.getElementById('tabContentRekap')
-            };
-            const buttons = {
-                'input': document.getElementById('btnTabInput'),
-                'history': document.getElementById('btnTabHistory'),
-                'rekap': document.getElementById('btnTabRekap')
-            };
-
-            for (let key in contents) {
-                if (key === tabName) {
-                    contents[key].classList.remove('hidden');
-                    buttons[key].classList.add('active');
-                } else {
-                    contents[key].classList.add('hidden');
-                    buttons[key].classList.remove('active');
-                }
-            }
-            
-            if(tabName === 'rekap') loadRekapData();
-        }
-
-        function setQuickNote(text) {
-            document.getElementById('note').value = text;
-        }
-
-        function updateTarget() {
-            let targetVal = Number(document.getElementById('inputTarget').value) || 0;
-            if (targetVal < 0) targetVal = 0;
-            document.getElementById('inputTarget').value = targetVal;
-            localStorage.setItem('siganGlobalTarget', targetVal);
-            loadData();
-        }
-
-        function parseDateTime(dateStr, timeStr){
-            if(!dateStr || !timeStr) return null;
-            try{ return new Date(dateStr+'T'+timeStr+':00'); }catch(e){ return null; }
-        }
-        function getPrevDateStr(dateStr){
-            try{ let d=new Date(dateStr); d.setDate(d.getDate()-1); return d.toLocaleDateString('sv-SE'); }catch(e){ return null; }
-        }
-        function updateShiftTime() {
-            const targetDate = document.getElementById('globalDate').value;
-            if (!targetDate) return;
-            const startTime = document.getElementById('globalStartTime').value;
-            const endTime = document.getElementById('globalEndTime').value;
-            
-            let shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
-            
-            // FIX V3: Handle lintas tengah malam - jika end < start, end adalah besok
-            let startAt = parseDateTime(targetDate, startTime);
-            let endAt = parseDateTime(targetDate, endTime);
-            if(startAt && endAt && endAt <= startAt) { endAt.setDate(endAt.getDate()+1); }
-
-            // FIX V3: Jika user selesai shift jam 00-06 tapi globalDate sudah ganti hari baru,
-            // cek apakah kemarin ada shift yang belum selesai -> simpan end ke kemarin
-            let isEarlyMorning = endTime && parseInt(endTime.split(':')[0]) < 6;
-            if(isEarlyMorning && (!shiftData[targetDate] || !shiftData[targetDate].start)){
-                let prev = getPrevDateStr(targetDate);
-                if(prev && shiftData[prev] && shiftData[prev].start && !shiftData[prev].end){
-                    // Simpan end ke hari sebelumnya
-                    if(!shiftData[prev].startAt) shiftData[prev].startAt = parseDateTime(prev, shiftData[prev].start)?.getTime();
-                    shiftData[prev].end = endTime;
-                    shiftData[prev].endAt = endAt ? endAt.getTime() : parseDateTime(prev, endTime)?.getTime();
-                    if(shiftData[prev].startAt && shiftData[prev].endAt && shiftData[prev].endAt <= shiftData[prev].startAt){
-                        let ea=new Date(shiftData[prev].endAt); ea.setDate(ea.getDate()+1); shiftData[prev].endAt=ea.getTime();
-                    }
-                    localStorage.setItem('siganShiftData', JSON.stringify(shiftData));
-                    loadData();
-                    return;
-                }
-            }
-
-            if (!shiftData[targetDate]) {
-                shiftData[targetDate] = { start: '', end: '', isLocked: false };
-            }
-            
-            shiftData[targetDate].start = startTime;
-            shiftData[targetDate].end = endTime;
-            shiftData[targetDate].startAt = startAt ? startAt.getTime() : null;
-            shiftData[targetDate].endAt = endAt ? endAt.getTime() : null;
-            shiftData[targetDate].startDate = targetDate;
-            shiftData[targetDate].endDate = endAt ? endAt.toLocaleDateString('sv-SE') : targetDate;
-            
-            localStorage.setItem('siganShiftData', JSON.stringify(shiftData));
-            loadData();
-        }
-
-        function pressOnBid() {
-            const targetDate = document.getElementById('globalDate').value;
-            if (!targetDate) return alert("Pilih tanggal operasional terlebih dahulu!");
-            
-            const now = new Date();
-            const hh = String(now.getHours()).padStart(2, '0');
-            const mm = String(now.getMinutes()).padStart(2, '0');
-            const currentTime = `${hh}:${mm}`;
-            
-            let shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
-            if (!shiftData[targetDate]) {
-                shiftData[targetDate] = { start: '', end: '', isLocked: false };
-            }
-            
-            shiftData[targetDate].start = currentTime;
-            shiftData[targetDate].startAt = now.getTime();
-            shiftData[targetDate].startDate = targetDate;
-            document.getElementById('globalStartTime').value = currentTime;
-            
-            localStorage.setItem('siganShiftData', JSON.stringify(shiftData));
-            loadData();
-            alert(`Berhasil log Mulai On-Bid: ${currentTime} (V3 FIX)`);
-        }
-
-        function getDurationInHours(start, end) {
-            if (!start || !end) return 0;
-            const [sH, sM] = start.split(':').map(Number);
-            const [eH, eM] = end.split(':').map(Number);
-            let diffMins = (eH * 60 + eM) - (sH * 60 + sM);
-            if (diffMins === 0) return 24;
-            if (diffMins < 0) diffMins += 24 * 60; 
-            return diffMins / 60;
-        }
-        function getDurationFromShift(shift){
-            if(!shift) return 0;
-            if(shift.startAt && shift.endAt){
-                let diff = (shift.endAt - shift.startAt)/1000/3600;
-                if(diff<0) diff+=24;
-                if(diff>0 && diff<=24) return diff;
-            }
-            return getDurationInHours(shift.start, shift.end);
-        }
-
-        // ===== FIX BUG MERAH: Ambil jam istirahat cas dari BattLog dengan key yang benar =====
-        function getIstirahatCasForDate(targetDate){
-          try{
-            let battEntries = [];
-            const keys = ['maka_log_v1']; // FIX: BattLog pakai maka_log_v1, bukan bt_log_entries
-            for(let k of keys){
-              let raw = localStorage.getItem(k);
-              if(raw){
-                try{ let arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length>0){ battEntries = arr; break; } }catch(e){}
-              }
-            }
-            if(battEntries.length===0){
-              let lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
-              if(lakeRaw){
-                try{
-                  let lake = JSON.parse(lakeRaw);
-                  if(lake && lake.maka && lake.maka.maka_log_v1 && Array.isArray(lake.maka.maka_log_v1)) battEntries = lake.maka.maka_log_v1; // FIX
-                }catch(e){}
-              }
-            }
-            let totalJamCas = 0;
-            let detail = [];
-            battEntries.forEach(e=>{
-              try{
-                if(!e.tanggal || e.tanggal !== targetDate) return;
-                let dur = 0;
-                if(e.jam_mulai_cas && e.jam_selesai_cas){
-                  const [h1,m1] = e.jam_mulai_cas.split(':').map(Number);
-                  const [h2,m2] = e.jam_selesai_cas.split(':').map(Number);
-                  let s = h1*60+m1; let ee = h2*60+m2; if(ee < s) ee+=1440; dur = (ee-s)/60;
-                } else if(e.waktu_dibuat_asli && e.estimasi_selesai){
-                  let jamStr = (e.estimasi_selesai||'').split(' ke ')[0].trim();
-                  if(jamStr && jamStr.includes(':')){
-                    let start = new Date(Number(e.waktu_dibuat_asli));
-                    let [h2,m2] = jamStr.split(':').map(Number);
-                    let end = new Date(start); end.setHours(h2, m2, 0, 0);
-                    if(end < start) end.setDate(end.getDate()+1);
-                    dur = (end - start)/1000/3600;
-                  }
-                }
-                if(dur>0 && dur<12){
-                  let jamMulai = 0;
-                  if(e.jam_mulai_cas) jamMulai = Number(e.jam_mulai_cas.split(':')[0]);
-                  else if(e.waktu_dibuat_asli){ jamMulai = new Date(Number(e.waktu_dibuat_asli)).getHours(); }
-                  // Hanya hitung cas di jam kerja 06-22 sebagai pengurang jam efektif
-                  if(jamMulai>=6 && jamMulai<=22){
-                    totalJamCas += dur;
-                    detail.push({jam: e.jam_mulai_cas||'', dur, lokasi: e.lokasi||''});
-                  }
-                }
-              }catch(err){}
-            });
-            return {totalJamCas, detail};
-          }catch(err){ return {totalJamCas:0, detail:[]}; }
-        }
-
-        function getJamOnlineEfektif(targetDate){
-          try{
-            let shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
-            let dayShift = shiftData[targetDate] || {start:'', end:''};
-            let jamOnbit = getDurationInHours(dayShift.start, dayShift.end);
-            let casInfo = getIstirahatCasForDate(targetDate);
-            let efektif = Math.max(0, jamOnbit - casInfo.totalJamCas);
-            return {jamOnbit, totalJamCas: casInfo.totalJamCas, efektif, detail: casInfo.detail};
-          }catch(e){ return {jamOnbit:0, totalJamCas:0, efektif:0, detail:[]}; }
-        }
-
-
-        function formatRupiah(input) {
-            let val = input.value.replace(/[^0-9]/g, '');
-            input.value = val.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-        }
-
-        function updateCategories() {
-            const type = document.getElementById('type').value;
-            const catSelect = document.getElementById('category');
-            catSelect.innerHTML = "";
-            categories[type].forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat;
-                opt.innerHTML = cat;
-                catSelect.appendChild(opt);
-            });
-            autoFillAmount();
-        }
-
-        function autoFillAmount() {
-            const type = document.getElementById('type').value;
-            const hintEl = document.getElementById('amountSourceHint');
-            if (type !== 'Pendapatan') {
-                if (hintEl) hintEl.innerText = '';
-                return;
-            }
-
-            const cat = document.getElementById('category').value;
-            const dist = Number(document.getElementById('distance').value) || 0;
-            const amountInput = document.getElementById('amount');
-
-            if (dist <= 0) {
-                amountInput.value = '';
-                if (hintEl) hintEl.innerText = '';
-                return;
-            }
-
-            const cfg = getTariffConfig();
-            const rate = cfg[cat];
-            if (!rate) return;
-
-            let estimatedAmount = 0;
-            let source = '';
-
-            if (dist <= rate.baseKm) {
-                estimatedAmount = rate.base;
-                source = `🔒 Menggunakan Tarif Base Terkunci (${rate.baseKm} km pertama)`;
-            } 
-            else {
-                const learned = getLearnedRate(cat);
-
-                if (learned) {
-                    estimatedAmount = rate.base + (learned.ratePerKm * (dist - rate.baseKm));
-                    source = `📊 Base Rp ${rate.base.toLocaleString('id-ID')} + Tarif per km riil (≈Rp ${Math.round(learned.ratePerKm).toLocaleString('id-ID')}/km via Median dari ${learned.count} histori)`;
-                } else {
-                    estimatedAmount = rate.base + (rate.perKm * (dist - rate.baseKm));
-                    source = `⚙️ Dari tarif cadangan (histori kilometer bonus "${cat}" belum cukup)`;
-                }
-            }
-
-            estimatedAmount = Math.round(estimatedAmount / 100) * 100;
-
-            if (estimatedAmount > 0) {
-                amountInput.value = estimatedAmount.toString();
-                formatRupiah(amountInput);
-            }
-
-            if (hintEl) hintEl.innerText = source;
-        }
-
-        function saveData() {
-            const date = document.getElementById('globalDate').value;
-            const time = document.getElementById('txTime').value;
-            const type = document.getElementById('type').value;
-            const cat = document.getElementById('category').value;
-            const note = document.getElementById('note').value;
-            const dist = Number(document.getElementById('distance').value) || 0;
-            const amountStr = document.getElementById('amount').value.replace(/\./g, '');
-            const amount = Number(amountStr) || 0;
-
-            if(!date) return alert("Tanggal harus ditentukan pada kontrol utama atas!");
-            if(dist < 0) return alert("Jarak tidak boleh negatif!");
-            if(amount < 0) return alert("Nominal tidak boleh negatif!");
-            if(amount === 0 && dist === 0) return alert("Nominal dan Jarak tidak boleh kosong secara bersamaan!");
-
-            let predictedEndTime = time;
-            if (dist > 0 && time) {
-                const [h, m] = time.split(':').map(Number);
-                let totalMinutes = h * 60 + m + Math.round(dist * 2);
-                let predH = Math.floor(totalMinutes / 60) % 24;
-                let predM = totalMinutes % 60;
-                predictedEndTime = `${String(predH).padStart(2,'0')}:${String(predM).padStart(2,'0')}`;
-            }
-
-            const entry = { date, time, type, cat, note, dist, amount, predictedEndTime };
-            let data = JSON.parse(localStorage.getItem('siganData') || '[]');
-            
-            if (editIndex !== null) {
-                data[editIndex] = entry;
-                editIndex = null;
-                document.getElementById('btnSubmit').innerText = "Rekam Data";
-                document.getElementById('btnCancelEdit').classList.add('hidden');
-            } else {
-                data.push(entry);
-            }
-            
-            try {
-                localStorage.setItem('siganData', JSON.stringify(data));
-                
-                document.getElementById('distance').value = '';
-                document.getElementById('amount').value = '';
-                document.getElementById('note').value = '';
-                
-                isTimeManuallyLocked = false; 
-                
-                loadData();
-                alert("Data berhasil direkam!"); 
-            } catch (e) {
-                console.error("Gagal menyimpan data:", e);
-                alert("Gagal merekam data! Memori penyimpanan browser penuh.");
-            }
-        }
-
-
-        function quickChangeCat(index, newCat){
-            try{
-                let data = JSON.parse(localStorage.getItem('siganData') || '[]');
-                if(!data[index]) return;
-                data[index].cat = newCat;
-                localStorage.setItem('siganData', JSON.stringify(data));
-                loadData();
-                if(window.buildAndSendSiGan) window.buildAndSendSiGan();
-            }catch(e){ console.error(e); }
-        }
-
-        function editItem(index) {
-            const data = JSON.parse(localStorage.getItem('siganData') || '[]');
-            const item = data[index];
-            if (!item) return;
-
-            editIndex = index;
-            isTimeManuallyLocked = true; 
-
-            document.getElementById('globalDate').value = item.date;
-            document.getElementById('txTime').value = item.time || '00:00';
-            document.getElementById('type').value = item.type;
-            
-            const catSelect = document.getElementById('category');
-            catSelect.innerHTML = "";
-            categories[item.type].forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat;
-                opt.innerHTML = cat;
-                catSelect.appendChild(opt);
-            });
-            
-            document.getElementById('category').value = item.cat;
-            document.getElementById('distance').value = item.dist || '';
-            
-            document.getElementById('amount').value = item.amount ? item.amount.toString() : '';
-            formatRupiah(document.getElementById('amount'));
-            document.getElementById('note').value = item.note || '';
-
-            const savedAmount = document.getElementById('amount').value;
-            autoFillAmount();
-            document.getElementById('amount').value = savedAmount;
-
-            document.getElementById('btnSubmit').innerText = "Simpan Perubahan";
-            document.getElementById('btnCancelEdit').classList.remove('hidden');
-
-            loadData();
-            switchTab('input');
-        }
-
-        function cancelEdit() {
-            editIndex = null;
-            isTimeManuallyLocked = false;
-            document.getElementById('btnSubmit').innerText = "Rekam Data";
-            document.getElementById('btnCancelEdit').classList.add('hidden');
-            
-            document.getElementById('distance').value = '';
-            document.getElementById('amount').value = '';
-            document.getElementById('note').value = '';
-            autoFillAmount();
-        }
-
-        function deleteItem(index) {
-            if(!confirm("Hapus data ini?")) return;
-            let data = JSON.parse(localStorage.getItem('siganData') || '[]');
-            data.splice(index, 1);
-            localStorage.setItem('siganData', JSON.stringify(data));
-            
-            if (editIndex === index) cancelEdit();
-            
-            loadData();
-        }
-
-        function toggleSub(id) {
-            const el = document.getElementById(id);
-            el.classList.toggle('hidden');
-        }
-
-        
-        // === HELPER EV SPKLU ONLY - HEMAT BATERE, HANYA SPKLU ===
-        function isSpkluEv(e){
-          if(!e) return false;
-          const tarifStr = String(e.tarif ?? '');
-          const lokasiStr = (e.lokasi || '').toLowerCase();
-          return tarifStr === '2466' || lokasiStr.includes('spklu') || lokasiStr.includes('spblu');
-        }
-        function calcBiayaEv(e){
-          try{
-            if(e.biaya !== null && e.biaya !== undefined && e.biaya !== ''){
-              return Number(e.biaya)||0;
-            }
-            const cap = Number(e.cap_kwh || 4);
-            const targetCas = Number(e.batt_setelah || 100);
-            const battAkhir = Number(e.batt_akhir || 0);
-            const pct = Math.max(0, targetCas - battAkhir);
-            const energi = (pct/100)*cap;
-            const tarif = Number(e.tarif||0);
-            return energi * tarif;
-          }catch(err){ return 0; }
-        }
-        function getEvSpkluCostMap(){
-          const map = {};
-          try{
-            // Coba ambil dari lake dulu (paling lengkap), fallback ke raw maka_log_v1
-            let makaLog = null;
-            try{
-              const lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
-              if(lakeRaw){
-                const lake = JSON.parse(lakeRaw);
-                if(lake && lake.maka && lake.maka.maka_log_v1) makaLog = lake.maka.maka_log_v1;
-              }
-            }catch(e){}
-            if(!makaLog){
-              makaLog = JSON.parse(localStorage.getItem('maka_log_v1') || '[]');
-            }
-            if(!Array.isArray(makaLog)) return map;
-            for(let i=0;i<makaLog.length;i++){
-              const e = makaLog[i];
-              if(!isSpkluEv(e)) continue;
-              const tgl = e.tanggal;
-              if(!tgl) continue;
-              const biaya = calcBiayaEv(e);
-              if(biaya>0){
-                map[tgl] = (map[tgl]||0) + biaya;
-              }
-            }
-          }catch(err){}
-          return map;
-        }
-        function getEvSpkluCostForDate(dateStr){
-          const map = getEvSpkluCostMap();
-          return map[dateStr] || 0;
-        }
-
-
-        function loadData() {
-            const targetDate = document.getElementById('globalDate').value;
-            const data = JSON.parse(localStorage.getItem('siganData') || '[]');
-            const container = document.getElementById('historyContainer');
-            
-            const shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
-            const dayShift = shiftData[targetDate] || { start: '', end: '' };
-            
-            document.getElementById('globalStartTime').value = dayShift.start || '';
-            document.getElementById('globalEndTime').value = dayShift.end || '';
-            
-            let income = 0, expense = 0, totalIncomeKm = 0; let manualExpense = 0;
-            let grouped = {};
-
-            data.forEach((item, index) => {
-                if(item.date === targetDate && item.cat && item.cat !== "undefined") {
-                    const amt = Number(item.amount) || 0;
-                    const km = Number(item.dist) || 0;
-                    
-                    if(item.type === 'Pendapatan') {
-                        income += amt;
-                        totalIncomeKm += km;
-                    } else {
-                        expense += amt;
-                        manualExpense += amt;
-                    }
-                    
-                    if(!grouped[item.cat]) grouped[item.cat] = [];
-                    grouped[item.cat].push({...item, index});
-                }
-            });
-
-            container.innerHTML = "";
-            
-            if (Object.keys(grouped).length === 0) {
-                container.innerHTML = `<div style="text-align:center; color:#777777; padding: 20px; font-size:13px;">Tidak ada riwayat transaksi pada tanggal ini.</div>`;
-            }
-
-            for(let cat in grouped) {
-                grouped[cat].sort((a,b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
-                let catTotal = grouped[cat].reduce((sum, item) => sum + Number(item.amount), 0);
-                let safeId = cat.replace(/[^a-zA-Z0-9]/g, '-');
-                
-                let html = `<div class="cat-wrapper">
-                    <div class="cat-header" onclick="toggleSub('sub-${safeId}')">
-                        <span>${cat}</span> <span>Rp ${catTotal.toLocaleString('id-ID')}</span>
-                    </div>`;
-                html += `<div id="sub-${safeId}" class="hidden">`;
-                
-                grouped[cat].forEach(item => {
-                    html += `<div class="sub-row">
-                        <div class="row-main">
-                            <div style="display: flex; flex-direction: column;">
-                                <div style="display:flex; align-items:center; gap:6px;">
-                                    <span style="font-size: 11px; color: #40c4ff; font-weight: bold;">[${item.time || '--:--'}]</span>
-                                    <span style="font-size: 14px; font-weight: bold; color: #ffffff;">Rp ${Number(item.amount).toLocaleString('id-ID')}</span>
-                                </div>
-                                <span style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">${item.dist} km</span>
-                            </div>
-                            <div style="display: flex; gap: 4px; flex-wrap:wrap; justify-content:flex-end">
-                                <button class="btn-mini" style="background:#1e3a5f;color:#7dffb7;border:1px solid #2b5a9a;padding:4px 6px;border-radius:6px;font-size:10px;font-weight:700" onclick="quickChangeCat(${item.index}, 'Goride')">GR</button>
-                                <button class="btn-mini" style="background:#1e3a5f;color:#ffd166;border:1px solid #8a6d3b;padding:4px 6px;border-radius:6px;font-size:10px;font-weight:700" onclick="quickChangeCat(${item.index}, 'Goride Hemat')">GH</button>
-                                <button class="btn-mini" style="background:#1e3a5f;color:#ff8fab;border:1px solid #8a3b5a;padding:4px 6px;border-radius:6px;font-size:10px;font-weight:700" onclick="quickChangeCat(${item.index}, 'Goride Comfort')">GC</button>
-                                <button class="btn-edit" onclick="editItem(${item.index})">Edit</button>
-                                <button class="btn-del" onclick="deleteItem(${item.index})">Hapus</button>
-                            </div>
-                        </div>
-                        ${item.note ? `<div class="row-note">${item.note}</div>` : ''}
-                    </div>`;
-                });
-                html += `</div></div>`;
-                container.innerHTML += html;
-            }
-
-            let evSpkluCostToday = getEvSpkluCostForDate(targetDate);
-            let totalExpenseWithEv = expense + evSpkluCostToday;
-            // Tampilkan expense total termasuk SPKLU, tapi simpan manual terpisah untuk breakdown
-            let netBalance = income - totalExpenseWithEv;
-            // Update tampilan expense menjadi total (manual + SPKLU)
-            // Simpan untuk rekap: window last
-            window._lastEvSpkluCostToday = evSpkluCostToday;
-            window._lastManualExpenseToday = manualExpense;
-            // Override expense variable untuk UI agar mencerminkan total
-            expense = totalExpenseWithEv;
-
-            let netYieldPerKm = totalIncomeKm > 0 ? Math.round(netBalance / totalIncomeKm) : 0;
-
-            document.getElementById('valIncome').innerText = "Rp " + income.toLocaleString('id-ID');
-            document.getElementById('valExpense').innerText = "Rp " + expense.toLocaleString('id-ID');
-            document.getElementById('valBalance').innerText = "Rp " + netBalance.toLocaleString('id-ID');
-            document.getElementById('valEfficiency').innerText = "Rp " + netYieldPerKm.toLocaleString('id-ID') + " /km";
-
-            const globalTarget = Number(localStorage.getItem('siganGlobalTarget')) || 200000;
-            document.getElementById('inputTarget').value = globalTarget;
-            
-            let actualPercent = globalTarget > 0 ? Math.round((income / globalTarget) * 100) : 0;
-            let barPercent = Math.min(actualPercent, 100);
-            
-            document.getElementById('progressBar').style.width = barPercent + "%";
-            document.getElementById('txtTargetProgress').innerText = actualPercent + "% Tercapai " + (actualPercent >= 100 ? "(Tembus! 🎯)" : "(Semangat!)");
-
-            loadRekapData();
-        }
-
-        function loadRekapData() {
-            const period = document.getElementById('rekapPeriod').value;
-            const data = JSON.parse(localStorage.getItem('siganData') || '[]');
-            const shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
-            
-            const targetDateStr = document.getElementById('globalDate').value;
-            if(!targetDateStr) return;
-            
-            const parts = targetDateStr.split('-');
-            const anchorDate = new Date(parts[0], parts[1] - 1, parts[2]);
-            anchorDate.setHours(0,0,0,0);
-            
-            let cutoffDate = new Date(anchorDate);
-            let daysToSubtract = parseInt(period) - 1;
-            cutoffDate.setDate(anchorDate.getDate() - daysToSubtract);
-
-            let totalIncome = 0, totalExpense = 0, totalKm = 0;
-            let incomeByCat = {};
-            
-            let serviceRates = {};
-            categories["Pendapatan"].forEach(cat => {
-                serviceRates[cat] = { amt: 0, km: 0, totalCount: 0, tipCount: 0, tipAmt: 0 };
-            });
-
-            let dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-            let dayOfWeekData = dayNames.map(name => ({ name, net: 0, hours: 0 }));
-
-            let hourlyBlocks = [
-                { label: "🌅 Subuh - Pagi (05.00 - 10.00)", startH: 5, endH: 10, net: 0, hours: 0 },
-                { label: "☀️ Siang - Sore (10.00 - 16.00)", startH: 10, endH: 16, net: 0, hours: 0 },
-                { label: "🌆 Malam Malam (16.00 - 22.00)", startH: 16, endH: 22, net: 0, hours: 0 },
-                { label: "🌌 Larut Malam (22.00 - 05.00)", startH: 22, endH: 5, net: 0, hours: 0 }
-            ];
-
-            let tiers = {
-                short: { net: 0, hours: 0, count: 0 },
-                ideal: { net: 0, hours: 0, count: 0 },
-                long:  { net: 0, hours: 0, count: 0 }
-            };
-
-            let totalHoursPeriod = 0;
-            let daysWithShiftCount = 0;
-            let dailyAgg = {};
-            
-            let tempDate = new Date(cutoffDate);
-            while(tempDate <= anchorDate) {
-                let dStr = tempDate.toLocaleDateString('sv-SE');
-                dailyAgg[dStr] = { income: 0, expense: 0, orders: [] };
-                tempDate.setDate(tempDate.getDate() + 1);
-            }
-
-            let dailyExpenseMap = {};
-
-            data.forEach(item => {
-                if(item.date && item.cat && item.cat !== "undefined") {
-                    const p = item.date.split('-');
-                    const itemDate = new Date(p[0], p[1] - 1, p[2]);
-                    itemDate.setHours(0,0,0,0);
-                    
-                    if (itemDate >= cutoffDate && itemDate <= anchorDate) {
-                        const dStr = item.date;
-                        if (!dailyAgg[dStr]) dailyAgg[dStr] = { income: 0, expense: 0, orders: [] };
-                        
-                        const amt = Number(item.amount) || 0;
-                        const km = Number(item.dist) || 0;
-                        
-                        if (item.type === 'Pendapatan') {
-                            totalIncome += amt;
-                            totalKm += km;
-                            incomeByCat[item.cat] = (incomeByCat[item.cat] || 0) + amt;
-                            dailyAgg[dStr].income += amt;
-                            
-                            if(item.time) {
-                                let itemHour = parseInt(item.time.split(':')[0]);
-                                dailyAgg[dStr].orders.push({ hour: itemHour, amount: amt, dist: km, type: 'in' });
-                            }
-
-                            if (serviceRates[item.cat] !== undefined) {
-                                if (km === 0) {
-                                    serviceRates[item.cat].tipCount++;
-                                    serviceRates[item.cat].tipAmt += amt;
-                                } 
-                                else {
-                                    serviceRates[item.cat].amt += amt;
-                                    serviceRates[item.cat].km += km;
-                                    serviceRates[item.cat].totalCount++;
-                                }
-                            }
-                        } else {
-                            totalExpense += amt;
-                            dailyAgg[dStr].expense += amt;
-                            dailyExpenseMap[dStr] = (dailyExpenseMap[dStr] || 0) + amt;
-                        }
-                    }
-                }
-            });
-
-
-            // === TAMBAHAN: HITUNG BIAYA SPKLU ONLY DARI BATTLOG ===
-            let evSpkluMap = getEvSpkluCostMap();
-            // Gabungkan ke dailyAgg dan totalExpense (hanya SPKLU)
-            for(let tgl in evSpkluMap){
-              let biayaSpklu = evSpkluMap[tgl]||0;
-              if(biayaSpklu<=0) continue;
-              // cek apakah tanggal dalam periode rekap
-              const p = tgl.split('-');
-              const itemDate = new Date(p[0], p[1]-1, p[2]); itemDate.setHours(0,0,0,0);
-              if(itemDate >= cutoffDate && itemDate <= anchorDate){
-                if(!dailyAgg[tgl]) dailyAgg[tgl] = { income: 0, expense: 0, orders: [] };
-                dailyAgg[tgl].expense += biayaSpklu;
-                totalExpense += biayaSpklu;
-                dailyExpenseMap[tgl] = (dailyExpenseMap[tgl]||0) + biayaSpklu;
-              }
-            }
-            window._lastEvSpkluMap = evSpkluMap;
-
-
-            for (let dStr in dailyAgg) {
-                const p = dStr.split('-');
-                const itemDate = new Date(p[0], p[1] - 1, p[2]);
-                const dayIndex = itemDate.getDay();
-                
-                let dayNet = dailyAgg[dStr].income - dailyAgg[dStr].expense;
-                dayOfWeekData[dayIndex].net += dayNet;
-                
-                let s = shiftData[dStr];
-                let h = 0;
-                if (s && s.start && s.end) {
-                    h = getDurationFromShift(s);
-                }
-
-                if (h > 0) {
-                    let casInfoForTotal = getIstirahatCasForDate(dStr);
-                    let hEffForTotal = Math.max(0, h - casInfoForTotal.totalJamCas);
-                    totalHoursPeriod += hEffForTotal;
-                    daysWithShiftCount++;
-                    dayOfWeekData[dayIndex].hours += hEffForTotal;
-                    
-                    let hForTier = Math.max(0, h - getIstirahatCasForDate(dStr).totalJamCas);
-                    if (hForTier < 5) {
-                        tiers.short.net += dayNet;
-                        tiers.short.hours += hForTier;
-                        tiers.short.count++;
-                    } else if (hForTier <= 8) {
-                        tiers.ideal.net += dayNet;
-                        tiers.ideal.hours += hForTier;
-                        tiers.ideal.count++;
-                    } else {
-                        tiers.long.net += dayNet;
-                        tiers.long.hours += hForTier;
-                        tiers.long.count++;
-                    }
-
-                    // ===== FIX MINOR: presisi fraksi jam + kurangi cas =====
-                    let casInfoDay = getIstirahatCasForDate(dStr);
-                    let hEff = Math.max(0, h - casInfoDay.totalJamCas);
-                    // alokasi jam efektif ke blok dengan presisi menit
-                    let [sH2,sM2]=s.start.split(':').map(Number);
-                    let [eH2,eM2]=s.end.split(':').map(Number);
-                    let sMin=sH2*60+sM2; let eMin=eH2*60+eM2; if(eMin<=sMin) eMin+=1440;
-                    let durEffMin = hEff*60; // durasi efektif dalam menit
-                    // Bagi durasi efektif proporsional ke blok sesuai overlap shift asli
-                    // Hitung overlap shift asli dengan tiap blok
-                    let rawOverlaps=[];
-                    let totalRawOverlap=0;
-                    hourlyBlocks.forEach(b=>{
-                        let bS=b.startH*60, bE=b.endH*60; if(bE<=bS) bE+=1440;
-                        // cek overlap dengan shift di 2 jendela (0-1440 dan 1440-2880) biar wrap aman
-                        let overlap=0;
-                        for(let off=0; off<=1440; off+=1440){
-                            let bS2=bS+off, bE2=bE+off;
-                            overlap+=Math.max(0, Math.min(eMin, bE2)-Math.max(sMin, bS2));
-                        }
-                        rawOverlaps.push(overlap);
-                        totalRawOverlap+=overlap;
-                    });
-                    // distribusikan hEff sesuai proporsi overlap
-                    hourlyBlocks.forEach((b, idx)=>{
-                        let prop = totalRawOverlap>0 ? rawOverlaps[idx]/totalRawOverlap : 0;
-                        b.hours += (hEff*prop);
-                    });
-                    // kurangi jam cas dari blok tempat cas terjadi (detail)
-                    casInfoDay.detail.forEach(cd=>{
-                        if(!cd.jam) return;
-                        let [cH,cM]=cd.jam.split(':').map(Number);
-                        let cMin=cH*60+(cM||0);
-                        hourlyBlocks.forEach(b=>{
-                            let bS=b.startH*60, bE=b.endH*60; let inBlock=false;
-                            if(bS<=bE){ inBlock = (cMin>=bS && cMin<bE); }
-                            else { inBlock = (cMin>=bS || cMin<bE); }
-                            if(inBlock){ b.hours = Math.max(0, b.hours - cd.dur); }
-                        });
-                    });
-                }
-
-                let dayOrders = dailyAgg[dStr].orders;
-                let dayTotalBruto = dailyAgg[dStr].income;
-                let dayTotalExpense = dailyAgg[dStr].expense;
-
-                dayOrders.forEach(ord => {
-                    hourlyBlocks.forEach(b => {
-                        let match = false;
-                        if (b.startH <= b.endH) {
-                            if (ord.hour >= b.startH && ord.hour < b.endH) match = true;
-                        } else {
-                            if (ord.hour >= b.startH || ord.hour < b.endH) match = true;
-                        }
-                        
-                        if (match) {
-                            // FIX V3: Bobot by jarak, bukan nominal - biaya operasional linear terhadap jarak
-                            let dayTotalDistForWeight = dailyAgg[dStr].orders ? dailyAgg[dStr].orders.reduce((sum,o)=>sum+Number(o.dist||0),0) : 0;
-                            let weight = dayTotalDistForWeight > 0 ? (Number(ord.dist||0) / dayTotalDistForWeight) : (dayTotalBruto > 0 ? (ord.amount / dayTotalBruto) : 0);
-                            let allocatedExpense = dayTotalExpense * weight;
-                            b.net += (ord.amount - allocatedExpense);
-                        }
-                    });
-                });
-            }
-
-            let avgEfficiency = totalKm > 0 ? Math.round(totalIncome / totalKm) : 0;
-            let globalCostPerKm = totalKm > 0 ? totalExpense / totalKm : 0;
-
-            let avgShiftDuration = daysWithShiftCount > 0 ? (totalHoursPeriod / daysWithShiftCount) : 0;
-            let avgRpPerHourPeriod = totalHoursPeriod > 0 ? Math.round((totalIncome - totalExpense) / totalHoursPeriod) : 0;
-
-            document.getElementById('rekapTotalHours').innerText = totalHoursPeriod.toFixed(1) + " jam";
-            document.getElementById('rekapAvgShift').innerText = avgShiftDuration.toFixed(1) + " jam/hari";
-            document.getElementById('rekapAvgRpPerHour').innerText = "Rp " + avgRpPerHourPeriod.toLocaleString('id-ID') + " /jam";
-
-            document.getElementById('rekapIncome').innerText = "Rp " + totalIncome.toLocaleString('id-ID');
-            document.getElementById('rekapExpense').innerText = "Rp " + totalExpense.toLocaleString('id-ID');
-            document.getElementById('rekapBalance').innerText = "Rp " + (totalIncome - totalExpense).toLocaleString('id-ID');
-            document.getElementById('rekapKm').innerText = totalKm.toFixed(1) + " km";
-            document.getElementById('rekapEfficiency').innerText = "Rp " + avgEfficiency.toLocaleString('id-ID') + " /km";
-
-            const hourlyContainer = document.getElementById('rekapHourlyContainer');
-            hourlyContainer.innerHTML = "";
-            let maxHourlyRp = Math.max(...hourlyBlocks.map(b => b.hours > 0 ? Math.abs(Math.round(b.net / b.hours)) : 0), 1);
-            
-            hourlyBlocks.forEach(b => {
-                let yieldPerHour = b.hours > 0 ? Math.round(b.net / b.hours) : 0;
-                let pct = Math.round((Math.abs(yieldPerHour) / maxHourlyRp) * 100);
-                let barColor = yieldPerHour >= 0 ? '#e040fb' : '#ff5252';
-                
-                hourlyContainer.innerHTML += `
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>${b.label}</span>
-                            <span style="color:${barColor}; font-weight:bold;">Rp ${yieldPerHour.toLocaleString('id-ID')}/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: ${pct}%; background:${barColor};"></div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            const breakdownContainer = document.getElementById('rekapBreakdownContainer');
-            breakdownContainer.innerHTML = "";
-
-            if (totalIncome === 0) {
-                breakdownContainer.innerHTML = `<div style="color:#777777; font-size:12px; text-align:center; padding:15px 0;">Tidak ada data pendapatan pada periode ini.</div>`;
-            } else {
-                const sortedCats = Object.keys(incomeByCat).sort((a, b) => incomeByCat[b] - incomeByCat[a]);
-                sortedCats.forEach(cat => {
-                    const amt = incomeByCat[cat];
-                    const pct = Math.round((amt / totalIncome) * 100);
-                    breakdownContainer.innerHTML += `
-                        <div class="breakdown-row">
-                            <div class="breakdown-label">
-                                <span>${cat} <strong>(${pct}%)</strong></span>
-                                <span>Rp ${amt.toLocaleString('id-ID')}</span>
-                            </div>
-                            <div class="breakdown-bg">
-                                <div class="breakdown-fill" style="width: ${pct}%;"></div>
-                            </div>
-                        </div>
-                    `;
-                });
-            }
-
-            const ratesContainer = document.getElementById('rekapRatesContainer');
-            ratesContainer.innerHTML = "";
-
-            for (let cat in serviceRates) {
-                let r = serviceRates[cat];
-                let brutoPerKm = r.km > 0 ? Math.round(r.amt / r.km) : 0;
-                let marginNettoPerKm = brutoPerKm > 0 ? (brutoPerKm - globalCostPerKm) : 0;
-                let avgTip = r.tipCount > 0 ? Math.round(r.tipAmt / r.tipCount) : 0;
-                
-                let rateText = (brutoPerKm > 0 || r.tipAmt > 0) 
-                    ? `<div style="text-align: right; font-size: 11px; line-height: 1.4;">
-                        <span style="font-weight:bold; color:#40c4ff;">Bruto: Rp ${brutoPerKm.toLocaleString('id-ID')}/km</span><br>
-                        <span style="color:${marginNettoPerKm >= 0 ? '#00e676' : '#ff5252'}; font-weight:500;">Margin: Rp ${Math.round(marginNettoPerKm).toLocaleString('id-ID')}/km</span><br>
-                        <span style="color:#ffb300;">Tip: ${r.tipCount}x (Rata<sup>2</sup>: Rp ${avgTip.toLocaleString('id-ID')})</span>
-                       </div>` 
-                    : `<span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data jarak</span>`;
-                
-                ratesContainer.innerHTML += `
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">${cat}</span>
-                        <span>${rateText}</span>
-                    </div>
-                `;
-            }
-
-            const tiersContainer = document.getElementById('rekapTiersContainer');
-            tiersContainer.innerHTML = "";
-
-            let tierList = [
-                { label: "⚡ Shift Pendek (< 5 Jam)", data: tiers.short },
-                { label: "🎯 Shift Ideal (5 - 8 Jam)", data: tiers.ideal },
-                { label: "🚨 Shift Lembur (> 8 Jam)", data: tiers.long }
-            ];
-
-            tierList.forEach(t => {
-                let avg = t.data.hours > 0 ? Math.round(t.data.net / t.data.hours) : 0;
-                let infoText = t.data.count > 0
-                    ? `<div style="text-align: right; font-size: 11px; line-height: 1.4;">
-                        <span style="font-weight:bold; color:#ffb300;">Rp ${avg.toLocaleString('id-ID')}/jam</span><br>
-                        <span style="color:var(--muted)aaa;">${t.data.count} Hari Shift (${t.data.hours.toFixed(1)} Jam)</span>
-                       </div>`
-                    : `<span style="color:#5a7096666; font-style:italic; font-size:12px;">Belum ada data shift</span>`;
-
-                tiersContainer.innerHTML += `
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333333; padding-bottom:6px;">
-                        <span style="font-weight:500; color:#cccccc;">${t.label}</span>
-                        <span>${infoText}</span>
-                    </div>
-                `;
-            });
-
-            const daysContainer = document.getElementById('rekapDaysContainer');
-            daysContainer.innerHTML = "";
-            dayOfWeekData.forEach(d => { d.rpPerHour = d.hours > 0 ? Math.round(d.net / d.hours) : 0; });
-            let maxRpPerHour = Math.max(...dayOfWeekData.map(d => Math.abs(d.rpPerHour)), 1);
-
-            dayOfWeekData.forEach(d => {
-                let pct = Math.round((Math.abs(d.rpPerHour) / maxRpPerHour) * 100);
-                let barColor = d.rpPerHour >= 0 ? '#00e676' : '#ff5252';
-                
-                daysContainer.innerHTML += `
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">
-                            <span>${d.name} <span style="font-size:10px; color:var(--muted)aaa;">(Net: Rp ${d.net.toLocaleString('id-ID')})</span></span>
-                            <span style="color:${barColor}; font-weight:bold;">Rp ${d.rpPerHour.toLocaleString('id-ID')}/jam</span>
-                        </div>
-                        <div class="breakdown-bg">
-                            <div class="breakdown-fill" style="width: ${pct}%; background:${barColor};"></div>
-                        </div>
-                        <div style="font-size:9px; color:#777777; margin-top: 2px; text-align:right;">Total Kerja Harian: ${d.hours.toFixed(1)} Jam</div>
-                    </div>
-                `;
-            });
-
-            // ==========================================
-            // MESIN INTEGRASI ANALISIS NARASI INTELIJEN AI
-            // ==========================================
-            const insightContainer = document.getElementById('rekapInsightContainer');
-            insightContainer.innerHTML = "";
-            
-            if (totalIncome === 0) {
-                insightContainer.innerHTML = `<div style="color:var(--muted)aaa; font-style:italic; font-size:12px;">Belum ada data pergerakan di periode ini. Roda belum berputar, kumpulkan data tarikan dulu agar AI bisa menganalisis strategimu!</div>`;
-            } else {
-                let aiInsights = [];
-                
-                // 1. Analisis Efisiensi Waktu Global
-                if (avgRpPerHourPeriod > 0) {
-                    if (avgRpPerHourPeriod >= 35000) {
-                        aiInsights.push("🔥 <strong>Eksekusi Rute Super Efisien:</strong> Jam on-bid dan pilihan spot kamu saat ini berada di level puncak. Waktu tunggu minim, argo jalan terus.");
-                    } else if (avgRpPerHourPeriod >= 20000) {
-                        aiInsights.push("🔄 <strong>Terdeteksi 'Dead Time' Makro:</strong> Pendapatan bersih per jam berada di rata-rata standar kota. Waspadai waktu tunggu kosong di sela-sela orderan yang memakan durasi shift.");
-                    } else {
-                        aiInsights.push("⚠️ <strong>Peringatan Efisiensi Shift:</strong> Hasil bersih per jam terpantau lemah. Jam kerja terlalu panjang namun tidak sebanding dengan hasil bersih. Wajib ubah jam keluar atau geser area mangkal.");
-                    }
-                }
-
-                // 2. Analisis Blok Jam Kerja Terbaik
-                let bestBlock = hourlyBlocks[0];
-                let maxBlockAvg = 0;
-                hourlyBlocks.forEach(b => {
-                    let bAvg = b.hours > 0 ? b.net / b.hours : 0;
-                    if(bAvg > maxBlockAvg) { maxBlockAvg = bAvg; bestBlock = b; }
-                });
-                if(maxBlockAvg > 0) {
-                    aiInsights.push(`⏰ <strong>Zona Waktu Emas:</strong> Rentang waktu <strong>${bestBlock.label}</strong> adalah tambang emasmu dengan efisiensi tertinggi per jam. Amankan jam ini untuk tidak off-bid.`);
-                }
-
-                // 3. Analisis Dinamis Berdasarkan Layanan Dominan & Anomalinya
-                // Menghitung persentase kontribusi per layanan
-                let pGoride = ((incomeByCat["Goride"] || 0) + (incomeByCat["Goride Hemat"] || 0) + (incomeByCat["Goride Comfort"] || 0)) / totalIncome;
-                let pGofood = (incomeByCat["Gofood"] || 0) / totalIncome;
-                let pGosend = (incomeByCat["Gosend"] || 0) / totalIncome;
-                let pGomart = (incomeByCat["Gomart"] || 0) / totalIncome;
-
-                // Cek Anomali Goride
-                if (pGoride >= 0.25) {
-                    let pctTxt = Math.round(pGoride * 100);
-                    aiInsights.push(`🏍️ <strong>Analisis Peta Goride Group (${pctTxt}%):</strong> Layanan ini menyumbang porsi besar karena ongkosnya stabil dan bagus. <strong>Anomali Lapangan:</strong> Tingkat persaingan sesama driver sangat tinggi. <em>Saran AI:</em> Hindari menumpuk di area kerumunan basecamp driver lain. Gunakan strategi melipir tipis-tipis di radius luar hotspot demand.`);
-                }
-
-                // Cek Anomali Gofood
-                if (pGofood >= 0.25) {
-                    let pctTxt = Math.round(pGofood * 100);
-                    let gofoodBrutoKm = serviceRates["Gofood"].km > 0 ? Math.round(serviceRates["Gofood"].amt / serviceRates["Gofood"].km) : 0;
-                    
-                    let gofoodWarning = `🍔 <strong>Analisis Peta Gofood (${pctTxt}%):</strong> Kontribusi argo layanan bagus. <strong>Anomali Lapangan:</strong> Waktu tunggu resto rawan lama dan memotong jam kerja efektif.`;
-                    if (avgRpPerHourPeriod < 22000) {
-                        gofoodWarning += ` <span style="color:#ff5252;">(AI Mendeteksi Rp/Jam kamu drop, kemungkinan besar akibat terjebak antrean resto)</span>.`;
-                    }
-                    gofoodWarning += ` <em>Saran AI:</em> Hafalkan resto yang lambat di jam sibuk, batasi toleransi menunggu maksimal 15-20 menit agar ritme per jam tidak hancur.`;
-                    aiInsights.push(gofoodWarning);
-                }
-
-                // Cek Anomali Gosend
-                if (pGosend >= 0.20) {
-                    let pctTxt = Math.round(pGosend * 100);
-                    let gosendBrutoKm = serviceRates["Gosend"].km > 0 ? Math.round(serviceRates["Gosend"].amt / serviceRates["Gosend"].km) : 0;
-                    
-                    let gosendMsg = `📦 <strong>Analisis Peta Gosend (${pctTxt}%):</strong> Kelebihannya adalah kecepatan (tanpa waktu tunggu resto) dan sering dapet trip jarak jauh. <strong>Anomali Lapangan:</strong> Nilai tarif per kilometer terlalu kecil.`;
-                    if (avgEfficiency < 2500) {
-                        gosendMsg += ` <span style="color:#ff8a80;">(AI mendeteksi efisiensi total Rp/Km kamu tertekan turun akibat argo Gosend yang murah ini)</span>.`;
-                    }
-                    gosendMsg += ` <em>Saran AI:</em> Gunakan Gosend hanya sebagai pengisi waktu kosong di siang hari atau pelicin ritme saat orderan penumpang sedang seret.`;
-                    aiInsights.push(gosendMsg);
-                }
-
-                // Cek Anomali Gomart
-                if (pGomart >= 0.10) {
-                    let pctTxt = Math.round(pGomart * 100);
-                    aiInsights.push(`🛒 <strong>Analisis Peta Gomart (${pctTxt}%):</strong> Layanan idaman! Waktu tunggu singkat di kasir mini market dan ongkosnya sangat bagus. <strong>Anomali Lapangan:</strong> Frekuensi orderan tergolong langka/jarang muncul. <em>Saran AI:</em> Sekalinya orderan Gomart melintas di layar hp-mu, jangan pernah dilewatkan, langsung sikat!`);
-                }
-
-                // 4. Rekomendasi Cross-Data Khusus (Kombinasi Tarif Rendah vs Jarak)
-                // 4.1 Analisis Biaya SPKLU (hanya SPKLU, rumah gratis)
-                let totalEvSpkluInPeriod = 0;
-                for(let k in evSpkluMap){
-                  const pp = k.split('-'); const dd = new Date(pp[0], pp[1]-1, pp[2]); dd.setHours(0,0,0,0);
-                  if(dd >= cutoffDate && dd <= anchorDate) totalEvSpkluInPeriod += evSpkluMap[k];
-                }
-                if(totalEvSpkluInPeriod > 0){
-                  let avgEvCostPerKm = totalKm > 0 ? Math.round(totalEvSpkluInPeriod / totalKm) : 0;
-                  aiInsights.push(`⚡ <strong>Biaya SPKLU Real:</strong> Total Rp ${Math.round(totalEvSpkluInPeriod).toLocaleString('id-ID')} (${avgEvCostPerKm>0? 'Rp '+avgEvCostPerKm+'/km':''}) dalam periode ini. Biaya rumah tidak dihitung karena gratis. ${avgEvCostPerKm>300? '<span style="color:#ff5252">Cukup boros, coba cas malam di rumah lebih banyak.</span>':'<span style="color:#00e676">Sudah efisien.</span>'}`);
-                }
-
-                if (avgEfficiency > 0 && avgEfficiency < 2200 && pGosend > 0.30) {
-                    aiInsights.push("🚨 <strong>Koreksi Strategi AI:</strong> Akumulasi netto Rp/km kamu terlalu rendah karena didominasi paket jarak jauh berbiaya murah. Kurangi trip Gosend jarak ekstrem jika alokasi waktu tersebut bisa dipakai untuk 1-2 tarikan Goride pendek bermargin tebal.");
-                }
-
-                // Render ke HTML list
-                let htmlInsight = `<ul style="margin: 0; padding-left: 18px; font-size: 12.5px; color: #e0e0e0; line-height: 1.6; display: flex; flex-direction: column; gap: 10px;">`;
-                aiInsights.forEach(s => { htmlInsight += `<li>${s}</li>`; });
-                htmlInsight += `</ul>`;
-                insightContainer.innerHTML = htmlInsight;
-            }
-        }
-
-        function exportToCSV() {
-            const data = JSON.parse(localStorage.getItem('siganData') || '[]');
-            if(data.length === 0) return alert("Belum ada data untuk diekspor!");
-
-            const shiftData = JSON.parse(localStorage.getItem('siganShiftData') || '{}');
-            let csvContent = "Tanggal;Jam Transaksi;Jam Selesai Prediksi;Tipe;Kategori;Jarak (KM);Nominal;Jam Mulai Shift;Jam Selesai Shift;Keterangan\n";
-
-            data.forEach(item => {
-                const dayShift = shiftData[item.date] || { start: '', end: '' };
-                let row = [
-                    item.date,
-                    item.time || '',
-                    item.predictedEndTime || '',
-                    item.type,
-                    item.cat,
-                    item.dist.toString().replace('.', ','), 
-                    item.amount,
-                    dayShift.start || '',
-                    dayShift.end || '',
-                    `"${(item.note || '').replace(/"/g, '""')}"`
-                ].join(";");
-                csvContent += row + "\n";
-            });
-
-            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            const tglLokal = new Date().toLocaleDateString('sv-SE');
-            link.setAttribute("download", `sigan_analytics_strategic_${tglLokal}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }
-
-        window.onload = function() {
-            const today = new Date().toLocaleDateString('sv-SE'); 
-            document.getElementById('globalDate').value = today;
-            
-            if(!localStorage.getItem('siganGlobalTarget')) {
-                localStorage.setItem('siganGlobalTarget', 200000);
-            }
-            
-            startLiveClock();
-            updateCategories();
-            loadData();
-        };
-    </script>
-
-
-<!-- AI ENGINE V2 OVERRIDE - PENGGANTI TARIF DASAR FLAT -->
 <script>
-const AIEngineV2 = {
-  STORAGE_KEY: 'sigan_ai_v2_models',
-  models: {},
-  globalModel: null,
-  helpers: {
-    median(arr){ if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; },
-    percentile(arr,p){ if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b); const idx=Math.ceil((p/100)*s.length)-1; return s[Math.max(0,Math.min(idx,s.length-1))]; },
-    mean(arr){ return arr.length? arr.reduce((a,b)=>a+b,0)/arr.length : 0; },
-    clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
-  },
-  learn(){
-    try{
-      const data = JSON.parse(localStorage.getItem('siganData')||'[]');
-      const pend = data.filter(x=>x.type==='Pendapatan' && Number(x.dist)>0 && Number(x.amount)>0);
-      const models = {};
-      const regress = (xs,ys)=>{
-        const n=xs.length; if(n<2) return {base:0,perKm:0, rmse:999999};
-        let sumX=0,sumY=0,sumXY=0,sumX2=0;
-        for(let i=0;i<n;i++){ sumX+=xs[i]; sumY+=ys[i]; sumXY+=xs[i]*ys[i]; sumX2+=xs[i]*xs[i]; }
-        const denom=(n*sumX2 - sumX*sumX);
-        let perKm=denom!==0 ? (n*sumXY - sumX*sumY)/denom : 0;
-        let base=(sumY - perKm*sumX)/n;
-        if(!isFinite(perKm) || perKm<200) perKm=0;
-        if(!isFinite(base)) base=0;
-        if(base<0) base=0;
-        if(perKm>15000) perKm=15000;
-        // hitung RMSE
-        let err=0; for(let i=0;i<n;i++){ let pred=base+perKm*xs[i]; err+=Math.pow(ys[i]-pred,2); }
-        let rmse=Math.sqrt(err/n);
-        return {base,perKm, rmse};
-      };
-      const CANDIDATE_KM = [1.0,1.5,1.8,2.0,2.2,2.5,2.8,3.0,3.5,4.0];
-      const kmeans1D = (arr, k=2, iter=12)=>{
-        if(arr.length<k) return null;
-        let sorted=[...arr].sort((a,b)=>a-b);
-        let c1=sorted[Math.floor(sorted.length*0.25)];
-        let c2=sorted[Math.floor(sorted.length*0.75)];
-        let centroids=[c1,c2];
-        for(let it=0; it<iter; it++){
-          let clusters=[[],[]];
-          for(let v of arr){
-            let d0=Math.abs(v-centroids[0]), d1=Math.abs(v-centroids[1]);
-            clusters[d0<=d1?0:1].push(v);
-          }
-          if(!clusters[0].length || !clusters[1].length) break;
-          centroids[0]=clusters[0].reduce((a,b)=>a+b,0)/clusters[0].length;
-          centroids[1]=clusters[1].reduce((a,b)=>a+b,0)/clusters[1].length;
-        }
-        let cl0=[], cl1=[];
-        for(let v of arr){
-          if(Math.abs(v-centroids[0]) <= Math.abs(v-centroids[1])) cl0.push(v); else cl1.push(v);
-        }
-        return {c1:Math.round(centroids[0]), c2:Math.round(centroids[1]), cluster0:cl0, cluster1:cl1};
-      };
-      for(let cat of categories.Pendapatan){
-        let entries=pend.filter(e=>e.cat===cat);
-        entries.sort((a,b)=>(a.date<b.date?1:-1));
-        if(entries.length<3){
-          models[cat]={count:entries.length, base:0, base2:null, baseKm:2.5, perKm:0, baseLower:0, perKmLower:0, baseUpper:0, perKmUpper:0, avgRpPerKm:0, medianRpPerKm:0, hourlyFactor:{}, blockFactor:{subuh:1,siang:1,sore:1,malam:1}, jamSibuk:'sore', confidence:'low', lastUpdated:Date.now(), insufficient:true, autoFlatKm:2.5, dualFlat:false};
-          continue;
-        }
-        let ys=entries.map(e=>Number(e.amount));
-        let rpkm=entries.map(e=>Number(e.amount)/Number(e.dist));
-        let medRpKm=this.helpers.median(rpkm);
-        let avgRpKm=this.helpers.mean(rpkm);
+// ================= V5 CORE =================
+let editIndex = null;
+let isTimeManuallyLocked = false;
+let clockInterval = null;
 
-        // === AUTO LEARN BASE_KM via elbow ===
-        let bestKm=2.5, bestError=Infinity, bestBase=0, bestPerKm=0;
-        for(let candKm of CANDIDATE_KM){
-          let shortC=entries.filter(e=>Number(e.dist)<=candKm);
-          let longC=entries.filter(e=>Number(e.dist)>candKm);
-          if(shortC.length<3 || longC.length<3) continue;
-          let baseC=this.helpers.median(shortC.map(e=>Number(e.amount)));
-          let xsC=longC.map(e=>Number(e.dist)-candKm);
-          let ysC=longC.map(e=>Math.max(0, Number(e.amount)-baseC));
-          let reg=regress(xsC, ysC);
-          if(!reg.perKm || reg.perKm<200) continue;
-          // error = variance short + rmse long
-          let varShort=0; for(let s of shortC){ varShort+=Math.pow(Number(s.amount)-baseC,2); } varShort=Math.sqrt(varShort/shortC.length);
-          let totalErr=varShort*0.5 + reg.rmse;
-          if(totalErr<bestError){ bestError=totalErr; bestKm=candKm; bestBase=baseC; bestPerKm=reg.perKm; }
-        }
-        // fallback kalau tidak ketemu
-        if(bestError===Infinity){
-          let shortTrips=entries.filter(e=>Number(e.dist)<=2.5).map(e=>Number(e.amount));
-          if(shortTrips.length>=2){ bestBase=this.helpers.median(shortTrips); bestKm=2.5; }
-          else { bestBase=this.helpers.percentile(ys,25)*0.6; bestKm=2.5; }
-          let longEntries=entries.filter(e=>Number(e.dist)>bestKm);
-          if(longEntries.length>=2){
-            let xsL=longEntries.map(e=>Number(e.dist)-bestKm);
-            let ysL=longEntries.map(e=>Math.max(0, Number(e.amount)-bestBase));
-            bestPerKm=regress(xsL, ysL).perKm;
-          } else {
-            bestPerKm=medRpKm*0.8;
-          }
-        }
-        let base=bestBase, perKm=bestPerKm, baseKm=bestKm;
+const categories = {
+    "Pendapatan": ["Goride", "Gofood", "Gomart", "Gosend"],
+    "Pengeluaran": ["Bahan bakar", "Makan/minum", "Lain-lain"]
+};
 
-        if(!isFinite(perKm) || perKm<300 || perKm>15000){ perKm=medRpKm*0.8; }
-        if(!isFinite(base) || base<1000) base=Math.max(2000, this.helpers.percentile(ys,20));
+function startLiveClock() {
+    if(clockInterval) clearInterval(clockInterval);
+    clockInterval = setInterval(() => {
+        if (!isTimeManuallyLocked && editIndex === null) {
+            const now = new Date();
+            const hh = String(now.getHours()).padStart(2,'0');
+            const mm = String(now.getMinutes()).padStart(2,'0');
+            const txTimeEl = document.getElementById('txTime');
+            if(txTimeEl) txTimeEl.value = `${hh}:${mm}`;
+        }
+    }, 1000);
+}
+function lockTimeManual(){ isTimeManuallyLocked = true; }
 
-        // === DETEKSI 2 TARIF FLAT via clustering short trips ===
-        let shortForCluster=entries.filter(e=>Number(e.dist)<=baseKm).map(e=>Number(e.amount));
-        let dualFlat=false, base2=null, flatCluster=null;
-        if(shortForCluster.length>=6){
-          let kmRes=kmeans1D(shortForCluster,2);
-          if(kmRes){
-            let diff=Math.abs(kmRes.c1-kmRes.c2);
-            let avgC=(kmRes.c1+kmRes.c2)/2;
-            let ratio=diff/avgC;
-            let minSize=Math.min(kmRes.cluster0.length, kmRes.cluster1.length);
-            if(ratio>0.15 && minSize>=3 && diff>1500){
-              dualFlat=true;
-              // urutkan: base = yang lebih murah, base2 = yang mahal
-              if(kmRes.c1<=kmRes.c2){ base=kmRes.c1; base2=kmRes.c2; flatCluster=kmRes; }
-              else { base=kmRes.c2; base2=kmRes.c1; flatCluster=kmRes; }
+function switchTab(tabName){
+    const contents = { 'input': document.getElementById('tabContentInput'), 'history': document.getElementById('tabContentHistory'), 'rekap': document.getElementById('tabContentRekap') };
+    const buttons = { 'input': document.getElementById('btnTabInput'), 'history': document.getElementById('btnTabHistory'), 'rekap': document.getElementById('btnTabRekap') };
+    for(let k in contents){ if(k===tabName){ contents[k].classList.remove('hidden'); buttons[k].classList.add('active'); } else { contents[k].classList.add('hidden'); buttons[k].classList.remove('active'); } }
+    if(tabName==='rekap') loadRekapData();
+}
+
+function updateCategories(){
+    const type = document.getElementById('type').value;
+    const catSelect = document.getElementById('category');
+    catSelect.innerHTML="";
+    categories[type].forEach(cat=>{ const opt=document.createElement('option'); opt.value=cat; opt.innerHTML=cat; catSelect.appendChild(opt); });
+}
+function formatRupiah(input){ let val=input.value.replace(/[^0-9]/g,''); input.value=val.replace(/\B(?=(\d{3})+(?!\d))/g,"."); }
+function parseDateTime(dateStr,timeStr){ if(!dateStr||!timeStr) return null; try{ return new Date(dateStr+'T'+timeStr+':00'); }catch(e){ return null; } }
+function getPrevDateStr(dateStr){ try{ let d=new Date(dateStr); d.setDate(d.getDate()-1); return d.toLocaleDateString('sv-SE'); }catch(e){ return null; } }
+
+function getDurationInHours(start,end){
+    if(!start||!end) return 0;
+    const [sH,sM]=start.split(':').map(Number); const [eH,eM]=end.split(':').map(Number);
+    if(isNaN(sH)||isNaN(sM)||isNaN(eH)||isNaN(eM)) return 0;
+    let diffMins=(eH*60+eM)-(sH*60+sM);
+    if(diffMins===0) return 0;
+    if(diffMins<0) diffMins+=24*60;
+    return diffMins/60;
+}
+function getDurationFromShift(shift){
+    if(!shift) return 0;
+    if(shift.startAt && shift.endAt){
+        let diff=(shift.endAt-shift.startAt)/1000/3600;
+        if(diff<0) diff+=24;
+        if(diff>0 && diff<=24) return diff;
+    }
+    return getDurationInHours(shift.start, shift.end);
+}
+
+function updateShiftTime(){
+    const targetDate=document.getElementById('globalDate').value;
+    if(!targetDate) return;
+    const startTime=document.getElementById('globalStartTime').value;
+    const endTime=document.getElementById('globalEndTime').value;
+    let shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    let startAt=parseDateTime(targetDate,startTime);
+    let endAt=parseDateTime(targetDate,endTime);
+    if(startAt&&endAt&&endAt<=startAt){ endAt.setDate(endAt.getDate()+1); }
+    // lintas tengah malam early morning logic
+    let isEarlyMorning=endTime&&parseInt(endTime.split(':')[0])<6;
+    if(isEarlyMorning && (!shiftData[targetDate]||!shiftData[targetDate].start)){
+        let prev=getPrevDateStr(targetDate);
+        if(prev&&shiftData[prev]&&shiftData[prev].start&&!shiftData[prev].end){
+            if(!shiftData[prev].startAt) shiftData[prev].startAt=parseDateTime(prev,shiftData[prev].start)?.getTime();
+            shiftData[prev].end=endTime;
+            shiftData[prev].endAt=endAt?endAt.getTime():parseDateTime(prev,endTime)?.getTime();
+            if(shiftData[prev].startAt&&shiftData[prev].endAt&&shiftData[prev].endAt<=shiftData[prev].startAt){
+                let ea=new Date(shiftData[prev].endAt); ea.setDate(ea.getDate()+1); shiftData[prev].endAt=ea.getTime();
             }
+            localStorage.setItem('siganShiftData',JSON.stringify(shiftData));
+            loadData(); return;
+        }
+    }
+    if(!shiftData[targetDate]) shiftData[targetDate]={start:'',end:'',isLocked:false};
+    shiftData[targetDate].start=startTime; shiftData[targetDate].end=endTime;
+    shiftData[targetDate].startAt=startAt?startAt.getTime():null;
+    shiftData[targetDate].endAt=endAt?endAt.getTime():null;
+    shiftData[targetDate].startDate=targetDate;
+    shiftData[targetDate].endDate=endAt?endAt.toLocaleDateString('sv-SE'):targetDate;
+    localStorage.setItem('siganShiftData',JSON.stringify(shiftData));
+    loadData();
+}
+function pressOnBid(){
+    const targetDate=document.getElementById('globalDate').value;
+    if(!targetDate) return alert("Pilih tanggal operasional terlebih dahulu!");
+    const now=new Date(); const hh=String(now.getHours()).padStart(2,'0'); const mm=String(now.getMinutes()).padStart(2,'0'); const currentTime=`${hh}:${mm}`;
+    let shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    if(!shiftData[targetDate]) shiftData[targetDate]={start:'',end:'',isLocked:false};
+    shiftData[targetDate].start=currentTime; shiftData[targetDate].startAt=now.getTime(); shiftData[targetDate].startDate=targetDate;
+    document.getElementById('globalStartTime').value=currentTime;
+    localStorage.setItem('siganShiftData',JSON.stringify(shiftData));
+    loadData(); alert(`Mulai On-Bid: ${currentTime}`);
+}
+function updateTarget(){
+    let targetVal=Number(document.getElementById('inputTarget').value)||0;
+    if(targetVal<0) targetVal=0;
+    document.getElementById('inputTarget').value=targetVal;
+    localStorage.setItem('siganGlobalTarget',targetVal);
+    loadData();
+}
+
+// ===== BattLog Cas & EV SPKLU (tetap) =====
+function getIstirahatCasForDate(targetDate){
+  try{
+    let battEntries=[];
+    let raw=localStorage.getItem('maka_log_v1');
+    if(raw){ try{ let arr=JSON.parse(raw); if(Array.isArray(arr)) battEntries=arr; }catch(e){} }
+    if(battEntries.length===0){
+      let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+      if(lakeRaw){ try{ let lake=JSON.parse(lakeRaw); if(lake?.maka?.maka_log_v1) battEntries=lake.maka.maka_log_v1; }catch(e){} }
+    }
+    let totalJamCas=0, detail=[];
+    battEntries.forEach(e=>{
+      try{
+        if(!e.tanggal||e.tanggal!==targetDate) return;
+        let dur=0;
+        if(e.jam_mulai_cas&&e.jam_selesai_cas){
+          const [h1,m1]=e.jam_mulai_cas.split(':').map(Number); const [h2,m2]=e.jam_selesai_cas.split(':').map(Number);
+          let s=h1*60+m1, ee=h2*60+m2; if(ee<s) ee+=1440; dur=(ee-s)/60;
+        } else if(e.waktu_dibuat_asli&&e.estimasi_selesai){
+          let jamStr=(e.estimasi_selesai||'').split(' ke ')[0].trim();
+          if(jamStr&&jamStr.includes(':')){
+            let start=new Date(Number(e.waktu_dibuat_asli));
+            let [h2,m2]=jamStr.split(':').map(Number);
+            let end=new Date(start); end.setHours(h2,m2,0,0); if(end<start) end.setDate(end.getDate()+1); dur=(end-start)/1000/3600;
           }
         }
-        base=Math.round(base);
-        if(base2) base2=Math.round(base2);
-        perKm=Math.max(300,Math.round(perKm));
-        // simpan info flat
-        let flatInfo = {baseKm: baseKm, dual: dualFlat, base2: base2 || null};
-        let hourlyGroups={}; let blockGroups={'subuh':[],'siang':[],'sore':[],'malam':[]};
-        for(let e of entries){
-          if(!e.time) continue;
-          let h=parseInt((e.time||'00:00').split(':')[0]); if(isNaN(h)) continue;
-          let rk=Number(e.amount)/Number(e.dist);
-          if(!hourlyGroups[h]) hourlyGroups[h]=[];
-          hourlyGroups[h].push(rk);
-          if(h>=5&&h<10) blockGroups.subuh.push(rk);
-          else if(h>=10&&h<16) blockGroups.siang.push(rk);
-          else if(h>=16&&h<22) blockGroups.sore.push(rk);
-          else blockGroups.malam.push(rk);
+        if(dur>0&&dur<12){
+          let jamMulai=0;
+          if(e.jam_mulai_cas) jamMulai=Number(e.jam_mulai_cas.split(':')[0]);
+          else if(e.waktu_dibuat_asli){ jamMulai=new Date(Number(e.waktu_dibuat_asli)).getHours(); }
+          if(jamMulai>=6&&jamMulai<=22){ totalJamCas+=dur; detail.push({jam:e.jam_mulai_cas||'',dur,lokasi:e.lokasi||''}); }
         }
-        let hourlyFactor={}; for(let h=0;h<24;h++){
-          if(hourlyGroups[h]&&hourlyGroups[h].length>=2){
-            let avgH=this.helpers.mean(hourlyGroups[h]);
-            let f=avgH/(avgRpKm||medRpKm||1);
-            hourlyFactor[h]=this.helpers.clamp(f,0.7,1.6);
-          } else hourlyFactor[h]=1.0;
-        }
-        let blockFactor={};
-        for(let k in blockGroups){
-          let arr=blockGroups[k];
-          if(arr.length>=2){ let f=this.helpers.mean(arr)/(avgRpKm||1); blockFactor[k]=this.helpers.clamp(f,0.75,1.5); }
-          else blockFactor[k]=1.0;
-        }
-        let sortedBlocks=Object.entries(blockFactor).sort((a,b)=>b[1]-a[1]);
-        let jamSibuk=sortedBlocks[0]?sortedBlocks[0][0]:'sore';
-        let perKmLower=this.helpers.percentile(rpkm,15)*0.9;
-        let perKmUpper=this.helpers.percentile(rpkm,85)*1.05;
-        let baseLower=Math.round(base*0.85);
-        let baseUpper=Math.round(base*1.15);
-        let baseLower2=base2?Math.round(base2*0.85):0;
-        let baseUpper2=base2?Math.round(base2*1.15):0;
-        if(perKmLower<300) perKmLower=300;
-        let conf=entries.length>=25?'high':entries.length>=10?'medium':'low';
-        models[cat]={count:entries.length, base, base2: base2||null, baseKm: baseKm, autoFlatKm: baseKm, dualFlat: dualFlat, baseLower, baseLower2, perKmLower:Math.round(perKmLower), baseUpper, baseUpper2, perKmUpper:Math.round(perKmUpper), avgRpPerKm:Math.round(avgRpKm), medianRpPerKm:Math.round(medRpKm), hourlyFactor, blockFactor, jamSibuk, confidence:conf, lastUpdated:Date.now(), insufficient:false, flatClusters: flatCluster? {c0: flatCluster.cluster0.length, c1: flatCluster.cluster1.length}: null};
-      }
-      if(pend.length>=3){
-        let gxs=pend.map(e=>Number(e.dist)); let gys=pend.map(e=>Number(e.amount));
-        let {base:gb,perKm:gp}=regress(gxs,gys);
-        if(!gb||!gp){ gb=this.helpers.median(gys)*0.5; gp=this.helpers.median(gys.map((y,i)=>y/gxs[i]))*0.8; }
-        this.globalModel={base:Math.round(gb), perKm:Math.round(gp), count:pend.length};
-      }
-      this.models=models;
-      try{ localStorage.setItem(this.STORAGE_KEY, JSON.stringify({models, globalModel:this.globalModel, ts:Date.now()})); }catch(e){}
-      return models;
-    }catch(e){ console.error('AI V2 learn error',e); return {}; }
-  },
-  load(){
-    try{
-      const raw=localStorage.getItem(this.STORAGE_KEY);
-      if(raw){
-        const obj=JSON.parse(raw);
-        this.models=obj.models||{};
-        this.globalModel=obj.globalModel||null;
-        const dataLen=JSON.parse(localStorage.getItem('siganData')||'[]').length;
-        const savedCount=Object.values(this.models).reduce((a,m)=>a+(m.count||0),0);
-        if(Math.abs(dataLen-savedCount)>5) this.learn();
-        return this.models;
-      }
-    }catch(e){}
-    return this.learn();
-  },
-  predict(cat,dist,timeStr){
-    if(!Object.keys(this.models).length) this.load();
-    let model=this.models[cat];
-    let isFallback=false;
-    if(!model||model.insufficient){
-      model=this.globalModel ? {...this.globalModel, hourlyFactor:{}, blockFactor:{subuh:1,siang:1,sore:1,malam:1}, baseLower:this.globalModel.base*0.8, perKmLower:this.globalModel.perKm*0.8, baseUpper:this.globalModel.base*1.2, perKmUpper:this.globalModel.perKm*1.2, confidence:'low', jamSibuk:'sore', count:this.globalModel.count, avgRpPerKm:this.globalModel.perKm} : null;
-      isFallback=true;
-      if(!model) return null;
-    }
-    let hour=12;
-    try{ if(timeStr&&timeStr.includes(':')) hour=parseInt(timeStr.split(':')[0]); else { const now=new Date(); hour=now.getHours(); } }catch(e){}
-    let factor=1.0;
-    if(model.hourlyFactor&&model.hourlyFactor[hour]!==undefined) factor=model.hourlyFactor[hour];
-    else if(model.blockFactor){
-      if(hour>=5&&hour<10) factor=model.blockFactor.subuh||1;
-      else if(hour>=10&&hour<16) factor=model.blockFactor.siang||1;
-      else if(hour>=16&&hour<22) factor=model.blockFactor.sore||1;
-      else factor=model.blockFactor.malam||1;
-    }
-    let base=model.base||0; let perKm=model.perKm||0;
-    // FIX V3: Surge hanya kalikan base (flat minimum), bukan seluruh jarak jauh
-    // Rumus baru: base*factor + perKm*dist => jarak jauh tidak overpriced
-    let amount=(base*factor + perKm*dist);
-    let lower=( (model.baseLower||base*0.85)*Math.max(0.8,factor*0.92) + (model.perKmLower||perKm*0.85)*dist );
-    let upper=( (model.baseUpper||base*1.15)*Math.min(1.4,factor*1.08) + (model.perKmUpper||perKm*1.15)*dist );
-    amount=Math.round(amount/100)*100; lower=Math.round(lower/100)*100; upper=Math.round(upper/100)*100;
-    if(amount<(model.baseLower||2000)) amount=model.baseLower||2000;
-    if(lower<1000) lower=1000;
-    return {amount, lowerBound:lower, upperBound:upper, base, perKm, baseLower:model.baseLower, perKmLower:model.perKmLower, factor, hour, jamSibuk:model.jamSibuk||'sore', confidence:model.confidence, count:model.count, isFallback, avgRpPerKm:model.avgRpPerKm, blockFactor:model.blockFactor};
-  }
-};
-AIEngineV2.load();
+      }catch(err){}
+    });
+    return {totalJamCas,detail};
+  }catch(err){ return {totalJamCas:0,detail:[]}; }
+}
+function isSpkluEv(e){ if(!e) return false; const tarifStr=String(e.tarif??''); const lokasiStr=(e.lokasi||'').toLowerCase(); return tarifStr==='2466'||lokasiStr.includes('spklu')||lokasiStr.includes('spblu'); }
+function calcBiayaEv(e){ try{ if(e.biaya!==null&&e.biaya!==undefined&&e.biaya!=='') return Number(e.biaya)||0; const cap=Number(e.cap_kwh||4); const targetCas=Number(e.batt_setelah||100); const battAkhir=Number(e.batt_akhir||0); const pct=Math.max(0,targetCas-battAkhir); const energi=(pct/100)*cap; const tarif=Number(e.tarif||0); return energi*tarif; }catch(err){ return 0; } }
+function getEvSpkluCostMap(){
+  const map={};
+  try{
+    let makaLog=null;
+    try{ const lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1'); if(lakeRaw){ const lake=JSON.parse(lakeRaw); if(lake?.maka?.maka_log_v1) makaLog=lake.maka.maka_log_v1; } }catch(e){}
+    if(!makaLog){ makaLog=JSON.parse(localStorage.getItem('maka_log_v1')||'[]'); }
+    if(!Array.isArray(makaLog)) return map;
+    for(let i=0;i<makaLog.length;i++){ const e=makaLog[i]; if(!isSpkluEv(e)) continue; const tgl=e.tanggal; if(!tgl) continue; const biaya=calcBiayaEv(e); if(biaya>0) map[tgl]=(map[tgl]||0)+biaya; }
+  }catch(err){}
+  return map;
+}
+function getEvSpkluCostForDate(dateStr){ const map=getEvSpkluCostMap(); return map[dateStr]||0; }
 
-// Override legacy functions to use AI V2
-function getTariffConfig(){
-  const cfg={};
-  for(let cat of categories.Pendapatan){
-    let m=AIEngineV2.models[cat];
-    if(m && !m.insufficient){ 
-      cfg[cat]={baseKm: m.baseKm||m.autoFlatKm||2.5, base:m.base, base2:m.base2||null, perKm:m.perKm, dualFlat: m.dualFlat||false}; 
-    }
-    else { cfg[cat]=defaultTariffConfig[cat]||{baseKm:2.5, base:10000, perKm:2500}; }
-  }
-  return cfg;
-}
-function getLearnedRate(cat){
-  const m=AIEngineV2.models[cat];
-  if(!m||m.insufficient) return null;
-  return {ratePerKm:m.perKm, count:m.count, base:m.base, lower:m.perKmLower};
-}
-function renderTariffSettingsForm(){
-  const container=document.getElementById('tariffSettingsFields');
-  AIEngineV2.learn();
-  const models=AIEngineV2.models;
-  let html=`<div style="background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; padding:10px; margin-bottom:12px; font-size:11px; line-height:1.5; color:#8aa0c6;">
-    <div style="font-weight:800; color:#7dffb7; font-size:12px; margin-bottom:4px;">🤖 AI ENGINE V2 AKTIF - PENGGANTI TARIF DASAR FLAT</div>
-    Tarif flat lama sudah dihapus. AI V3.2 auto-belajar <strong>km flat</strong> per layanan + deteksi <strong>2 flat</strong>. Belajar dari <strong>${Object.values(models).reduce((a,m)=>a+(m.count||0),0)} trip</strong>. Batas bawah = P15.
-  </div>`;
-  for(let cat of categories.Pendapatan){
-    const m=models[cat]; if(!m) continue;
-    if(m.insufficient){
-      html+=`<div style="margin-bottom:12px; padding:10px; background:#1a1210; border:1px dashed #3a2a20; border-radius:10px;"><div style="font-weight:700; color:#ff8a80; font-size:13px;">${cat}</div><div style="font-size:11px; color:#8aa0c6;">Belum cukup data (${m.count}/3). Catat min 3 trip biar AI belajar.</div></div>`;
-      continue;
-    }
-    let confColor=m.confidence==='high'?'#7dffb7':m.confidence==='medium'?'#ffdd53':'#ff8a80';
-    let blockTxt=Object.entries(m.blockFactor||{}).map(([k,v])=>`${k}:${v.toFixed(2)}x`).join(' ');
-    let pred3=AIEngineV2.predict(cat,3,'08:00'); let pred5=AIEngineV2.predict(cat,5,'17:30'); let pred10=AIEngineV2.predict(cat,10,'20:00');
-    html+=`<div style="margin-bottom:14px; background:#111d35; border:1px solid #1e2d4a; border-radius:12px; padding:12px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <div style="font-size:14px; font-weight:800; color:#eaf2ff;">${cat}</div>
-        <div style="font-size:10px; background:${confColor}20; color:${confColor}; border:1px solid ${confColor}40; border-radius:999px; padding:2px 8px;">${m.confidence.toUpperCase()} • ${m.count} trip</div>
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:11px; margin-bottom:8px;">
-        <div style="background:#0f1f36; border-radius:8px; padding:8px;"><div style="color:#8aa0c6; font-size:10px;">Tarif Dasar AI</div><div style="font-weight:800; color:#eaf2ff; font-size:13px;">Rp ${m.base.toLocaleString('id-ID')}</div><div style="color:#ff8a80; font-size:10px;">Bawah: Rp ${m.baseLower.toLocaleString('id-ID')}</div></div>
-        <div style="background:#0f1f36; border-radius:8px; padding:8px;"><div style="color:#8aa0c6; font-size:10px;">Rp / KM AI</div><div style="font-weight:800; color:#40c4ff; font-size:13px;">Rp ${m.perKm.toLocaleString('id-ID')}/km</div><div style="color:#ff8a80; font-size:10px;">Bawah: Rp ${m.perKmLower.toLocaleString('id-ID')}/km</div></div>
-      </div>
-      <div style="font-size:10.5px; color:#8aa0c6; background:#0a1328; border-radius:8px; padding:6px 8px; margin-bottom:8px;">⏰ ${blockTxt} | Sibuk: <strong style="color:#7dffb7;">${m.jamSibuk}</strong> (${(m.blockFactor[m.jamSibuk]||1).toFixed(2)}x) | Avg Rp ${m.avgRpPerKm.toLocaleString('id-ID')}/km</div>
-      <div style="display:flex; gap:6px; font-size:10px; flex-wrap:wrap;"><span style="background:#13223d; border:1px solid #1e2d4a; border-radius:999px; padding:3px 8px; color:#a8c0e8;">3km → Rp ${pred3?pred3.amount.toLocaleString('id-ID'):'-'} (bawah ${pred3?pred3.lowerBound.toLocaleString('id-ID'):'-'})</span><span style="background:#13223d; border:1px solid #1e2d4a; border-radius:999px; padding:3px 8px; color:#a8c0e8;">5km → Rp ${pred5?pred5.amount.toLocaleString('id-ID'):'-'}</span><span style="background:#13223d; border:1px solid #1e2d4a; border-radius:999px; padding:3px 8px; color:#a8c0e8;">10km → Rp ${pred10?pred10.amount.toLocaleString('id-ID'):'-'}</span></div>
-    </div>`;
-  }
-  container.innerHTML=html;
-}
-function saveTariffSettings(){
-  try{
-    // Simpan tarif AI saat ini sebagai cadangan ke localStorage
-    const cadangan = {
-      savedAt: new Date().toISOString(),
-      tariffs: JSON.parse(JSON.stringify(AIEngineV2.tariffs || {})),
-      factors: JSON.parse(JSON.stringify(AIEngineV2.timeFactors || {})),
-      totalTrips: AIEngineV2.totalTrips || 0
-    };
-    localStorage.setItem('sigan_tarif_cadangan_v2', JSON.stringify(cadangan));
-    // Masukkan juga ke UNIVERSAL LAKE biar kebawa
+// ===== Manual Save (tanpa prediksi) =====
+function saveData(){
+    const date=document.getElementById('globalDate').value;
+    const time=document.getElementById('txTime').value||new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    const type=document.getElementById('type').value;
+    const cat=document.getElementById('category').value;
+    const note=document.getElementById('note').value;
+    const dist=Number(document.getElementById('distance').value)||0;
+    const amountStr=document.getElementById('amount').value.replace(/\./g,'');
+    const amount=Number(amountStr)||0;
+    if(!date) return alert("Tanggal harus ditentukan!");
+    if(dist<0) return alert("Jarak tidak boleh negatif!");
+    if(amount<0) return alert("Nominal tidak boleh negatif!");
+    if(amount===0&&dist===0) return alert("Nominal dan Jarak tidak boleh kosong!");
+    const entry={ date, time, type, cat, note, dist, amount, predictedEndTime: time, endTime: time, pickup:'', destination:'', idTrans:'', idPrefix:'', source:'manual' };
+    let data=JSON.parse(localStorage.getItem('siganData')||'[]');
+    if(editIndex!==null){ data[editIndex]=entry; editIndex=null; document.getElementById('btnSubmit').innerText="Rekam Data"; document.getElementById('btnCancelEdit').classList.add('hidden'); } else { data.push(entry); }
     try{
-      const lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
-      if(lakeRaw){
-        const lake = JSON.parse(lakeRaw);
-        lake.cross = lake.cross || {};
-        lake.cross.sigan_tarif_cadangan_v2 = cadangan;
-        lake.lastSync = new Date().toISOString();
-        localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake));
-      }
-    }catch(e){}
-  }catch(e){ console.error('save cadangan error', e); }
-  document.getElementById('tariffSettingsPanel').classList.add('hidden');
-  AIEngineV2.learn(); 
-  renderTariffSettingsForm(); 
-  alert("✅ Tarif Cadangan Tersimpan!\n\nAI sudah simpan tarif saat ini ("+ (AIEngineV2.totalTrips||0) +" trip) sebagai backup.\nKalau nanti ada layanan baru 0/3 atau data ke-reset, AI akan pakai cadangan ini, bukan balik ke 0.");
+        localStorage.setItem('siganData',JSON.stringify(data));
+        document.getElementById('distance').value=''; document.getElementById('amount').value=''; document.getElementById('note').value='';
+        isTimeManuallyLocked=false; loadData(); alert("Data berhasil direkam!");
+    }catch(e){ alert("Gagal simpan, memori penuh"); }
 }
-function resetTariffDefaults(){
-  if(!confirm("Kembalikan ke Default? Tarif cadangan akan dihapus dan AI belajar ulang dari 0.")) return;
-  localStorage.removeItem('sigan_tarif_cadangan_v2');
-  try{
-    const lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
-    if(lakeRaw){
-      const lake = JSON.parse(lakeRaw);
-      if(lake.cross) delete lake.cross.sigan_tarif_cadangan_v2;
-      localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake));
+function editItem(index){
+    const data=JSON.parse(localStorage.getItem('siganData')||'[]'); const item=data[index]; if(!item) return;
+    editIndex=index; isTimeManuallyLocked=true;
+    document.getElementById('globalDate').value=item.date;
+    document.getElementById('txTime').value=item.time||'00:00';
+    document.getElementById('type').value=item.type;
+    const catSelect=document.getElementById('category'); catSelect.innerHTML=""; categories[item.type].forEach(cat=>{ const opt=document.createElement('option'); opt.value=cat; opt.innerHTML=cat; catSelect.appendChild(opt); });
+    document.getElementById('category').value=item.cat;
+    document.getElementById('distance').value=item.dist||'';
+    document.getElementById('amount').value=item.amount?item.amount.toString():''; formatRupiah(document.getElementById('amount'));
+    document.getElementById('note').value=item.note||'';
+    document.getElementById('btnSubmit').innerText="Simpan Perubahan";
+    document.getElementById('btnCancelEdit').classList.remove('hidden');
+    loadData(); switchTab('input');
+}
+function cancelEdit(){ editIndex=null; isTimeManuallyLocked=false; document.getElementById('btnSubmit').innerText="Rekam Data"; document.getElementById('btnCancelEdit').classList.add('hidden'); document.getElementById('distance').value=''; document.getElementById('amount').value=''; document.getElementById('note').value=''; }
+function deleteItem(index){ if(!confirm("Hapus data ini?")) return; let data=JSON.parse(localStorage.getItem('siganData')||'[]'); data.splice(index,1); localStorage.setItem('siganData',JSON.stringify(data)); if(editIndex===index) cancelEdit(); loadData(); }
+function toggleSub(id){ const el=document.getElementById(id); el.classList.toggle('hidden'); }
+
+// ===== Auto Jam Online dari First-Last Order =====
+function updateShiftFromOrders(dateStr){
+    try{
+        const allData=JSON.parse(localStorage.getItem('siganData')||'[]');
+        const orders=allData.filter(x=>x.date===dateStr && x.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+        if(orders.length===0) return;
+        const first=orders[0];
+        const last=orders[orders.length-1];
+        const startTime=first.time||first.startTime||'';
+        const endTime=last.endTime||last.predictedEndTime||last.time||'';
+        if(!startTime||!endTime) return;
+        let shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+        let startAt=parseDateTime(dateStr,startTime);
+        let endAt=parseDateTime(dateStr,endTime);
+        if(startAt&&endAt&&endAt<=startAt) endAt.setDate(endAt.getDate()+1);
+        if(!shiftData[dateStr]) shiftData[dateStr]={};
+        shiftData[dateStr].start=startTime;
+        shiftData[dateStr].end=endTime;
+        shiftData[dateStr].startAt=startAt?startAt.getTime():null;
+        shiftData[dateStr].endAt=endAt?endAt.getTime():null;
+        shiftData[dateStr].startDate=dateStr;
+        shiftData[dateStr].endDate=endAt?endAt.toLocaleDateString('sv-SE'):dateStr;
+        shiftData[dateStr].autoFromOcr=true;
+        localStorage.setItem('siganShiftData',JSON.stringify(shiftData));
+        // update UI if currently viewing same date
+        const curDate=document.getElementById('globalDate').value;
+        if(curDate===dateStr){
+            document.getElementById('globalStartTime').value=startTime;
+            document.getElementById('globalEndTime').value=endTime;
+        }
+    }catch(e){ console.log('auto shift error',e); }
+}
+function getOnlineHoursFromOrders(dateStr, ordersForDay, shiftForDay){
+    // ordersForDay sorted
+    if(ordersForDay&&ordersForDay.length>0){
+        const first=ordersForDay[0];
+        const last=ordersForDay[ordersForDay.length-1];
+        const s=first.time||first.startTime||'';
+        const ee=last.endTime||last.predictedEndTime||last.time||'';
+        if(s&&ee){
+            let dur=getDurationInHours(s,ee);
+            if(dur===0){
+                // fallback sum durasi order
+                let sum=0;
+                ordersForDay.forEach(o=>{
+                    let d=getDurationInHours(o.time||o.startTime||'', o.endTime||o.predictedEndTime||o.time||'');
+                    if(d>0) sum+=d;
+                    else if(Number(o.dist)>0) sum+= (Number(o.dist)*2/60);
+                });
+                return sum>0?sum:0;
+            }
+            return dur;
+        }
     }
-  }catch(e){}
-  AIEngineV2.tariffs = {};
-  AIEngineV2.timeFactors = {};
-  AIEngineV2.learn();
-  renderTariffSettingsForm();
-  alert("Cadangan dihapus, AI reset ke default.");
+    if(shiftForDay) return getDurationFromShift(shiftForDay);
+    return 0;
 }
-function resetTariffDefaults(){
-  if(!confirm("Hapus semua model AI V2 dan belajar ulang dari nol?")) return;
-  localStorage.removeItem(AIEngineV2.STORAGE_KEY);
-  localStorage.removeItem('siganTariffConfig');
-  AIEngineV2.learn(); renderTariffSettingsForm(); autoFillAmount();
-}
-function autoFillAmount(){
-  const type=document.getElementById('type').value;
-  const hintEl=document.getElementById('amountSourceHint');
-  if(type!=='Pendapatan'){ if(hintEl) hintEl.innerText=''; return; }
-  const cat=document.getElementById('category').value;
-  const dist=Number(document.getElementById('distance').value)||0;
-  const timeStr=document.getElementById('txTime').value||'';
-  const amountInput=document.getElementById('amount');
-  if(dist<=0){ amountInput.value=''; if(hintEl) hintEl.innerText=''; return; }
-  let pred=AIEngineV2.predict(cat,dist,timeStr);
-  if(!pred){ AIEngineV2.learn(); pred=AIEngineV2.predict(cat,dist,timeStr); }
-  if(pred){
-    let amt=Math.round(pred.amount/100)*100;
-    if(amt>0){ amountInput.value=amt.toString(); formatRupiah(amountInput); }
-    if(hintEl){
-      let icon=pred.confidence==='high'?'🟢':pred.confidence==='medium'?'🟡':'🔴';
-      let fb=pred.isFallback?' (fallback global)':'';
-      hintEl.innerHTML=`${icon} <strong>AI V2${fb}</strong>: Base Rp ${pred.base.toLocaleString('id-ID')} + ${pred.perKm.toLocaleString('id-ID')}/km × ${dist}km × ${pred.factor.toFixed(2)}x (${pred.hour}:00) = <strong>Rp ${pred.amount.toLocaleString('id-ID')}</strong><br>↳ Bawah: Rp ${pred.lowerBound.toLocaleString('id-ID')} | Atas: Rp ${pred.upperBound.toLocaleString('id-ID')} | ${pred.count} trip | Sibuk ${pred.jamSibuk}`;
+
+// ===== Load Data Harian =====
+function loadData(){
+    const targetDate=document.getElementById('globalDate').value;
+    const data=JSON.parse(localStorage.getItem('siganData')||'[]');
+    const container=document.getElementById('historyContainer');
+    const shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    const dayShift=shiftData[targetDate]||{start:'',end:''};
+    document.getElementById('globalStartTime').value=dayShift.start||'';
+    document.getElementById('globalEndTime').value=dayShift.end||'';
+
+    let income=0, expense=0, totalIncomeKm=0, manualExpense=0;
+    let grouped={};
+
+    data.forEach((item,index)=>{
+        if(item.date===targetDate && item.cat && item.cat!=="undefined"){
+            const amt=Number(item.amount)||0; const km=Number(item.dist)||0;
+            if(item.type==='Pendapatan'){ income+=amt; totalIncomeKm+=km; } else { expense+=amt; manualExpense+=amt; }
+            if(!grouped[item.cat]) grouped[item.cat]=[];
+            grouped[item.cat].push({...item,index});
+        }
+    });
+
+    container.innerHTML="";
+    if(Object.keys(grouped).length===0){
+        container.innerHTML=`<div style="text-align:center; color:#777; padding:20px; font-size:13px;">Tidak ada riwayat pada tanggal ini.</div>`;
     }
-  } else {
-    if(hintEl) hintEl.innerText='⚠️ Belum cukup data AI, isi manual. Min 3 trip/layanan.';
-  }
+    for(let cat in grouped){
+        grouped[cat].sort((a,b)=>(a.time||'00:00').localeCompare(b.time||'00:00'));
+        let catTotal=grouped[cat].reduce((s,it)=>s+Number(it.amount),0);
+        let safeId=cat.replace(/[^a-zA-Z0-9]/g,'-');
+        let html=`<div class="cat-wrapper"><div class="cat-header" onclick="toggleSub('sub-${safeId}')"><span>${cat} (${grouped[cat].length})</span><span>Rp ${catTotal.toLocaleString('id-ID')}</span></div><div id="sub-${safeId}" class="hidden">`;
+        grouped[cat].forEach(item=>{
+            const idBadge=item.idTrans?`<span style="background:#1e3a5f; color:#7dffb7; border:1px solid #2b5a9a; padding:2px 6px; border-radius:6px; font-size:9px; font-weight:800;">${item.idTrans}</span>`:'';
+            const timeRange=item.endTime?`${item.time}-${item.endTime}`:item.time;
+            const pickup=item.pickup?`<div style="font-size:10px; color:#8aa0c6;">📍 Jemput: ${item.pickup}</div>`:'';
+            const dest=item.destination?`<div style="font-size:10px; color:#8aa0c6;">🎯 Antar: ${item.destination}</div>`:'';
+            const kmInfo=item.dist?`${item.dist} km`:'';
+            html+=`<div class="sub-row"><div class="row-main"><div style="display:flex; flex-direction:column; gap:4px;"><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;"><span style="font-size:11px; color:#40c4ff; font-weight:bold;">[${timeRange||'--:--'}]</span><span style="font-size:14px; font-weight:bold; color:#fff;">Rp ${Number(item.amount).toLocaleString('id-ID')}</span><span style="font-size:11px; color:#aaa;">${kmInfo}</span>${idBadge}</div>${pickup}${dest}</div><div style="display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end"><button class="btn-edit" onclick="editItem(${item.index})">Edit</button><button class="btn-del" onclick="deleteItem(${item.index})">Hapus</button></div></div>${item.note?`<div class="row-note">${item.note}</div>`:''}</div>`;
+        });
+        html+=`</div></div>`;
+        container.innerHTML+=html;
+    }
+
+    let evSpkluCostToday=getEvSpkluCostForDate(targetDate);
+    let totalExpenseWithEv=expense+evSpkluCostToday;
+    let netBalance=income-totalExpenseWithEv;
+    window._lastEvSpkluCostToday=evSpkluCostToday;
+    window._lastManualExpenseToday=manualExpense;
+    expense=totalExpenseWithEv;
+    let netYieldPerKm=totalIncomeKm>0?Math.round(netBalance/totalIncomeKm):0;
+
+    document.getElementById('valIncome').innerText="Rp "+income.toLocaleString('id-ID');
+    document.getElementById('valExpense').innerText="Rp "+expense.toLocaleString('id-ID');
+    document.getElementById('valBalance').innerText="Rp "+netBalance.toLocaleString('id-ID');
+    document.getElementById('valEfficiency').innerText="Rp "+netYieldPerKm.toLocaleString('id-ID')+" /km";
+
+    const onlineInfoEl=document.getElementById('valOnlineInfo');
+    if(onlineInfoEl){
+        const ordersToday=data.filter(x=>x.date===targetDate&&x.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+        if(ordersToday.length>0){
+            const first=ordersToday[0].time||''; const last=ordersToday[ordersToday.length-1].endTime||ordersToday[ordersToday.length-1].predictedEndTime||ordersToday[ordersToday.length-1].time||'';
+            const dur=getDurationInHours(first,last);
+            onlineInfoEl.innerText=`Online: ${first} - ${last} (${dur.toFixed(1)} jam) • ${ordersToday.length} order • Auto First-Last`;
+        } else {
+            onlineInfoEl.innerText=dayShift.start&&dayShift.end?`Online manual: ${dayShift.start}-${dayShift.end}`:'Belum ada order';
+        }
+    }
+
+    const globalTarget=Number(localStorage.getItem('siganGlobalTarget'))||200000;
+    document.getElementById('inputTarget').value=globalTarget;
+    let actualPercent=globalTarget>0?Math.round((income/globalTarget)*100):0;
+    let barPercent=Math.min(actualPercent,100);
+    document.getElementById('progressBar').style.width=barPercent+"%";
+    document.getElementById('txtTargetProgress').innerText=actualPercent+"% Tercapai "+(actualPercent>=100?"(Tembus! 🎯)":"(Semangat!)");
+    loadRekapData();
 }
-// Hook save/delete to re-learn
-const _origSaveData = window.saveData;
-window.saveData = function(){
-  const r = _origSaveData.apply(this, arguments);
-  setTimeout(()=>{ try{AIEngineV2.learn();}catch(e){} }, 300);
-  return r;
+
+// ===== Rekap Presisi V5 =====
+function loadRekapData(){
+    const period=document.getElementById('rekapPeriod').value;
+    const data=JSON.parse(localStorage.getItem('siganData')||'[]');
+    const shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    const targetDateStr=document.getElementById('globalDate').value;
+    if(!targetDateStr) return;
+    const parts=targetDateStr.split('-'); const anchorDate=new Date(parts[0],parts[1]-1,parts[2]); anchorDate.setHours(0,0,0,0);
+    let cutoffDate=new Date(anchorDate); let daysToSubtract=parseInt(period)-1; cutoffDate.setDate(anchorDate.getDate()-daysToSubtract);
+
+    let totalIncome=0, totalExpense=0, totalKm=0;
+    let incomeByCat={};
+    let serviceRates={};
+    categories["Pendapatan"].forEach(cat=>{ serviceRates[cat]={amt:0,km:0,totalCount:0,tipCount:0,tipAmt:0}; });
+
+    let dayNames=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+    let dayOfWeekData=dayNames.map(name=>({name,net:0,hours:0}));
+
+    let hourlyBlocks=[
+        {label:"🌅 Subuh - Pagi (05.00 - 10.00)", startH:5, endH:10, net:0, hours:0, orderCount:0},
+        {label:"☀️ Siang - Sore (10.00 - 16.00)", startH:10, endH:16, net:0, hours:0, orderCount:0},
+        {label:"🌆 Sore - Malam (16.00 - 22.00)", startH:16, endH:22, net:0, hours:0, orderCount:0},
+        {label:"🌌 Larut Malam (22.00 - 05.00)", startH:22, endH:5, net:0, hours:0, orderCount:0}
+    ];
+
+    let tiers={ short:{net:0,hours:0,count:0}, ideal:{net:0,hours:0,count:0}, long:{net:0,hours:0,count:0} };
+
+    let totalHoursPeriod=0; let daysWithShiftCount=0; let dailyAgg={};
+    let tempDate=new Date(cutoffDate);
+    while(tempDate<=anchorDate){ let dStr=tempDate.toLocaleDateString('sv-SE'); dailyAgg[dStr]={income:0,expense:0,orders:[],firstTime:null,lastTime:null}; tempDate.setDate(tempDate.getDate()+1); }
+    let dailyExpenseMap={};
+
+    data.forEach(item=>{
+        if(item.date&&item.cat&&item.cat!=="undefined"){
+            const p=item.date.split('-'); const itemDate=new Date(p[0],p[1]-1,p[2]); itemDate.setHours(0,0,0,0);
+            if(itemDate>=cutoffDate&&itemDate<=anchorDate){
+                const dStr=item.date;
+                if(!dailyAgg[dStr]) dailyAgg[dStr]={income:0,expense:0,orders:[],firstTime:null,lastTime:null};
+                const amt=Number(item.amount)||0; const km=Number(item.dist)||0;
+                if(item.type==='Pendapatan'){
+                    totalIncome+=amt; totalKm+=km; incomeByCat[item.cat]=(incomeByCat[item.cat]||0)+amt; dailyAgg[dStr].income+=amt;
+                    if(item.time){ let itemHour=parseInt(item.time.split(':')[0]); dailyAgg[dStr].orders.push({hour:itemHour, amount:amt, dist:km, type:'in', time:item.time, endTime:item.endTime||item.predictedEndTime||item.time, pickup:item.pickup||'', destination:item.destination||''}); }
+                    if(serviceRates[item.cat]!==undefined){
+                        if(km===0){ serviceRates[item.cat].tipCount++; serviceRates[item.cat].tipAmt+=amt; }
+                        else { serviceRates[item.cat].amt+=amt; serviceRates[item.cat].km+=km; serviceRates[item.cat].totalCount++; }
+                    }
+                } else { totalExpense+=amt; dailyAgg[dStr].expense+=amt; dailyExpenseMap[dStr]=(dailyExpenseMap[dStr]||0)+amt; }
+            }
+        }
+    });
+
+    // SPKLU
+    let evSpkluMap=getEvSpkluCostMap();
+    for(let tgl in evSpkluMap){
+        let biayaSpklu=evSpkluMap[tgl]||0; if(biayaSpklu<=0) continue;
+        const p=tgl.split('-'); const itemDate=new Date(p[0],p[1]-1,p[2]); itemDate.setHours(0,0,0,0);
+        if(itemDate>=cutoffDate&&itemDate<=anchorDate){
+            if(!dailyAgg[tgl]) dailyAgg[tgl]={income:0,expense:0,orders:[],firstTime:null,lastTime:null};
+            dailyAgg[tgl].expense+=biayaSpklu; totalExpense+=biayaSpklu; dailyExpenseMap[tgl]=(dailyExpenseMap[tgl]||0)+biayaSpklu;
+        }
+    }
+    window._lastEvSpkluMap=evSpkluMap;
+
+    // Hitung jam online presisi per hari: first-last order
+    for(let dStr in dailyAgg){
+        const p=dStr.split('-'); const itemDate=new Date(p[0],p[1]-1,p[2]); const dayIndex=itemDate.getDay();
+        let dayNet=dailyAgg[dStr].income-dailyAgg[dStr].expense;
+        dayOfWeekData[dayIndex].net+=dayNet;
+
+        let s=shiftData[dStr];
+        let orders=dailyAgg[dStr].orders.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+        let h=0;
+        if(orders.length>0){
+            h=getOnlineHoursFromOrders(dStr, orders, s);
+        } else if(s&&s.start&&s.end){
+            h=getDurationFromShift(s);
+        }
+
+        if(h>0){
+            let casInfo=getIstirahatCasForDate(dStr);
+            let hEff=Math.max(0,h-casInfo.totalJamCas);
+            totalHoursPeriod+=hEff;
+            daysWithShiftCount++;
+            dayOfWeekData[dayIndex].hours+=hEff;
+
+            let hForTier=hEff;
+            if(hForTier<5){ tiers.short.net+=dayNet; tiers.short.hours+=hForTier; tiers.short.count++; }
+            else if(hForTier<=8){ tiers.ideal.net+=dayNet; tiers.ideal.hours+=hForTier; tiers.ideal.count++; }
+            else { tiers.long.net+=dayNet; tiers.long.hours+=hForTier; tiers.long.count++; }
+
+            // Alokasi jam ke blok berdasarkan jam mulai order (presisi)
+            // Untuk total hours per blok, kita pakai durasi order jika ada, bukan shift
+            orders.forEach(ord=>{
+                let blockMatch=null;
+                hourlyBlocks.forEach(b=>{
+                    let match=false;
+                    if(b.startH<=b.endH){ if(ord.hour>=b.startH&&ord.hour<b.endH) match=true; }
+                    else { if(ord.hour>=b.startH||ord.hour<b.endH) match=true; }
+                    if(match) blockMatch=b;
+                });
+                if(blockMatch){
+                    let dur=getDurationInHours(ord.time, ord.endTime||ord.time);
+                    if(dur===0 && ord.dist>0) dur=Number(ord.dist)*2/60;
+                    if(dur===0) dur=0.25;
+                    blockMatch.hours+=dur;
+                    blockMatch.orderCount++;
+                }
+            });
+        }
+
+        // Alokasi net per order ke blok (untuk Rp/jam)
+        let dayTotalBruto=dailyAgg[dStr].income;
+        let dayTotalExpense=dailyAgg[dStr].expense;
+        let dayTotalDist=orders.reduce((sum,o)=>sum+Number(o.dist||0),0);
+        orders.forEach(ord=>{
+            hourlyBlocks.forEach(b=>{
+                let match=false;
+                if(b.startH<=b.endH){ if(ord.hour>=b.startH&&ord.hour<b.endH) match=true; }
+                else { if(ord.hour>=b.startH||ord.hour<b.endH) match=true; }
+                if(match){
+                    let weight=dayTotalDist>0?(Number(ord.dist||0)/dayTotalDist):(dayTotalBruto>0?(ord.amount/dayTotalBruto):0);
+                    let allocatedExpense=dayTotalExpense*weight;
+                    b.net+=(ord.amount-allocatedExpense);
+                }
+            });
+        });
+    }
+
+    let avgEfficiency=totalKm>0?Math.round(totalIncome/totalKm):0;
+    let globalCostPerKm=totalKm>0?totalExpense/totalKm:0;
+    let avgShiftDuration=daysWithShiftCount>0?(totalHoursPeriod/daysWithShiftCount):0;
+    let avgRpPerHourPeriod=totalHoursPeriod>0?Math.round((totalIncome-totalExpense)/totalHoursPeriod):0;
+
+    document.getElementById('rekapTotalHours').innerText=totalHoursPeriod.toFixed(1)+" jam";
+    document.getElementById('rekapAvgShift').innerText=avgShiftDuration.toFixed(1)+" jam/hari";
+    document.getElementById('rekapAvgRpPerHour').innerText="Rp "+avgRpPerHourPeriod.toLocaleString('id-ID')+" /jam";
+    document.getElementById('rekapOnlineDetail').innerText=`Dihitung dari jam order pertama - terakhir per hari (presisi OCR). ${daysWithShiftCount} hari aktif.`;
+
+    document.getElementById('rekapIncome').innerText="Rp "+totalIncome.toLocaleString('id-ID');
+    document.getElementById('rekapExpense').innerText="Rp "+totalExpense.toLocaleString('id-ID');
+    document.getElementById('rekapBalance').innerText="Rp "+(totalIncome-totalExpense).toLocaleString('id-ID');
+    document.getElementById('rekapKm').innerText=totalKm.toFixed(1)+" km";
+    document.getElementById('rekapEfficiency').innerText="Rp "+avgEfficiency.toLocaleString('id-ID')+" /km";
+
+    const hourlyContainer=document.getElementById('rekapHourlyContainer'); hourlyContainer.innerHTML="";
+    let maxHourlyRp=Math.max(...hourlyBlocks.map(b=>b.hours>0?Math.abs(Math.round(b.net/b.hours)):0),1);
+    hourlyBlocks.forEach(b=>{
+        let yieldPerHour=b.hours>0?Math.round(b.net/b.hours):0;
+        let pct=Math.round((Math.abs(yieldPerHour)/maxHourlyRp)*100);
+        let barColor=yieldPerHour>=0?'#e040fb':'#ff5252';
+        hourlyContainer.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label"><span>${b.label} (${b.orderCount} order, ${b.hours.toFixed(1)}j)</span><span style="color:${barColor}; font-weight:bold;">Rp ${yieldPerHour.toLocaleString('id-ID')}/jam</span></div><div class="breakdown-bg"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div></div>`;
+    });
+
+    const breakdownContainer=document.getElementById('rekapBreakdownContainer'); breakdownContainer.innerHTML="";
+    if(totalIncome===0){ breakdownContainer.innerHTML=`<div style="color:#777; font-size:12px; text-align:center; padding:15px 0;">Tidak ada data.</div>`; }
+    else {
+        const sortedCats=Object.keys(incomeByCat).sort((a,b)=>incomeByCat[b]-incomeByCat[a]);
+        sortedCats.forEach(cat=>{
+            const amt=incomeByCat[cat]; const pct=Math.round((amt/totalIncome)*100);
+            breakdownContainer.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label"><span>${cat} <strong>(${pct}%)</strong> - ID ${cat==='Goride'?'RB':cat==='Gofood'?'F':cat==='Gomart'?'MT':'GK'}</span><span>Rp ${amt.toLocaleString('id-ID')}</span></div><div class="breakdown-bg"><div class="breakdown-fill" style="width:${pct}%;"></div></div></div>`;
+        });
+    }
+
+    const ratesContainer=document.getElementById('rekapRatesContainer'); ratesContainer.innerHTML="";
+    for(let cat in serviceRates){
+        let r=serviceRates[cat]; let brutoPerKm=r.km>0?Math.round(r.amt/r.km):0; let marginNettoPerKm=brutoPerKm>0?(brutoPerKm-globalCostPerKm):0; let avgTip=r.tipCount>0?Math.round(r.tipAmt/r.tipCount):0;
+        let rateText=(brutoPerKm>0||r.tipAmt>0)?`<div style="text-align:right; font-size:11px; line-height:1.4;"><span style="font-weight:bold; color:#40c4ff;">Bruto: Rp ${brutoPerKm.toLocaleString('id-ID')}/km</span><br><span style="color:${marginNettoPerKm>=0?'#00e676':'#ff5252'}; font-weight:500;">Margin: Rp ${Math.round(marginNettoPerKm).toLocaleString('id-ID')}/km</span><br><span style="color:#ffb300;">Tip: ${r.tipCount}x (Avg: Rp ${avgTip.toLocaleString('id-ID')})</span></div>`:`<span style="color:#5a7096; font-style:italic; font-size:12px;">Belum ada data jarak</span>`;
+        ratesContainer.innerHTML+=`<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333; padding-bottom:6px;"><span style="font-weight:500; color:#ccc;">${cat}</span><span>${rateText}</span></div>`;
+    }
+
+    const tiersContainer=document.getElementById('rekapTiersContainer'); tiersContainer.innerHTML="";
+    let tierList=[{label:"⚡ Shift Pendek (< 5 Jam)",data:tiers.short},{label:"🎯 Shift Ideal (5 - 8 Jam)",data:tiers.ideal},{label:"🚨 Shift Lembur (> 8 Jam)",data:tiers.long}];
+    tierList.forEach(t=>{ let avg=t.data.hours>0?Math.round(t.data.net/t.data.hours):0; let infoText=t.data.count>0?`<div style="text-align:right; font-size:11px; line-height:1.4;"><span style="font-weight:bold; color:#ffb300;">Rp ${avg.toLocaleString('id-ID')}/jam</span><br><span style="color:var(--muted);">${t.data.count} Hari (${t.data.hours.toFixed(1)} Jam)</span></div>`:`<span style="color:#5a7096; font-style:italic; font-size:12px;">Belum ada data</span>`; tiersContainer.innerHTML+=`<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #333; padding-bottom:6px;"><span style="font-weight:500; color:#ccc;">${t.label}</span><span>${infoText}</span></div>`; });
+
+    const daysContainer=document.getElementById('rekapDaysContainer'); daysContainer.innerHTML="";
+    dayOfWeekData.forEach(d=>{ d.rpPerHour=d.hours>0?Math.round(d.net/d.hours):0; });
+    let maxRpPerHour=Math.max(...dayOfWeekData.map(d=>Math.abs(d.rpPerHour)),1);
+    dayOfWeekData.forEach(d=>{
+        let pct=Math.round((Math.abs(d.rpPerHour)/maxRpPerHour)*100); let barColor=d.rpPerHour>=0?'#00e676':'#ff5252';
+        daysContainer.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label"><span>${d.name} <span style="font-size:10px; color:var(--muted);">(Net: Rp ${d.net.toLocaleString('id-ID')})</span></span><span style="color:${barColor}; font-weight:bold;">Rp ${d.rpPerHour.toLocaleString('id-ID')}/jam</span></div><div class="breakdown-bg"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div><div style="font-size:9px; color:#777; margin-top:2px; text-align:right;">Total: ${d.hours.toFixed(1)} Jam</div></div>`;
+    });
+
+    // Insight V5 presisi
+    const insightContainer=document.getElementById('rekapInsightContainer'); insightContainer.innerHTML="";
+    if(totalIncome===0){ insightContainer.innerHTML=`<div style="color:var(--muted); font-style:italic; font-size:12px;">Belum ada data.</div>`; }
+    else {
+        let aiInsights=[];
+        if(avgRpPerHourPeriod>0){
+            if(avgRpPerHourPeriod>=35000) aiInsights.push("🔥 <strong>Efisiensi Puncak:</strong> Rp/jam di atas 35rb, jam online first-last sangat efisien.");
+            else if(avgRpPerHourPeriod>=20000) aiInsights.push("🔄 <strong>Standar:</strong> Ada jeda kosong antar order pertama-terakhir, cek dead time.");
+            else aiInsights.push("⚠️ <strong>Jam Online Boros:</strong> Jarak first-last panjang tapi netto tipis, kurangi nongkrong kosong.");
+        }
+        let bestBlock=hourlyBlocks[0]; let maxAvg=0; hourlyBlocks.forEach(b=>{ let avg=b.hours>0?b.net/b.hours:0; if(avg>maxAvg){ maxAvg=avg; bestBlock=b; } });
+        if(maxAvg>0) aiInsights.push(`⏰ <strong>Zona Emas Presisi:</strong> <strong>${bestBlock.label}</strong> paling gurih ${bestBlock.orderCount} order, Rp ${Math.round(maxAvg).toLocaleString('id-ID')}/jam (berdasarkan jam mulai order OCR).`);
+        let pGoride=((incomeByCat["Goride"]||0))/totalIncome; let pGofood=(incomeByCat["Gofood"]||0)/totalIncome; let pGosend=(incomeByCat["Gosend"]||0)/totalIncome; let pGomart=(incomeByCat["Gomart"]||0)/totalIncome;
+        if(pGoride>=0.25) aiInsights.push(`🏍️ <strong>Goride RB (${Math.round(pGoride*100)}%):</strong> Dominan, cek alamat jemput/tujuan untuk hindari macet langganan.`);
+        if(pGofood>=0.25) aiInsights.push(`🍔 <strong>Gofood F (${Math.round(pGofood*100)}%):</strong> Resto delay terdeteksi dari durasi order (jam akhir - awal), batasi 15 menit.`);
+        if(pGosend>=0.20) aiInsights.push(`📦 <strong>Gosend GK (${Math.round(pGosend*100)}%):</strong> Tarif/km kecil, pakai sebagai pengisi antar Goride.`);
+        if(pGomart>=0.10) aiInsights.push(`🛒 <strong>Gomart MT (${Math.round(pGomart*100)}%):</strong> Langka tapi cuan, sikat terus.`);
+        let totalEv=0; for(let k in evSpkluMap){ const pp=k.split('-'); const dd=new Date(pp[0],pp[1]-1,pp[2]); dd.setHours(0,0,0,0); if(dd>=cutoffDate&&dd<=anchorDate) totalEv+=evSpkluMap[k]; }
+        if(totalEv>0){ let avgEv=totalKm>0?Math.round(totalEv/totalKm):0; aiInsights.push(`⚡ <strong>Biaya SPKLU Real:</strong> Rp ${Math.round(totalEv).toLocaleString('id-ID')} (${avgEv>0?'Rp '+avgEv+'/km':''}) - sudah presisi dari BattLog.`); }
+        let htmlInsight=`<ul style="margin:0; padding-left:18px; font-size:12.5px; color:#e0e0e0; line-height:1.6; display:flex; flex-direction:column; gap:10px;">`;
+        aiInsights.forEach(s=>{ htmlInsight+=`<li>${s}</li>`; }); htmlInsight+=`</ul>`;
+        insightContainer.innerHTML=htmlInsight;
+    }
+}
+
+function exportToCSV(){
+    const data=JSON.parse(localStorage.getItem('siganData')||'[]');
+    if(data.length===0) return alert("Belum ada data!");
+    const shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    let csvContent="Tanggal;Jam Awal;Jam Akhir;Tipe;Kategori;ID Transaksi;ID Prefix;Jarak KM;Nominal;Alamat Jemput;Alamat Tujuan;Jam Mulai Shift;Jam Selesai Shift;Keterangan;Source\n";
+    data.forEach(item=>{
+        const dayShift=shiftData[item.date]||{start:'',end:''};
+        let row=[ item.date, item.time||'', item.endTime||item.predictedEndTime||'', item.type, item.cat, item.idTrans||'', item.idPrefix||'', item.dist.toString().replace('.',','), item.amount, `"${(item.pickup||'').replace(/"/g,'""')}"`, `"${(item.destination||'').replace(/"/g,'""')}"`, dayShift.start||'', dayShift.end||'', `"${(item.note||'').replace(/"/g,'""')}"`, item.source||'' ].join(";");
+        csvContent+=row+"\n";
+    });
+    const blob=new Blob([new Uint8Array([0xEF,0xBB,0xBF]), csvContent],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob); const link=document.createElement("a"); link.setAttribute("href",url); const tglLokal=new Date().toLocaleDateString('sv-SE'); link.setAttribute("download",`sigan_v5_full_${tglLokal}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+}
+
+window.onload=function(){
+    const today=new Date().toLocaleDateString('sv-SE');
+    document.getElementById('globalDate').value=today;
+    if(!localStorage.getItem('siganGlobalTarget')) localStorage.setItem('siganGlobalTarget',200000);
+    startLiveClock(); updateCategories(); loadData();
 };
-const _origDeleteItem = window.deleteItem;
-window.deleteItem = function(){
-  const r = _origDeleteItem.apply(this, arguments);
-  setTimeout(()=>{ try{AIEngineV2.learn();}catch(e){} }, 300);
-  return r;
-};
-console.log('AI Engine V2 Override Loaded - Tarif Dasar Flat Dihapus');
 </script>
 
-
-<!-- TAMBAHAN PENERIMA & PENGIRIM DATA - PATCH MERGE V2 ANTI-TIMPA -->
+<!-- OCR V5.1 MULTI-DATE PER FOTO -->
 <script>
 (function(){
-  var KEYS_SIGAN = ['siganData','siganShiftData','siganGlobalTarget','siganTariffConfig'];
-  var KEYS_MAKA = ['maka_log_v1','maka_bms_history','maka_soh_history','factory_cap_kwh','factory_range_km','maka_soh_baseline','maka_soh_baseline_is_fallback','maka_soh_total_samples','maka_log_v1_lokasi_history','maka_charger_history','universal_custom_v','universal_custom_ah','maka_chat_id','sigan_hub_data','sigan_riwayat_harian','sigan_cross_ev_cost','maka_cross_summary'];
-  var LAKE_KEY = 'UNIVERSAL_LAKE_V1';
+  const fileInput=document.getElementById('ocrFileInput');
+  const statusEl=document.getElementById('ocrStatus');
+  const previewEl=document.getElementById('ocrPreview');
+  if(!fileInput) return;
 
-  function safeParse(k){
-    try{
-      var v=localStorage.getItem(k);
-      if(v==null) return null;
-      try{ return JSON.parse(v); }catch(e){ return v; }
-    }catch(e){ return null; }
+  function normalizeDate(str){
+    if(!str) return new Date().toLocaleDateString('sv-SE');
+    str=str.trim();
+    if(str.includes('/')){
+      let p=str.split('/');
+      if(p.length===3){ let dd=p[0].padStart(2,'0'), mm=p[1].padStart(2,'0'), yyyy=p[2]; if(yyyy.length===4) return `${yyyy}-${mm}-${dd}`; }
+    }
+    return str;
   }
-  function getExistingLake(){
-    try{
-      var raw = localStorage.getItem(LAKE_KEY);
-      if(!raw) return {_updated:0, _source:'', _sources:{}, sigan:{}, maka:{}, cross:{}};
-      var obj = JSON.parse(raw);
-      obj.sigan = obj.sigan || {};
-      obj.maka = obj.maka || {};
-      obj.cross = obj.cross || {};
-      obj._sources = obj._sources || {};
-      return obj;
-    }catch(e){ return {_updated:0, _source:'', _sources:{}, sigan:{}, maka:{}, cross:{}}; }
+
+  function parseDateFromOcrText(fullText){
+    if(!fullText) return null;
+    const txt=fullText;
+    let m1=txt.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if(m1){
+      let dd=m1[1].padStart(2,'0'), mm=m1[2].padStart(2,'0'), yyyy=m1[3];
+      if(Number(dd)<=31 && Number(mm)<=12) return `${yyyy}-${mm}-${dd}`;
+    }
+    let m2=txt.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if(m2){
+      let yyyy=m2[1], mm=m2[2].padStart(2,'0'), dd=m2[3].padStart(2,'0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    const monthMap={ 'januari':'01','februari':'02','maret':'03','april':'04','mei':'05','juni':'06','juli':'07','agustus':'08','september':'09','oktober':'10','november':'11','desember':'12', 'jan':'01','feb':'02','mar':'03','apr':'04','jun':'06','jul':'07','agu':'08','agust':'08','sep':'09','okt':'10','nov':'11','des':'12' };
+    let m3=txt.match(/(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember|Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Agust|Sep|Okt|Nov|Des)\s+(\d{4})/i);
+    if(m3){
+      let dd=m3[1].padStart(2,'0'); let mon=m3[2].toLowerCase(); let yyyy=m3[3];
+      let mm=monthMap[mon]||'01';
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    let m4=txt.match(/(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember|Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Agust|Sep|Okt|Nov|Des)\b/i);
+    if(m4){
+      let dd=m4[1].padStart(2,'0'); let mon=m4[2].toLowerCase(); let mm=monthMap[mon]||'01';
+      let yyyy=new Date().getFullYear();
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return null;
   }
-  try{
-    window.__siganBC = window.__siganBC || new BroadcastChannel('sigan_universal_sync');
-  }catch(e){}
 
-  function buildAndSendSiGan(){
-    try{
-      var lake = getExistingLake();
+  function getIdCategory(idTrans){
+    if(!idTrans) return 'Goride';
+    idTrans=idTrans.toUpperCase();
+    if(idTrans.startsWith('RB')) return 'Goride';
+    if(idTrans.startsWith('F-')||idTrans.startsWith('F')) return 'Gofood';
+    if(idTrans.startsWith('MT')) return 'Gomart';
+    if(idTrans.startsWith('GK')) return 'Gosend';
+    return 'Goride';
+  }
 
-      // Merge sigan & maka
-      for(var i=0;i<KEYS_SIGAN.length;i++){ 
-        var v = safeParse(KEYS_SIGAN[i]); 
-        if(v!==null) lake.sigan[KEYS_SIGAN[i]] = v; 
+  function cropImageTop(file, ratio){
+    return new Promise((resolve,reject)=>{
+      try{
+        const img=new Image();
+        img.onload=()=>{
+          try{
+            const canvas=document.createElement('canvas');
+            const w=img.width, h=img.height;
+            const cropH=Math.floor(h*ratio);
+            canvas.width=w; canvas.height=cropH;
+            const ctx=canvas.getContext('2d');
+            ctx.drawImage(img,0,0,w,cropH,0,0,w,cropH);
+            canvas.toBlob((blob)=>{ URL.revokeObjectURL(img.src); if(blob) resolve(blob); else reject('crop fail'); }, 'image/jpeg', 0.9);
+          }catch(e){ reject(e); }
+        };
+        img.onerror=()=>reject('img load fail');
+        img.src=URL.createObjectURL(file);
+      }catch(e){ reject(e); }
+    });
+  }
+
+  function parseGojekText(fullText){
+    let txt=fullText.replace(/\r/g,'').replace(/\n+/g,'\n');
+    let results=[];
+    const tripRegex=/Rp\s*[^\d]{0,3}([\d\.\,]{3,})[\s\S]{0,80}?(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})[^\d]{0,10}([\d]+[\.,]?\d*)\s*km/gi;
+    let m;
+    while((m=tripRegex.exec(txt))!==null){
+      let rawAmt=m[1].replace(/[^\d\.]/g,'');
+      let amount=parseInt(rawAmt.replace(/\./g,''))||0;
+      if(amount<1000){
+        let near=txt.substring(m.index, m.index+80).match(/Rp[^\d]{0,5}([\d\.]{4,})/);
+        if(near){ let cand=near[1].replace(/\./g,'').replace(/[^\d]/g,''); if(cand&&parseInt(cand)>amount) amount=parseInt(cand); }
       }
-      for(var i=0;i<KEYS_MAKA.length;i++){ 
-        var v2 = safeParse(KEYS_MAKA[i]); 
-        if(v2!==null) lake.maka[KEYS_MAKA[i]] = v2; 
-      }
+      let start=m[2], end=m[3], rawKm=m[4];
+      let dist=parseFloat(rawKm.replace(',','.'))||0;
+      if(!rawKm.includes('.')&&!rawKm.includes(',')&&dist>100) dist=dist/100;
+      if(dist>100) dist=dist/100;
 
-      // Kirim ringkas untuk EV Log
-      var siganData = safeParse('siganData')||[];
-      var incomeMap = {};
-      var kmMap = {};
-      for(var j=0;j<siganData.length;j++){
-        var it = siganData[j];
-        if(it.type==='Pendapatan'){
-          incomeMap[it.date] = (incomeMap[it.date]||0)+Number(it.amount||0);
-          kmMap[it.date] = (kmMap[it.date]||0)+Number(it.dist||0);
+      let searchArea=txt.substring(m.index, m.index+900);
+      let idMatch=searchArea.match(/ID transaksi:\s*([A-Z0-9\-]+)/i);
+      if(!idMatch) idMatch=searchArea.match(/(RB|F-|MT-|GK-)[\d\-]{6,}/i);
+      let idTrans=idMatch?(idMatch[1]||idMatch[0]).toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9\-]/g,''):'';
+      if(idMatch&&idMatch[0].toUpperCase().includes('ID TRANSAKSI')){
+        let full=searchArea.match(/ID transaksi:\s*([A-Z\d\-]+)/i);
+        if(full) idTrans=full[1].toUpperCase().replace(/\s+/g,'');
+      }
+      if(!idTrans) continue;
+      let cat=getIdCategory(idTrans);
+      let lines=searchArea.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+      let idLineIdx=lines.findIndex(l=>l.toUpperCase().includes(idTrans) || l.toUpperCase().includes('ID TRANSAKSI'));
+      let pickup='', destination='';
+      if(idLineIdx>=0){
+        let candidates=[];
+        for(let i=idLineIdx+1;i<lines.length&&candidates.length<4;i++){
+          let ln=lines[i];
+          if(/Rp/i.test(ln)) continue;
+          if(/\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/.test(ln)) continue;
+          if(/[\d]+[\.,]?\d*\s*km/i.test(ln)) continue;
+          if(/ID transaksi/i.test(ln)) continue;
+          if(/^[A-Z]+-[\d\-]+$/.test(ln.toUpperCase())) continue;
+          if(ln.length<4) continue;
+          if(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(ln)) continue;
+          candidates.push(ln);
         }
+        if(candidates.length>=1) pickup=candidates[0].substring(0,120);
+        if(candidates.length>=2) destination=candidates[1].substring(0,120);
       }
-      try{
-        localStorage.setItem('maka_cross_sigan_income', JSON.stringify(incomeMap));
-        localStorage.setItem('maka_cross_sigan_km', JSON.stringify(kmMap));
-        localStorage.setItem('sigan_hub_last_update', String(Date.now()));
-        lake.cross['maka_cross_sigan_income'] = incomeMap;
-        lake.cross['maka_cross_sigan_km'] = kmMap;
-        lake.cross['sigan_hub_data_from_sigan'] = {siganData:siganData, incomeMap:incomeMap, kmMap:kmMap, ts:Date.now()};
-      }catch(e){}
-
-      // Bawa juga cross EV biar tidak hilang
-      var biayaEv = safeParse('sigan_cross_ev_cost');
-      var summaryEv = safeParse('maka_cross_summary');
-      if(biayaEv) lake.cross['sigan_cross_ev_cost'] = biayaEv;
-      if(summaryEv) lake.cross['maka_cross_summary'] = summaryEv;
-      var riwayatEv = safeParse('sigan_riwayat_harian');
-      if(riwayatEv) lake.cross['sigan_riwayat_harian'] = riwayatEv;
-
-      try{
-        localStorage.setItem('sigan_hub_data_from_sigan', JSON.stringify({siganData:siganData, incomeMap:incomeMap, kmMap:kmMap, ts:Date.now()}));
-      }catch(e){}
-
-      lake._updated = Date.now();
-      lake._sources['sigan_sempurna'] = Date.now();
-      lake._source = Object.keys(lake._sources).join('+');
-      try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
-      try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update', from:'sigan', ts:Date.now()}); }catch(e){}
-    }catch(e){ console.log('SiGan Sender error', e.message); }
+      results.push({amount, dist, start, end, cat, idTrans, pickup, destination, loc: (pickup?pickup:'') + (destination?' -> '+destination:''), raw:m[0].substring(0,80)});
+    }
+    if(results.length===0){
+      const am=[...txt.matchAll(/Rp\s*[^\d]{0,3}([\d\.]{3,})/g)];
+      const km=[...txt.matchAll(/([\d]+[\.,]?\d*)\s*km/gi)];
+      const tm=[...txt.matchAll(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/g)];
+      const ids=[...txt.matchAll(/(RB|F-|MT-|GK-)[\d\-]{6,}/gi)];
+      let cnt=Math.min(am.length, km.length, tm.length, ids.length);
+      for(let i=0;i<cnt;i++){
+        let amount=parseInt(am[i][1].replace(/\./g,'').replace(/[^\d]/g,''))||0;
+        let dist=parseFloat(km[i][1].replace(',','.'))||0;
+        if(!km[i][1].includes('.')&&!km[i][1].includes(',')&&dist>100) dist=dist/100;
+        let start=tm[i][1], end=tm[i][2];
+        let idTrans=ids[i]?ids[i][0].toUpperCase():'';
+        if(!idTrans) continue;
+        let cat=getIdCategory(idTrans);
+        results.push({amount, dist, start, end, cat, idTrans, pickup:'', destination:'', loc:'', raw:''});
+      }
+    }
+    return results;
   }
 
-  function bacaDataEvLog(){
+  function isDuplicateById(idTrans){
+    if(!idTrans) return false;
     try{
-      var lake = safeParse(LAKE_KEY)||{};
-      var riwayatEv = safeParse('sigan_riwayat_harian') || (lake.cross && lake.cross.sigan_riwayat_harian) || [];
-      var biayaEv = safeParse('sigan_cross_ev_cost') || (lake.cross && lake.cross.sigan_cross_ev_cost) || {};
-      var summaryEv = safeParse('maka_cross_summary') || (lake.cross && lake.cross.maka_cross_summary) || {};
-      var hubData = safeParse('sigan_hub_data') || (lake.cross && lake.cross.sigan_hub_data) || {};
+      let data=JSON.parse(localStorage.getItem('siganData')||'[]');
+      idTrans=idTrans.toUpperCase();
+      for(let e of data){
+        if(e.idTrans && e.idTrans.toUpperCase()===idTrans) return true;
+        if(e.note && e.note.toUpperCase().includes(idTrans)) return true;
+      }
+    }catch(e){}
+    return false;
+  }
+
+  async function processFile(file, fallbackDate){
+    statusEl.innerHTML='🔍 Membaca '+file.name+' ...';
+    previewEl.style.display='block';
+    previewEl.innerHTML='OCR...';
+    try{
+      const {data:{text: fullText}} = await Tesseract.recognize(file, 'ind+eng', { logger: m=>{ if(m.status=='recognizing text') previewEl.innerHTML=`OCR full ${Math.round(m.progress*100)}%`; } });
+      previewEl.innerHTML='<div style="color:#8aa0c6;white-space:pre-wrap;max-height:120px;overflow:auto">'+fullText.substring(0,900)+'</div>';
       
-      window.__CROSS_EV_RIWAYAT = riwayatEv;
-      window.__CROSS_EV_COST_MAP = biayaEv;
-      window.__CROSS_EV_SUMMARY = summaryEv;
-      window.__CROSS_EV_HUB = hubData;
-      window.__CROSS_EV_LAKE = lake;
-      window.__CROSS_EV_LAST_UPDATE = localStorage.getItem('sigan_hub_last_update');
-      return {riwayat: riwayatEv, biaya: biayaEv, summary: summaryEv};
-    }catch(e){ console.log('SiGan Reader error', e.message); return null; }
+      let ocrDate=parseDateFromOcrText(fullText);
+      if(!ocrDate){
+        try{
+          statusEl.innerHTML='🔍 Tanggal tidak ketemu di full, coba crop atas...';
+          let topBlob=await cropImageTop(file, 0.22);
+          const {data:{text: topText}} = await Tesseract.recognize(topBlob, 'ind+eng');
+          ocrDate=parseDateFromOcrText(topText);
+          if(ocrDate) statusEl.innerHTML=`✅ Tanggal dari header foto: ${ocrDate}`;
+        }catch(e){ console.log('crop date fail',e); }
+      }
+      if(!ocrDate) ocrDate=fallbackDate;
+
+      let parsed=parseGojekText(fullText);
+      parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
+      if(!parsed.length){ statusEl.innerHTML='⚠️ Tidak ada trip di '+file.name+' (tanggal deteksi: '+ocrDate+')'; return []; }
+      statusEl.innerHTML=`✅ ${parsed.length} trip dari ${file.name} | <strong>TANGGAL FOTO: ${ocrDate}</strong> | ${parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end+' ['+p.cat+']').join(', ')}`;
+      return parsed;
+    }catch(err){ statusEl.innerHTML='❌ OCR gagal: '+err.message; return []; }
   }
 
-  function hookSiGan(){
-    if(window.saveData && !window.saveData.__hooked){
-      var origSave = window.saveData;
-      window.saveData = function(){
-        var res = origSave.apply(this, arguments);
-        setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 200);
-        return res;
-      };
-      window.saveData.__hooked = true;
-    }
-    if(window.deleteItem && !window.deleteItem.__hooked){
-      var origDel = window.deleteItem;
-      window.deleteItem = function(){
-        var res = origDel.apply(this, arguments);
-        setTimeout(buildAndSendSiGan, 200);
-        return res;
-      };
-      window.deleteItem.__hooked = true;
-    }
-    if(window.updateShiftTime && !window.updateShiftTime.__hooked){
-      var origShift = window.updateShiftTime;
-      window.updateShiftTime = function(){
-        var res = origShift.apply(this, arguments);
-        setTimeout(buildAndSendSiGan, 200);
-        return res;
-      };
-      window.updateShiftTime.__hooked = true;
-    }
-  }
+  fileInput.addEventListener('change', async (e)=>{
+    let files=Array.from(e.target.files||[]);
+    if(!files.length) return;
+    let rawGlobal=(document.getElementById('globalDate')&&document.getElementById('globalDate').value)||'';
+    let fallbackDate=normalizeDate(rawGlobal);
+    statusEl.innerHTML=`📷 ${files.length} foto, fallback tanggal global: <strong>${fallbackDate}</strong>. Sistem akan deteksi tanggal PER FOTO dari header (contoh: 11 Juli 2026 di foto kamu).`;
 
-  window.addEventListener('storage', function(e){
-    if(!e) return;
-    if(e.key==='sigan_riwayat_harian' || e.key==='sigan_cross_ev_cost' || e.key==='sigan_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1' || e.key==='sigan_hub_data'){
-      setTimeout(bacaDataEvLog, 100);
+    let allParsed=[];
+    for(let f of files){
+      let r=await processFile(f, fallbackDate);
+      allParsed=allParsed.concat(r);
+    }
+    if(!allParsed.length){ statusEl.innerHTML+='<br>❌ Tidak ada data valid'; fileInput.value=''; return; }
+
+    let unique=[]; let seenId=new Set();
+    let perDateCount={};
+    for(let p of allParsed){
+      if(!p.idTrans){ statusEl.innerHTML+=`<br>⚠️ Tanpa ID, lewati: Rp${p.amount} ${p.start}`; continue; }
+      let idKey=p.idTrans.toUpperCase();
+      if(seenId.has(idKey)){ statusEl.innerHTML+=`<br>⏭️ Duplikat batch ID ${idKey}`; continue; }
+      if(isDuplicateById(idKey)){ statusEl.innerHTML+=`<br>⏭️ Duplikat tolak ID ${idKey} sudah ada`; continue; }
+      seenId.add(idKey);
+      unique.push(p);
+      perDateCount[p.date]=(perDateCount[p.date]||0)+1;
+    }
+
+    if(unique.length){
+      let siganData=JSON.parse(localStorage.getItem('siganData')||'[]');
+      let saved=0; let datesAffected=new Set();
+      for(let p of unique){
+        let entry={
+          date: p.date||fallbackDate,
+          time: p.start||new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}),
+          endTime: p.end||'',
+          predictedEndTime: p.end||'',
+          type: 'Pendapatan',
+          cat: p.cat||'Goride',
+          note: `OCR ${p.start}-${p.end} ${p.idTrans} | ${p.pickup||''} -> ${p.destination||''}`.substring(0,300),
+          dist: p.dist,
+          amount: p.amount,
+          idTrans: p.idTrans,
+          idPrefix: p.idTrans ? p.idTrans.split('-')[0] : '',
+          pickup: p.pickup||'',
+          destination: p.destination||'',
+          source: 'ocr_v5_1_multidate'
+        };
+        siganData.push(entry);
+        saved++; datesAffected.add(entry.date);
+      }
+      localStorage.setItem('siganData', JSON.stringify(siganData));
+      datesAffected.forEach(d=>{ if(window.updateShiftFromOrders) window.updateShiftFromOrders(d); });
+
+      let perDateTxt=Object.entries(perDateCount).map(([d,c])=>`${d}: ${c} trip`).join(', ');
+      statusEl.innerHTML+=`<br><br>✅ <strong>${saved} trip tercatat dengan multi-tanggal!</strong><br>📅 Rincian: ${perDateTxt}<br>Group: RB=Goride, F=Gofood, MT=Gomart, GK=Gosend. Jam online auto first-last PER TANGGAL.`;
+      try{
+        if(typeof loadData==='function') loadData();
+        if(window.buildAndSendSiGan) window.buildAndSendSiGan();
+        setTimeout(()=>{ try{ if(typeof switchTab==='function') switchTab('history'); }catch(_){} }, 400);
+      }catch(err){ console.log(err); }
+      setTimeout(()=>{ fileInput.value=''; previewEl.style.display='none'; }, 2500);
+    } else {
+      statusEl.innerHTML+='<br>⚠️ Semua duplikat/tanpa ID';
+      fileInput.value='';
     }
   });
-  try{
-    window.__siganBC = window.__siganBC || new BroadcastChannel('sigan_universal_sync');
-    window.__siganBC.onmessage = function(ev){
-      if(ev.data && ev.data.type==='lake_update' && ev.data.from==='maka'){
-        setTimeout(bacaDataEvLog, 80);
-      }
-    };
-  }catch(e){}
-
-  setTimeout(hookSiGan, 600);
-  setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 1000);
-  setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); }, 60000);
-
-  window.kirimSiGanKeEvLog = buildAndSendSiGan;
-  window.bacaDataEvLog = bacaDataEvLog;
-  window.getUniversalLake = window.getUniversalLake || function(){
-    try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; }
-  };
-  console.log('SiGan V2 Receiver+Sender aktif: MERGE mode + BroadcastChannel');
 })();
 </script>
 
 
+<!-- Sync Lake (tetap) -->
+<script>
+(function(){
+  var KEYS_SIGAN=['siganData','siganShiftData','siganGlobalTarget'];
+  var KEYS_MAKA=['maka_log_v1','maka_bms_history','maka_soh_history','factory_cap_kwh','factory_range_km','maka_soh_baseline','maka_soh_baseline_is_fallback','maka_soh_total_samples','maka_log_v1_lokasi_history','maka_charger_history','universal_custom_v','universal_custom_ah','maka_chat_id','sigan_hub_data','sigan_riwayat_harian','sigan_cross_ev_cost','maka_cross_summary'];
+  var LAKE_KEY='UNIVERSAL_LAKE_V1';
+  function safeParse(k){ try{ var v=localStorage.getItem(k); if(v==null) return null; try{ return JSON.parse(v); }catch(e){ return v; } }catch(e){ return null; } }
+  function getExistingLake(){ try{ var raw=localStorage.getItem(LAKE_KEY); if(!raw) return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; var obj=JSON.parse(raw); obj.sigan=obj.sigan||{}; obj.maka=obj.maka||{}; obj.cross=obj.cross||{}; obj._sources=obj._sources||{}; return obj; }catch(e){ return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; } }
+  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); }catch(e){}
+  function buildAndSendSiGan(){
+    try{
+      var lake=getExistingLake();
+      for(var i=0;i<KEYS_SIGAN.length;i++){ var v=safeParse(KEYS_SIGAN[i]); if(v!==null) lake.sigan[KEYS_SIGAN[i]]=v; }
+      for(var i=0;i<KEYS_MAKA.length;i++){ var v2=safeParse(KEYS_MAKA[i]); if(v2!==null) lake.maka[KEYS_MAKA[i]]=v2; }
+      var siganData=safeParse('siganData')||[]; var incomeMap={}, kmMap={};
+      for(var j=0;j<siganData.length;j++){ var it=siganData[j]; if(it.type==='Pendapatan'){ incomeMap[it.date]=(incomeMap[it.date]||0)+Number(it.amount||0); kmMap[it.date]=(kmMap[it.date]||0)+Number(it.dist||0); } }
+      try{
+        localStorage.setItem('maka_cross_sigan_income', JSON.stringify(incomeMap));
+        localStorage.setItem('maka_cross_sigan_km', JSON.stringify(kmMap));
+        localStorage.setItem('sigan_hub_last_update', String(Date.now()));
+        lake.cross['maka_cross_sigan_income']=incomeMap; lake.cross['maka_cross_sigan_km']=kmMap;
+        lake.cross['sigan_hub_data_from_sigan']={siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()};
+      }catch(e){}
+      var biayaEv=safeParse('sigan_cross_ev_cost'); var summaryEv=safeParse('maka_cross_summary'); if(biayaEv) lake.cross['sigan_cross_ev_cost']=biayaEv; if(summaryEv) lake.cross['maka_cross_summary']=summaryEv;
+      var riwayatEv=safeParse('sigan_riwayat_harian'); if(riwayatEv) lake.cross['sigan_riwayat_harian']=riwayatEv;
+      try{ localStorage.setItem('sigan_hub_data_from_sigan', JSON.stringify({siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()})); }catch(e){}
+      lake._updated=Date.now(); lake._sources['sigan_sempurna']=Date.now(); lake._source=Object.keys(lake._sources).join('+');
+      try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
+      try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update',from:'sigan',ts:Date.now()}); }catch(e){}
+    }catch(e){ console.log('SiGan Sender error', e.message); }
+  }
+  function bacaDataEvLog(){ try{ var lake=safeParse(LAKE_KEY)||{}; var riwayatEv=safeParse('sigan_riwayat_harian')||(lake.cross&&lake.cross.sigan_riwayat_harian)||[]; var biayaEv=safeParse('sigan_cross_ev_cost')||(lake.cross&&lake.cross.sigan_cross_ev_cost)||{}; var summaryEv=safeParse('maka_cross_summary')||(lake.cross&&lake.cross.maka_cross_summary)||{}; var hubData=safeParse('sigan_hub_data')||(lake.cross&&lake.cross.sigan_hub_data)||{}; window.__CROSS_EV_RIWAYAT=riwayatEv; window.__CROSS_EV_COST_MAP=biayaEv; window.__CROSS_EV_SUMMARY=summaryEv; window.__CROSS_EV_HUB=hubData; window.__CROSS_EV_LAKE=lake; window.__CROSS_EV_LAST_UPDATE=localStorage.getItem('sigan_hub_last_update'); return {riwayat:riwayatEv,biaya:biayaEv,summary:summaryEv}; }catch(e){ return null; } }
+  function hookSiGan(){
+    if(window.saveData&&!window.saveData.__hooked){ var origSave=window.saveData; window.saveData=function(){ var res=origSave.apply(this,arguments); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },200); return res; }; window.saveData.__hooked=true; }
+    if(window.deleteItem&&!window.deleteItem.__hooked){ var origDel=window.deleteItem; window.deleteItem=function(){ var res=origDel.apply(this,arguments); setTimeout(buildAndSendSiGan,200); return res; }; window.deleteItem.__hooked=true; }
+    if(window.updateShiftTime&&!window.updateShiftTime.__hooked){ var origShift=window.updateShiftTime; window.updateShiftTime=function(){ var res=origShift.apply(this,arguments); setTimeout(buildAndSendSiGan,200); return res; }; window.updateShiftTime.__hooked=true; }
+  }
+  window.addEventListener('storage',function(e){ if(!e) return; if(e.key==='sigan_riwayat_harian'||e.key==='sigan_cross_ev_cost'||e.key==='sigan_hub_last_update'||e.key==='UNIVERSAL_LAKE_V1'||e.key==='sigan_hub_data'){ setTimeout(bacaDataEvLog,100); } });
+  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); window.__siganBC.onmessage=function(ev){ if(ev.data&&ev.data.type==='lake_update'&&ev.data.from==='maka'){ setTimeout(bacaDataEvLog,80); } }; }catch(e){}
+  setTimeout(hookSiGan,600); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },1000); setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); },60000);
+  window.kirimSiGanKeEvLog=buildAndSendSiGan; window.bacaDataEvLog=bacaDataEvLog; window.getUniversalLake=window.getUniversalLake||function(){ try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; } }; console.log('SiGan V5 Receiver+Sender aktif: MERGE mode + OCR FULL');
+})();
+</script>
 
 <script id="sync-lamp-script">
 (function(){
   function fmt(t){ if(!t) return ""; var d=new Date(t); return d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
   function cek(){
-    var dot=document.getElementById('sigan-sync-dot');
-    var txt=document.getElementById('sigan-sync-text');
-    var tm=document.getElementById('sigan-sync-time');
-    if(!dot||!txt) return;
-    var last=parseInt(localStorage.getItem('sigan_hub_last_update')||'0');
-    var diff=Date.now()-last;
-    var hasLake=!!localStorage.getItem('UNIVERSAL_LAKE_V1');
-    if(hasLake && diff<8000){
-      dot.classList.add('active');
-      txt.textContent='AUTO-SYNC AKTIF';
-      txt.style.color='#00e676';
-      if(tm) tm.textContent='update '+fmt(last);
-    } else if(hasLake){
-      dot.classList.add('active');
-      txt.textContent='TERHUBUNG';
-      txt.style.color='#7dffb7';
-      dot.classList.remove('active');
-      if(tm) tm.textContent='last '+fmt(last);
-    } else {
-      dot.classList.remove('active');
-      txt.textContent='SYNC STANDBY';
-      txt.style.color='#aaaaaa';
-      if(tm) tm.textContent='';
-    }
+    var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); var tm=document.getElementById('sigan-sync-time');
+    if(!dot||!txt) return; var last=parseInt(localStorage.getItem('sigan_hub_last_update')||'0'); var diff=Date.now()-last; var hasLake=!!localStorage.getItem('UNIVERSAL_LAKE_V1');
+    if(hasLake && diff<8000){ dot.classList.add('active'); dot.style.background='#00e676'; txt.textContent='AUTO-SYNC AKTIF'; txt.style.color='#00e676'; if(tm) tm.textContent='update '+fmt(last); }
+    else if(hasLake){ dot.style.background='#7dffb7'; txt.textContent='TERHUBUNG'; txt.style.color='#7dffb7'; if(tm) tm.textContent='last '+fmt(last); }
+    else { dot.style.background='#555'; txt.textContent='SYNC STANDBY'; txt.style.color='#aaaaaa'; if(tm) tm.textContent=''; }
   }
-  setInterval(cek,3000);
-  setTimeout(cek,800);
-  window.addEventListener('storage', function(e){
-    if(e.key==='sigan_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1'){
-      var dot=document.getElementById('sigan-sync-dot');
-      var txt=document.getElementById('sigan-sync-text');
-      if(dot){ dot.classList.add('active'); txt.textContent='BERTUKAR DATA...'; setTimeout(cek,1300); }
-    }
-  });
+  setInterval(cek,3000); setTimeout(cek,800);
+  window.addEventListener('storage', function(e){ if(e.key==='sigan_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1'){ var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); if(dot){ dot.style.background='#00e676'; txt.textContent='BERTUKAR DATA...'; setTimeout(cek,1300); } } });
 })();
 </script>
 
