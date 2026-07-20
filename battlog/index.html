@@ -2595,77 +2595,50 @@ function renderBateraiRuteBaru(){
 
 
 <script>
-// === TAMBAHAN AKURAT: RATA2 AI KM/JAM MENGIKUTI WH/KM (Pembobotan Linear) - TANPA RUSAK KODE LAIN ===
+// === FIX: AI Wh/km harus berubah sesuai periode + AVG KM/JAM sejalan Wh/km (Pembobotan Linear) ===
 function hitungPrediksiAIKmJam(filtered){
-  // Mirror dari hitungPrediksiAIWhKm - biar sejalan infonya
   try{
     let source = filtered && filtered.length ? filtered : (typeof entries!=='undefined' ? entries : []);
-    // Filter valid entries yang punya jarak >0
     let validEntries = source.filter(e=>{
       try{
         let c = (typeof calcEntry==='function') ? calcEntry(e) : null;
-        if(!c) return false;
-        return c.jarak > 0 && c.jarak < 500; // jarak wajar
+        return c && c.jarak > 0 && c.jarak < 500;
       }catch(err){ return false; }
     });
     if(validEntries.length===0) return {avg:0, detail:[]};
-    // Ambil 3 untuk harian, 7 untuk lainnya - SAMA PERSIS dengan Wh/km
     let take = Math.min(validEntries.length, (typeof ekonomiPeriod!=='undefined' && ekonomiPeriod==='harian') ? 3 : 7);
-    let listTerakhir = validEntries.slice(0, take).reverse(); // oldest first, newest last -> bobot naik
-    // Hitung durasi per entry dari selisih ID timestamp (waktu antar catat)
-    // Ini mengikuti No.2: total jarak / total jam antar catat, tapi per entry biar bisa pembobotan linear
+    let listTerakhir = validEntries.slice(0, take).reverse();
     let detail = [];
     for(let idx=0; idx<listTerakhir.length; idx++){
       let e = listTerakhir[idx];
       let c = calcEntry(e);
       let jarak = c.jarak||0;
-      // Cari entry sebelumnya (lebih lama) di dalam source untuk hitung durasi
       let currId = Number(e.id)||0;
       let prevEntry = null;
-      // Cari di source yang id nya lebih kecil (lebih lama) dan paling dekat
       let candidates = source.filter(se=> Number(se.id) < currId).sort((a,b)=> Number(b.id)-Number(a.id));
       if(candidates.length>0) prevEntry = candidates[0];
       let durasiJam = 0;
       if(prevEntry){
-        let prevId = Number(prevEntry.id)||0;
-        let diffMs = currId - prevId;
-        durasiJam = diffMs / 3600000; // ms to hours
-        // Validasi: kalau durasi terlalu kecil (<0.1 jam = 6 menit) atau terlalu besar (>24 jam), anggap tidak valid -> pakai fallback
-        if(durasiJam < 0.1 || durasiJam > 24){
-          durasiJam = 0; // akan di fallback
-        }
+        let diffMs = currId - Number(prevEntry.id);
+        durasiJam = diffMs / 3600000;
+        if(durasiJam < 0.1 || durasiJam > 24){ durasiJam = 0; }
       }
-      // Fallback: kalau durasi tidak valid, estimasi dari jarak / kecepatan wajar 25 km/jam (asumsi motor listrik)
-      // Atau pakai rata2 global nanti
-      if(durasiJam<=0){
-        durasiJam = jarak / 25; // asumsi 25 km/jam kalau tidak ada data waktu
-        if(durasiJam<=0) durasiJam = 1;
-      }
+      if(durasiJam<=0){ durasiJam = jarak / 25; if(durasiJam<=0) durasiJam = 1; }
       let kmPerJam = jarak / durasiJam;
-      // Batasi biar tidak aneh (5 - 80 km/jam wajar)
       if(kmPerJam < 1) kmPerJam = 0;
       if(kmPerJam > 80) kmPerJam = 80;
       detail.push({e, jarak, durasiJam, kmPerJam, bobot: idx+1});
     }
-    // Pembobotan linear - SAMA PERSIS dengan Wh/km
     let totalBobot = 0;
     let totalKmJamBerbobot = 0;
-    detail.forEach(d=>{
-      totalKmJamBerbobot += (d.kmPerJam * d.bobot);
-      totalBobot += d.bobot;
-    });
+    detail.forEach(d=>{ totalKmJamBerbobot += (d.kmPerJam * d.bobot); totalBobot += d.bobot; });
     let avg = totalBobot ? totalKmJamBerbobot / totalBobot : 0;
     return {avg, detail, take};
-  }catch(e){
-    console.log('hitungPrediksiAIKmJam err', e.message);
-    return {avg:0, detail:[]};
-  }
+  }catch(e){ return {avg:0, detail:[]}; }
 }
-
 function hitungAvgKmJamHarian(){
   try{
-    if(typeof entries==='undefined' || !Array.isArray(entries)) return;
-    // Hitung dengan metode baru yang mengikuti Wh/km
+    if(typeof entries==='undefined') return;
     let filteredForAI = [];
     try{
       let anchorDate = new Date(); anchorDate.setHours(0,0,0,0);
@@ -2676,117 +2649,38 @@ function hitungAvgKmJamHarian(){
         else if(ekonomiPeriod==='14hari'){ cutoffDate.setDate(anchorDate.getDate()-13); }
         else if(ekonomiPeriod==='30hari'){ cutoffDate.setDate(anchorDate.getDate()-29); }
         else { cutoffDate = new Date('2000-01-01'); }
-      } else {
-        cutoffDate = new Date('2000-01-01');
-      }
-      entries.forEach(ee=>{
-        try{
-          let dd=new Date(ee.tanggal); dd.setHours(0,0,0,0);
-          if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (dd < cutoffDate || dd > anchorDate)) return;
-          filteredForAI.push(ee);
-        }catch(e){}
-      });
+      } else { cutoffDate = new Date('2000-01-01'); }
+      entries.forEach(ee=>{ try{ let dd=new Date(ee.tanggal); dd.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (dd < cutoffDate || dd > anchorDate)) return; filteredForAI.push(ee); }catch(e){} });
     }catch(e){ filteredForAI = entries; }
-
     let hasilWh = {avg:0};
-    try{
-      if(typeof hitungPrediksiAIWhKm==='function'){
-        hasilWh.avg = hitungPrediksiAIWhKm(filteredForAI.length?filteredForAI:undefined) || 0;
-      }
-    }catch(e){}
-
+    try{ if(typeof hitungPrediksiAIWhKm==='function'){ hasilWh.avg = hitungPrediksiAIWhKm(filteredForAI.length?filteredForAI:undefined) || 0; } }catch(e){}
     let hasilKmJam = hitungPrediksiAIKmJam(filteredForAI.length?filteredForAI:undefined);
     let avgKmJam = hasilKmJam.avg||0;
-
-    // Tampilkan di dashboard cluster - sebelah Wh/km
     let elAvg = document.getElementById('stat_avg_kmjam');
     if(elAvg){
-      if(avgKmJam>0){
-        elAvg.textContent = avgKmJam.toFixed(1);
-        let detailStr = hasilKmJam.detail.map(d=>`${d.jarak.toFixed(1)}km/${d.durasiJam.toFixed(1)}j=${d.kmPerJam.toFixed(1)}km/jam (bobot ${d.bobot})`).join('\n');
-        elAvg.title = `AI Pembobotan Linear (${hasilKmJam.take} sesi, sejalan Wh/km ${Math.round(hasilWh.avg)} Wh/km)\n`+detailStr;
-      }else{
-        elAvg.textContent = '–';
-      }
+      if(avgKmJam>0){ elAvg.textContent = avgKmJam.toFixed(1); }else{ elAvg.textContent = '–'; }
     }
-
-    // Lempar ke penyimpanan bersama untuk SiGan
     try{
-      let payload = {
-        avg_km_jam_ai: Number(avgKmJam.toFixed(2)),
-        avg_wh_km_ai: Number((hasilWh.avg||0).toFixed(1)),
-        metode: 'pembobotan_linear_sejalan_WhKm',
-        take: hasilKmJam.take||0,
-        detail: hasilKmJam.detail.map(d=>({
-          tanggal: d.e.tanggal,
-          jarak: Number(d.jarak.toFixed(2)),
-          durasi_jam: Number(d.durasiJam.toFixed(2)),
-          km_per_jam: Number(d.kmPerJam.toFixed(2)),
-          bobot: d.bobot,
-          wh_per_km: (()=>{ try{return Math.round(calcEntry(d.e).wh_per_km);}catch(e){return 0;} })()
-        })),
-        timestamp: Date.now()
-      };
-      // 1. Simpan ke hub SiganData
-      if(typeof SiganData!=='undefined' && SiganData.save){
-        SiganData.save('avg_km_jam_ai', payload);
-        SiganData.save('avg_km_jam_harian', payload); // kompatibilitas dengan versi lama
-        console.log('SiGan Hub: avg_km_jam_ai terkirim (pembobotan linear)', payload);
-      }
-      // 2. Simpan ke localStorage langsung juga untuk SiGan baca cepat
+      let payload = { avg_km_jam_ai: Number(avgKmJam.toFixed(2)), avg_wh_km_ai: Number((hasilWh.avg||0).toFixed(1)), metode: 'pembobotan_linear', take: hasilKmJam.take||0, timestamp: Date.now() };
+      if(typeof SiganData!=='undefined' && SiganData.save){ SiganData.save('avg_km_jam_ai', payload); }
       localStorage.setItem('battlog_avg_km_jam_ai', JSON.stringify(payload));
-      // 3. Update sigan_riwayat_harian dengan avg_km_jam_ai terbaru
-      let hubRaw = localStorage.getItem('sigan_riwayat_harian');
-      let today = new Date().toISOString().slice(0,10);
-      if(hubRaw){
-        let hub = JSON.parse(hubRaw);
-        if(Array.isArray(hub)){
-          // Tambahkan field avg_km_jam_ai ke semua entri hari ini atau entri terbaru
-          let todayEntries = hub.filter(h=>h.date===today);
-          if(todayEntries.length>0){
-            hub = hub.map(h=>{
-              if(h.date===today){
-                h.avg_km_jam_ai = payload.avg_km_jam_ai;
-                h.avg_wh_km_ai = payload.avg_wh_km_ai;
-                h.metode_km_jam = 'pembobotan_linear';
-              }
-              return h;
-            });
-          }else{
-            // Kalau tidak ada hari ini, update entri paling baru
-            if(hub.length>0){
-              hub[0].avg_km_jam_ai = payload.avg_km_jam_ai;
-              hub[0].avg_wh_km_ai = payload.avg_wh_km_ai;
-            }
-          }
-          localStorage.setItem('sigan_riwayat_harian', JSON.stringify(hub));
-        }
-      }
-      // 4. Kirim pesan ke SiGan
-      if(typeof kirimPesan==='function' && avgKmJam>0){
-        kirimPesan('SiGan', `AVG KM/JAM AI Update: ${avgKmJam.toFixed(1)} km/jam (sejalan ${Math.round(hasilWh.avg)} Wh/km) - ${hasilKmJam.take} sesi`);
-      }
-    }catch(e){ console.log('Gagal lempar ke hub', e.message); }
-  }catch(e){ console.log('hitungAvgKmJamHarian err', e.message); }
+    }catch(e){}
+  }catch(e){}
 }
-
-// Hook tanpa ubah kode lama - patch renderDasbor
+// Patch renderDasbor untuk pastikan Wh/km AI berubah sesuai periode
 (function(){
   let tries=0;
   let iv=setInterval(()=>{
     tries++;
-    if(typeof renderDasbor==='function' && !renderDasbor._patchedAvgKmJamLinear){
+    if(typeof renderDasbor==='function' && !renderDasbor._patchedWhKmFix){
       let old=renderDasbor;
       renderDasbor=function(){
         old.apply(this, arguments);
-        setTimeout(()=>{
-          try{ hitungAvgKmJamHarian(); }catch(e){}
-          try{ if(typeof renderBateraiRuteBaru==='function') renderBateraiRuteBaru(); }catch(e){}
-        }, 120);
+        setTimeout(()=>{ try{ hitungAvgKmJamHarian(); }catch(e){} }, 150);
       };
-      renderDasbor._patchedAvgKmJamLinear=true;
+      renderDasbor._patchedWhKmFix=true;
       clearInterval(iv);
-      console.log('Avg Km/Jam Linear hook terpasang (sejalan Wh/km)');
+      console.log('Wh/km + km/jam fix terpasang - sekarang berubah sesuai periode');
       setTimeout(hitungAvgKmJamHarian, 800);
     }
     if(tries>150) clearInterval(iv);
