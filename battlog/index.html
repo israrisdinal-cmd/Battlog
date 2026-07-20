@@ -318,26 +318,31 @@ window.addEventListener('storage', (event) => {
       <button class="pill" onclick="setEkonomiPeriod('all', this)">Semua</button>
     </div>
 
-    <!-- ANALITIK EKONOMI REAL - INTEGRASI SIGAN -->
+        <!-- ANALITIK BATERAI & RUTE - PENGGANTI EKONOMI REAL (Ide 1,3,4) - PATCH ONLY -->
     <div class="maka-card" style="border:1px solid rgba(125,255,183,0.25); background: linear-gradient(180deg, #0d1e2a 0%, #0b1424 100%); margin-bottom:12px;">
       <div style="font-size:11px; font-weight:800; color:#7dffb7; letter-spacing:0.08em; margin-bottom:10px; display:flex; justify-content:space-between;">
-        <span>💰 ANALITIK EKONOMI REAL (SiGan x BattLog)</span>
+        <span>🔋 ANALITIK BATERAI & RUTE (BattLog x SiGan)</span>
         <span id="stat_integrasi_status" style="font-size:10px; color:#6b7fa2; font-weight:600;">Menunggu SiGan</span>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Laba Bersih / km</div><div id="stat_laba_km" style="font-size:18px; font-weight:800; color:#eaf2ff;">–</div><div id="stat_laba_km_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
-        <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Rp / kWh & Laba / kWh</div><div id="stat_rp_kwh" style="font-size:18px; font-weight:800; color:#eaf2ff;">–</div><div id="stat_rp_kwh_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
         <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Km Muter Kosong</div><div id="stat_km_muter" style="font-size:18px; font-weight:800; color:#ffb86b;">–</div><div id="stat_km_muter_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
         <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase; letter-spacing:0.05em;">Efisiensi Rute</div><div id="stat_eff_rute" style="font-size:18px; font-weight:800; color:#7dffb7;">–</div><div id="stat_eff_rute_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
       </div>
       <div style="margin-top:12px; padding:10px; background:rgba(10,19,40,0.6); border:1px solid #1e2d4a; border-radius:12px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-size:11px; font-weight:700; color:#6fb2ff;">🔋 Sisa Baterai = Rupiah</div>
-          <div id="stat_sisa_rp" style="font-size:14px; font-weight:800; color:#7dffb7;">–</div>
-        </div>
-        <div id="stat_sisa_rp_detail" style="font-size:11px; color:#8aa0c6; margin-top:4px; line-height:1.4;">Menghitung potensi pendapatan dari sisa daya...</div>
+        <div style="font-size:11px; font-weight:700; color:#6fb2ff; margin-bottom:6px;">📍 Wh/km per Koridor (Top Boros & Irit) - Ide #1</div>
+        <div id="stat_koridor_list" style="font-size:11px; color:#8aa0c6; line-height:1.6;">Menunggu data SiGan...</div>
       </div>
-      <div id="stat_cas_rekom" style="font-size:11px; color:#8aa0c6; margin-top:10px; line-height:1.5; background:rgba(43,140,255,0.08); border:1px dashed rgba(43,140,255,0.2); border-radius:10px; padding:8px 10px;"></div>
+      <div style="margin-top:10px; padding:10px; background:rgba(10,19,40,0.6); border:1px solid #1e2d4a; border-radius:12px;">
+        <div style="font-size:11px; font-weight:700; color:#6fb2ff; margin-bottom:6px;">⏰ Efisiensi vs Jam (Macet & Suhu) - Ide #3</div>
+        <div id="stat_eff_jam" style="font-size:11px; color:#8aa0c6;">Menunggu data...</div>
+      </div>
+      <div id="stat_anomali" style="font-size:11px; color:#8aa0c6; margin-top:10px; line-height:1.5; background:rgba(255,77,77,0.06); border:1px dashed rgba(255,77,77,0.2); border-radius:10px; padding:8px 10px;">🔍 Deteksi anomali baterai - Ide #4: menunggu data...</div>
+      <div style="display:none">
+        <div id="stat_laba_km"></div><div id="stat_laba_km_sub"></div>
+        <div id="stat_rp_kwh"></div><div id="stat_rp_kwh_sub"></div>
+        <div id="stat_sisa_rp"></div><div id="stat_sisa_rp_detail"></div>
+        <div id="stat_cas_rekom"></div>
+      </div>
     </div>
     <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%); margin-top:12px;" id="ai-diagnostik-card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -2446,6 +2451,142 @@ if (!localStorage.getItem('factory_range_km') && typeof entries !== 'undefined' 
 })();
 </script>
 
+
+
+<script>
+// === ADDON BARU IDE 1,3,4 - HANYA TAMBAHAN, TIDAK UBAH KODE LAMA ===
+function getSiganOrdersForBattlog(){
+  try{
+    let orders=[]; 
+    let raw=localStorage.getItem('siganData');
+    if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data && Array.isArray(p.data)) orders=p.data; }
+    if(!orders.length){
+      let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+      if(lakeRaw){
+        let lake=JSON.parse(lakeRaw);
+        if(lake.sigan && Array.isArray(lake.sigan.siganData)) orders=lake.sigan.siganData;
+        else if(lake.cross && Array.isArray(lake.cross.siganData)) orders=lake.cross.siganData;
+      }
+    }
+    if(!orders.length){
+      let hubRaw=localStorage.getItem('sigan_riwayat_harian');
+      if(hubRaw){
+        let hub=JSON.parse(hubRaw);
+        if(Array.isArray(hub)) orders=hub.map(h=>({tanggal:h.date||h.tanggal,jam_akhir:h.jam||'12:00',lokasi_jemput:h.jemput||'Jemput',lokasi_antar:h.antar||h.note||'Antar'}));
+      }
+    }
+    return orders;
+  }catch(e){return [];}
+}
+function renderBateraiRuteBaru(){
+  try{
+    let orders=getSiganOrdersForBattlog();
+    let whByDate={}, whCountByDate={}, allWh=[];
+    if(typeof entries!=='undefined' && typeof calcEntry==='function'){
+      entries.forEach(e=>{
+        try{
+          let c=calcEntry(e);
+          if(c.wh_per_km>0 && c.wh_per_km<250){
+            let tgl=e.tanggal;
+            if(!whByDate[tgl]){whByDate[tgl]=0; whCountByDate[tgl]=0;}
+            whByDate[tgl]+=c.wh_per_km; whCountByDate[tgl]++; allWh.push(c.wh_per_km);
+          }
+        }catch(err){}
+      });
+      for(let tgl in whByDate) whByDate[tgl]=whByDate[tgl]/Math.max(1,whCountByDate[tgl]);
+    }
+    // No 1: Koridor
+    let koridorMap={};
+    orders.forEach(o=>{
+      let tgl=o.tanggal||o.date; if(!tgl) return;
+      let jem=(o.lokasi_jemput||o.jemput||'Jemput').toString().trim();
+      let ant=(o.lokasi_antar||o.antar||o.note||'Antar').toString().trim();
+      let key=jem.substring(0,20)+' → '+ant.substring(0,20);
+      let wh=whByDate[tgl]||0; if(wh<=0) return;
+      if(!koridorMap[key]) koridorMap[key]={total:0,count:0};
+      koridorMap[key].total+=wh; koridorMap[key].count++;
+    });
+    let koridorList=Object.keys(koridorMap).map(k=>({k,avg:koridorMap[k].total/koridorMap[k].count,count:koridorMap[k].count})).sort((a,b)=>b.avg-a.avg);
+    let elKor=document.getElementById('stat_koridor_list');
+    if(elKor){
+      if(!koridorList.length) elKor.innerHTML='Belum ada data koridor. Input SiGan dengan lokasi jemput-antar dulu, nanti otomatis kehitung.';
+      else{
+        let boros=koridorList.slice(0,3); let irit=[...koridorList].sort((a,b)=>a.avg-b.avg).slice(0,3);
+        let html='<div style="margin-bottom:6px;color:#ff8a80;font-weight:700;">🔥 Boros:</div>';
+        boros.forEach(it=>{html+=`<div style="display:flex;justify-content:space-between;gap:8px;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%;">${it.k} (${it.count}x)</span><span style="color:#ff8a80;font-weight:700;flex-shrink:0;">${Math.round(it.avg)} Wh/km</span></div>`;});
+        html+='<div style="margin-top:8px;margin-bottom:6px;color:#7dffb7;font-weight:700;">🍃 Irit:</div>';
+        irit.forEach(it=>{html+=`<div style="display:flex;justify-content:space-between;gap:8px;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%;">${it.k} (${it.count}x)</span><span style="color:#7dffb7;font-weight:700;flex-shrink:0;">${Math.round(it.avg)} Wh/km</span></div>`;});
+        elKor.innerHTML=html;
+      }
+    }
+    // No 3: Efisiensi vs Jam
+    let bucket={'06-10 Pagi':{total:0,count:0},'10-14 Siang':{total:0,count:0},'14-18 Sore':{total:0,count:0},'18-22 Malam':{total:0,count:0},'22-06 Tengah Malam':{total:0,count:0}};
+    if(typeof entries!=='undefined'){
+      entries.forEach(e=>{
+        try{
+          let c=calcEntry(e);
+          if(!(c.wh_per_km>0 && c.wh_per_km<250)) return;
+          let hour=new Date(Number(e.id)).getHours();
+          if(isNaN(hour)) hour=12;
+          let key=''; if(hour>=6&&hour<10) key='06-10 Pagi'; else if(hour>=10&&hour<14) key='10-14 Siang'; else if(hour>=14&&hour<18) key='14-18 Sore'; else if(hour>=18&&hour<22) key='18-22 Malam'; else key='22-06 Tengah Malam';
+          bucket[key].total+=c.wh_per_km; bucket[key].count++;
+        }catch(err){}
+      });
+    }
+    let elJam=document.getElementById('stat_eff_jam');
+    if(elJam){
+      let html='<div class="grid grid-cols-3 gap-2">';
+      for(let k in bucket){
+        let b=bucket[k]; let avg=b.count?Math.round(b.total/b.count):0;
+        let color=avg>=42?'#ff8a80':avg>=36?'#ffdd53':'#7dffb7';
+        html+=`<div style="background:#0f1f36;border:1px solid #1e2d4a;border-radius:8px;padding:6px 8px;text-align:center;"><div style="font-size:9px;color:#8aa0c6;">${k}</div><div style="font-size:14px;font-weight:800;color:${color};">${avg?avg+' Wh/km':'–'}</div><div style="font-size:9px;color:#5e759e;">${b.count?b.count+' sesi':''}</div></div>`;
+      }
+      html+='</div><div style="margin-top:6px;font-size:10px;color:#5e759e;">Wh/km tinggi = macet / tanjakan / suhu panas</div>';
+      elJam.innerHTML=html;
+    }
+    // No 4: Anomali
+    let elAnom=document.getElementById('stat_anomali');
+    if(elAnom && allWh.length>=3){
+      let avgAll=allWh.reduce((a,b)=>a+b,0)/allWh.length;
+      let recent=(typeof entries!=='undefined'?entries.slice(0,6):[]);
+      let anoms=[];
+      recent.forEach(e=>{
+        try{
+          let c=calcEntry(e);
+          if(c.wh_per_km>avgAll*1.25 && c.wh_per_km>38) anoms.push({tgl:e.tanggal,wh:Math.round(c.wh_per_km),km:e.km_awal+'→'+e.km_akhir});
+        }catch(err){}
+      });
+      if(!anoms.length){
+        elAnom.style.background='rgba(125,255,183,0.06)'; elAnom.style.borderColor='rgba(125,255,183,0.15)';
+        elAnom.innerHTML=`✅ <strong style="color:#7dffb7;">Baterai normal:</strong> Rata-rata ${Math.round(avgAll)} Wh/km. Tidak ada lonjakan di 6 sesi terakhir.`;
+      }else{
+        elAnom.style.background='rgba(255,77,77,0.08)'; elAnom.style.borderColor='rgba(255,77,77,0.2)';
+        let html=`⚠️ <strong style="color:#ff8a80;">Anomali terdeteksi:</strong><br/>`;
+        anoms.forEach(a=>{html+=`• ${a.tgl} ${a.km} = <strong>${a.wh} Wh/km</strong> (avg ${Math.round(avgAll)}). Cek ban/rem/beban.<br/>`;});
+        elAnom.innerHTML=html;
+      }
+    }
+  }catch(e){ console.log('renderBateraiRuteBaru err', e.message); }
+}
+// Hook tanpa ubah fungsi asli
+(function(){
+  let tries=0;
+  let iv=setInterval(()=>{
+    tries++;
+    if(typeof renderDasbor==='function' && !renderDasbor._patchedBateraiRute){
+      let old=renderDasbor;
+      renderDasbor=function(){
+        old.apply(this, arguments);
+        setTimeout(renderBateraiRuteBaru, 100);
+      };
+      renderDasbor._patchedBateraiRute=true;
+      clearInterval(iv);
+      setTimeout(renderBateraiRuteBaru, 600);
+    }
+    if(tries>100) clearInterval(iv);
+  },200);
+})();
+</script>
 
 </body>
 </html>
