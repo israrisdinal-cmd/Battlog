@@ -281,7 +281,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
         </div>
         
         <div class="card" style="border-left:5px solid #40c4ff;">
-            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">💰 Profitabilitas per Layanan (Jam Real)</div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">💰 Profitabilitas per Layanan (Jam Real) <span id="dynamicSpeedBadge" style="background:#0f1f36; border:1px solid #1e2d4a; padding:2px 6px; border-radius:6px; font-size:10px; color:#40c4ff; margin-left:6px;">⏱️ - km/jam</span></div>
             <div id="rekapRatesContainer" style="font-size:13px; color:#fff; display:flex; flex-direction:column; gap:12px;"></div>
         </div>
 
@@ -769,7 +769,8 @@ function loadRekapData(){
     let totalIncome=0, totalExpense=0, totalKm=0;
     let incomeByCat={};
     let serviceRates={};
-    const AVG_CITY_SPEED=30; // km/jam rata-rata kota, bisa disesuaikan 25-35
+    let AVG_CITY_SPEED=30; // akan diisi dinamis dari data Sigan + battlog
+    let DYNAMIC_CITY_SPEED=30;
     categories["Pendapatan"].forEach(cat=>{ serviceRates[cat]={amt:0,km:0,totalCount:0,tipCount:0,tipAmt:0,hours:0,durCount:0,travelHours:0,waitingHours:0,waitingCount:0}; });
 
     let dayNames=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
@@ -824,20 +825,14 @@ function loadRekapData(){
                         if(km===0){ serviceRates[cat].tipCount++; serviceRates[cat].tipAmt+=amt; }
                         else { serviceRates[cat].amt+=amt; serviceRates[cat].km+=km; }
                         serviceRates[cat].totalCount++;
-                        // hitung jam real + travel vs waiting dinamis dari KM
+                        // hitung jam real per order (untuk kecepatan dinamis)
                         try{
                             let dur=getDurationInHours(item.time||'', item.endTime||item.predictedEndTime||item.time||'');
                             if(dur===0 && km>0) dur=(Number(km)*2/60);
                             if(dur===0) dur=0.25;
                             if(dur>0 && dur<12){
                                 serviceRates[cat].hours+=dur; serviceRates[cat].durCount++;
-                                if(km>0){
-                                    let estTravel=km/AVG_CITY_SPEED; // jam
-                                    let waiting=Math.max(0, dur - estTravel);
-                                    serviceRates[cat].travelHours+=estTravel;
-                                    serviceRates[cat].waitingHours+=waiting;
-                                    serviceRates[cat].waitingCount++;
-                                }
+                                // travel & waiting akan dihitung ulang setelah kecepatan dinamis ketemu
                             }
                         }catch(e){}
                     }
@@ -927,6 +922,65 @@ function loadRekapData(){
                 }
             });
         });
+    }
+
+    // ===== Hitung Kecepatan Dinamis dari Data Sigan + BattLog =====
+    // Goride = patokan kecepatan murni kota (tanpa nunggu resto)
+    let gorideData=serviceRates["Goride"];
+    let overallProdHours=Object.values(serviceRates).reduce((s,r)=>s+r.hours,0);
+    let overallProdKm=Object.values(serviceRates).reduce((s,r)=>s+r.km,0);
+    // Cek battlog: ada data jarak dari Maka log? Jika ada, pakai sebagai koreksi
+    let battLogKm=0;
+    try{
+        let rawBatt=localStorage.getItem('maka_log_v1');
+        if(rawBatt){
+            let arr=JSON.parse(rawBatt);
+            if(Array.isArray(arr)){
+                arr.forEach(e=>{
+                    try{
+                        if(!e.tanggal) return;
+                        const p=e.tanggal.split('-'); const d=new Date(p[0],p[1]-1,p[2]); d.setHours(0,0,0,0);
+                        if(d>=cutoffDate && d<=anchorDate){
+                            if(e.jarak_km) battLogKm+=Number(e.jarak_km)||0;
+                            else if(e.km) battLogKm+=Number(e.km)||0;
+                        }
+                    }catch(_){}
+                });
+            }
+        }
+    }catch(_){}
+
+    let dynamicSpeed=30;
+    if(gorideData && gorideData.hours>0.1 && gorideData.km>0.1){
+        dynamicSpeed=gorideData.km / gorideData.hours; // kecepatan real Goride
+    } else if(overallProdHours>0.1 && overallProdKm>0.1){
+        dynamicSpeed=overallProdKm / overallProdHours;
+    } else if(totalHoursPeriod>0.1 && totalKm>0.1){
+        dynamicSpeed=totalKm / totalHoursPeriod;
+    }
+    // Jika battlog punya jarak lebih besar (biasanya lebih akurat), blend 50:50
+    if(battLogKm>0 && overallProdKm>0){
+        let battSpeed=battLogKm / (overallProdHours||totalHoursPeriod||1);
+        if(battSpeed>5 && battSpeed<80){
+            dynamicSpeed=(dynamicSpeed*0.6 + battSpeed*0.4);
+        }
+    }
+    dynamicSpeed=Math.max(12, Math.min(45, dynamicSpeed)); // clamp biar wajar 12-45 km/jam
+    DYNAMIC_CITY_SPEED=dynamicSpeed;
+    AVG_CITY_SPEED=dynamicSpeed; // untuk kompatibilitas kode lama
+
+    // Hitung ulang travel vs waiting per layanan pakai kecepatan dinamis
+    for(let cat in serviceRates){
+        let r=serviceRates[cat];
+        if(r.km>0 && r.hours>0){
+            r.travelHours=r.km / DYNAMIC_CITY_SPEED;
+            r.waitingHours=Math.max(0, r.hours - r.travelHours);
+            r.waitingCount=r.durCount;
+        } else {
+            r.travelHours=0;
+            r.waitingHours=0;
+            r.waitingCount=0;
+        }
     }
 
     let avgEfficiency=totalKm>0?Math.round(totalIncome/totalKm):0;
@@ -1020,6 +1074,11 @@ function loadRekapData(){
             <div class="breakdown-bg" style="margin-top:6px;"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div>
         </div>`;
     }
+    // Update badge kecepatan dinamis
+    try{
+        let badge=document.getElementById('dynamicSpeedBadge');
+        if(badge) badge.innerHTML=`⚡ ${DYNAMIC_CITY_SPEED.toFixed(1)} km/jam dinamis ${battLogKm>0?' (blend battlog)':''}`;
+    }catch(e){}
     // Insight dinamis dengan koreksi logika layanan
     if(sortedServices.length>0 && sortedServices[0].r.totalCount>0){
         let best=sortedServices[0];
