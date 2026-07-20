@@ -900,14 +900,11 @@ function loadRekapData(){
                     if(dur===0) dur=0.25;
                     blockMatch.hours+=dur;
                     blockMatch.orderCount++;
-                    // heatmap area: pakai pickup + dominan layanan
+                    // heatmap area: pakai pickup sebagai sumber order
                     try{
                         let areaKey=extractAreaSimple(ord.pickup||ord.destination||'');
                         if(areaKey){
-                            if(!blockMatch.areas[areaKey]) blockMatch.areas[areaKey]={count:0, cats:{}, totalAmt:0};
-                            blockMatch.areas[areaKey].count++;
-                            blockMatch.areas[areaKey].cats[ord.cat]=(blockMatch.areas[areaKey].cats[ord.cat]||0)+1;
-                            blockMatch.areas[areaKey].totalAmt+=(ord.amount||0);
+                            blockMatch.areas[areaKey]=(blockMatch.areas[areaKey]||0)+1;
                         }
                     }catch(e){}
                 }
@@ -992,23 +989,54 @@ function loadRekapData(){
         let pct=Math.round((rpPerJam/maxRpPerJamService)*100);
         let barColor=rpPerJam>=30000?'#00e676':rpPerJam>=15000?'#40c4ff':'#ff8a80';
         let icon=cat==='Goride'?'🏍️':cat==='Gofood'?'🍔':cat==='Gomart'?'🛒':'📦';
-        let waitingBadge=s.waitingPct>40?`<span style="background:#2a1212; color:#ff8a80; border:1px solid #5a2a2a; padding:2px 6px; border-radius:6px; font-size:9px;">⏳ ${s.waitingPct}% nunggu</span>`:`<span style="background:#0f1f36; color:#8aa0c6; padding:2px 6px; border-radius:6px; font-size:9px;">⏳ ${s.waitingPct}% nunggu</span>`;
+        // Koreksi logika per layanan
+        let extraLabel='', extraIcon='', badgeColor='';
+        if(cat==='Gofood' || cat==='Gomart'){
+            extraLabel='nunggu resto';
+            extraIcon='⏳';
+            badgeColor=s.waitingPct>40?'#2a1212':'#0f1f36';
+        } else if(cat==='Goride'){
+            extraLabel='macet jalan';
+            extraIcon='🚦';
+            badgeColor='#1a2333';
+        } else if(cat==='Gosend'){
+            extraLabel='cari alamat';
+            extraIcon='🔍';
+            badgeColor='#1f1a33';
+        }
+        let waitingBadge=`<span style="background:${badgeColor}; color:${s.waitingPct>40?'#ff8a80':'#8aa0c6'}; border:1px solid #2a2a4a; padding:2px 6px; border-radius:6px; font-size:9px;">${extraIcon} ${s.waitingPct}% ${extraLabel}</span>`;
+        let detailText='';
+        if(cat==='Gofood' || cat==='Gomart'){
+            detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`;
+        } else if(cat==='Goride'){
+            detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`;
+        } else {
+            detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`;
+        }
         ratesContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:700; color:#eaf2ff;">${icon} ${cat} <span style="font-size:10px; color:var(--muted);">(${r.totalCount} order • ${r.km.toFixed(1)}km)</span></span><span style="font-weight:800; color:${barColor};">Rp ${rpPerJam.toLocaleString('id-ID')}/jam</span></div>
-            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px;"><span>⏱️ Avg ${avgMenit}m (jalan ${travelMenit}m + tunggu ${waitingMenit}m)</span><span>🕒 ${r.hours.toFixed(1)} jam</span></div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;"><span style="font-size:10px; color:#5a7096;">Contoh: ${r.km>0?`${(r.km/r.totalCount).toFixed(1)}km/order @${AVG_CITY_SPEED}km/jam = ${Math.round((r.km/r.totalCount)/AVG_CITY_SPEED*60)}m jalan`:'-'} </span>${waitingBadge}</div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px;"><span>⏱️ Avg ${avgMenit}m (${detailText})</span><span>🕒 ${r.hours.toFixed(1)} jam</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;"><span style="font-size:10px; color:#5a7096;">${r.km>0?`${(r.km/r.totalCount).toFixed(1)}km/order @${AVG_CITY_SPEED}km/jam = ${Math.round((r.km/r.totalCount)/AVG_CITY_SPEED*60)}m ideal`:'-'} </span>${waitingBadge}</div>
             <div class="breakdown-bg" style="margin-top:6px;"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div>
         </div>`;
     }
-    // Insight dinamis dengan waiting
+    // Insight dinamis dengan koreksi logika layanan
     if(sortedServices.length>0 && sortedServices[0].r.totalCount>0){
-        let best=sortedServices[0]; let worst=sortedServices[sortedServices.length-1];
-        let highWait=sortedServices.filter(s=>s.waitingPct>50).sort((a,b)=>b.waitingPct-a.waitingPct)[0];
+        let best=sortedServices[0];
         let insightHtml=`<div style="margin-top:10px; font-size:11px; background:#0f1f36; border:1px solid #1e2d4a; border-radius:8px; padding:8px; color:#8aa0c6;">`;
-        insightHtml+=`💡 <strong style="color:#7dffb7;">Insight Waktu:</strong> ${best.cat} paling cuan <strong style="color:#00e676;">Rp ${best.rpPerJam.toLocaleString('id-ID')}/jam</strong> (avg ${Math.round(best.avgDur*60)}m).`;
-        if(highWait && highWait.r.totalCount>1){
-            insightHtml+=`<br>⏳ <strong style="color:#ff8a80;">${highWait.cat}</strong> buang <strong>${highWait.waitingPct}%</strong> waktu untuk nunggu (${Math.round(highWait.avgWaiting*60)}m/order). Contoh: ${highWait.r.km>0?`${(highWait.r.km/highWait.r.totalCount).toFixed(1)}km harusnya cuma ${Math.round(highWait.avgTravel*60)}m jalan, tapi real ${Math.round(highWait.avgDur*60)}m`:'-'} .`;
-        }
+        insightHtml+=`💡 <strong style="color:#7dffb7;">Insight Waktu Koreksi:</strong> ${best.cat} paling cuan <strong style="color:#00e676;">Rp ${best.rpPerJam.toLocaleString('id-ID')}/jam</strong> (avg ${Math.round(best.avgDur*60)}m).<br>`;
+        sortedServices.forEach(s=>{
+            if(s.r.totalCount<2) return;
+            let cat=s.cat; let pct=s.waitingPct; let wMenit=Math.round(s.avgWaiting*60);
+            if(pct<15) return;
+            if(cat==='Gofood' || cat==='Gomart'){
+                insightHtml+=`⏳ <strong style="color:#ff8a80;">${cat}</strong> ${pct}% waktu habis <strong>nunggu resto</strong> (${wMenit}m/order).<br>`;
+            } else if(cat==='Goride'){
+                insightHtml+=`🚦 <strong style="color:#ffcc66;">${cat}</strong> ${pct}% extra time karena <strong>macet jalan</strong> (${wMenit}m/order).<br>`;
+            } else if(cat==='Gosend'){
+                insightHtml+=`🔍 <strong style="color:#8ab4f8;">${cat}</strong> ${pct}% waktu habis <strong>cari alamat jemput/antar</strong> (${wMenit}m/order).<br>`;
+            }
+        });
         insightHtml+=`</div>`;
         ratesContainer.innerHTML+=insightHtml;
     }
@@ -1016,32 +1044,21 @@ function loadRekapData(){
 
 
     const tiersContainer=document.getElementById('rekapTiersContainer'); tiersContainer.innerHTML="";
-    // No.1 Heatmap nongkrong per waktu + layanan dominan
+    // No.1 Heatmap nongkrong per waktu
     hourlyBlocks.forEach(b=>{
         if(b.orderCount===0){
             tiersContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;"><div style="font-weight:700; color:#eaf2ff;">${b.label}</div><div style="font-size:11px; color:#5a7096; font-style:italic;">Belum ada data order di jam ini</div></div>`;
             return;
         }
-        let sortedAreas=Object.entries(b.areas||{}).sort((a,b)=>b[1].count-a[1].count).slice(0,3);
-        let areaHtml=sortedAreas.length>0?sortedAreas.map(([area,data],i)=>{
+        let sortedAreas=Object.entries(b.areas||{}).sort((a,b)=>b[1]-a[1]).slice(0,3);
+        let areaHtml=sortedAreas.length>0?sortedAreas.map(([area,cnt],i)=>{
             let medal=i===0?'🥇':i===1?'🥈':'🥉';
-            let cats=data.cats||{};
-            let total=data.count||0;
-            let dominant=Object.entries(cats).sort((a,b)=>b[1]-a[1])[0];
-            let domCat=dominant?dominant[0]:'-';
-            let domCnt=dominant?dominant[1]:0;
-            let domPct=total>0?Math.round(domCnt/total*100):0;
-            let icon=domCat==='Goride'?'🏍️':domCat==='Gofood'?'🍔':domCat==='Gomart'?'🛒':domCat==='Gosend'?'📦':'';
-            let domLabel=domCat!=='-'?`${icon} ${domCat} ${domPct}%`:'-';
-            return `<div style="display:flex; flex-direction:column; font-size:11px; background:#0f1f36; border:1px solid #1e2d4a; border-radius:8px; padding:6px 8px; margin-top:5px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:600; color:#eaf2ff;">${medal} ${area}</span><span style="color:#7dffb7; font-weight:700;">${total} order</span></div>
-                <div style="display:flex; justify-content:space-between; margin-top:3px; font-size:10px; color:var(--muted);"><span>Dominan: <strong style="color:#40c4ff;">${domLabel}</strong></span><span>Rp ${(data.totalAmt||0).toLocaleString('id-ID')}</span></div>
-            </div>`;
+            return `<div style="display:flex; justify-content:space-between; font-size:11px; background:#0f1f36; border-radius:6px; padding:4px 8px; margin-top:4px;"><span>${medal} ${area}</span><span style="color:#7dffb7; font-weight:700;">${cnt} order</span></div>`;
         }).join(''):`<div style="font-size:10px; color:#5a7096;">Alamat belum lengkap</div>`;
         let rpPerJam=b.hours>0?Math.round(b.net/b.hours):0;
         tiersContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:10px; margin-bottom:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:700; color:#eaf2ff;">${b.label}</span><span style="font-size:11px; color:#ffb300; font-weight:700;">${b.orderCount} order • Rp ${rpPerJam.toLocaleString('id-ID')}/jam</span></div>
-            <div style="font-size:10px; color:var(--muted); margin-top:6px;">📍 Top nongkrong + layanan tinggi:</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:6px;">📍 Top nongkrong:</div>
             ${areaHtml}
         </div>`;
     });
