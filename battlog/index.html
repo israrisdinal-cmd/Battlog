@@ -523,9 +523,39 @@ function hitungAvgKmJamGoride(filtered){
     }
 
     let avg=totalJamPeriod>0?totalKmMasuk/totalJamPeriod:0;
+    // FIX v2.7.8b: Kalau avg 0 karena BattLog kosong / tidak ada odometer dalam jam, pakai km SiGan biar tidak kosong
+    if(avg<=0.01 && totalJamPeriod>0.01){
+      let totalKmSiganFallback=0;
+      try{
+        // ambil km SiGan dari ordersInPeriod atau ordersLast3
+        (ordersInPeriod&&ordersInPeriod.length?ordersInPeriod:ordersLast3).forEach(o=>{ totalKmSiganFallback+=Number(o.km||0); });
+        if(totalKmSiganFallback<=0){
+          // fallback lagi dari semua orders
+          orders.forEach(o=>{ totalKmSiganFallback+=Number(o.km||0); });
+        }
+      }catch(e){}
+      if(totalKmSiganFallback>0){
+        totalKmMasuk=totalKmSiganFallback;
+        avg=totalKmMasuk/totalJamPeriod;
+        isFresh=false;
+        usedDateLabel=(usedDateLabel||'3 Hari')+' (SiGan km, BattLog kosong)';
+      }
+    }
+    // FIX v2.7.8c: Kalau masih 0 tapi ada orders, paksa 25 km/jam biar tidak kosong (sesuai fallback tanggal)
+    if(avg<=0.01){
+      let totalKmSigan=0;
+      try{ (ordersLast3&&ordersLast3.length?ordersLast3:orders).forEach(o=>{ totalKmSigan+=Number(o.km||0); }); }catch(e){}
+      if(totalKmSigan>0){
+        avg=25; // fallback estimasi kota
+        totalKmMasuk=totalKmSigan;
+        totalJamPeriod=totalKmSigan/25;
+        isFresh=false;
+        usedDateLabel=(usedDateLabel||'')+' (Fallback 25 km/jam - BattLog kosong)';
+      }
+    }
     avg=Math.min(Math.max(avg,0),60);
-    return {avg, totalKmMasuk, totalJam:totalJamPeriod, isFresh, usedDateLabel, detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:true};
-  }catch(e){ console.log('AVG GoRide err',e.message); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
+    return {avg, totalKmMasuk, totalJam:totalJamPeriod, isFresh, usedDateLabel, detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict: avg>0 && !usedDateLabel.includes('Fallback')};
+  }catch(e){ console.log('AVG GoRide err',e.message); return {avg:25,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'Fallback error 25 km/jam',detail:[]}; }
 }
 // Alias untuk kompatibilitas
 function hitungPrediksiAIKmJamFixed(filtered){ return hitungAvgKmJamGoride(filtered); }
@@ -923,7 +953,32 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
 })();
 
 // === KORIDOR & JAM FIXED ===
-function getSiganOrdersForBattlog(){ try{ let orders=[]; let raw=localStorage.getItem('siganData'); if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; } if(!orders.length){ let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1'); if(lakeRaw){ let lake=JSON.parse(lakeRaw); if(lake.sigan&&Array.isArray(lake.sigan.siganData)) orders=lake.sigan.siganData; } } return orders; }catch(e){return [];} }
+function getSiganOrdersForBattlog(){ 
+  try{ 
+    let orders=[]; 
+    // PRIORITAS 1: gorideOrders yang sudah valid dari SiGan V5.22 (jam_awal & jam_akhir valid)
+    try{
+      let rawFix=localStorage.getItem('maka_cross_sigan_goride');
+      if(rawFix){ let p=JSON.parse(rawFix); if(Array.isArray(p) && p.length) orders=p; }
+    }catch(e){}
+    if(!orders.length){
+      try{
+        let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+        if(lakeRaw){
+          let lake=JSON.parse(lakeRaw);
+          if(lake.cross&&Array.isArray(lake.cross.maka_cross_sigan_goride) && lake.cross.maka_cross_sigan_goride.length) orders=lake.cross.maka_cross_sigan_goride;
+          else if(lake.cross&&lake.cross.sigan_hub_data_from_sigan&&Array.isArray(lake.cross.sigan_hub_data_from_sigan.gorideOrders) && lake.cross.sigan_hub_data_from_sigan.gorideOrders.length) orders=lake.cross.sigan_hub_data_from_sigan.gorideOrders;
+          else if(lake.sigan&&Array.isArray(lake.sigan.siganData) && lake.sigan.siganData.length) orders=lake.sigan.siganData;
+        }
+      }catch(e){}
+    }
+    if(!orders.length){
+      let raw=localStorage.getItem('siganData'); 
+      if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; } 
+    }
+    return orders; 
+  }catch(e){return [];} 
+}
 function renderBateraiRuteBaru(){
   try{
     let orders=getSiganOrdersForBattlog(); let whByDate={}, whCount={}; let allWh=[];
