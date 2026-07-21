@@ -1527,19 +1527,29 @@ window.onload=function(){
       for(let p of unique){
         let entry={
           date: p.date||fallbackDate,
+          tanggal: p.date||fallbackDate,
           time: p.start||new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}),
+          jam_awal: p.start||'',
+          jam_akhir: p.end||'',
           endTime: p.end||'',
           predictedEndTime: p.end||'',
           type: 'Pendapatan',
           cat: p.cat||'Goride',
           note: ('OCR '+p.start+'-'+p.end+' '+p.idTrans+' | '+(p.pickup||'')+' -> '+(p.destination||'')).substring(0,300),
           dist: p.dist,
+          jarak: p.dist,
+          jarak_km: p.dist,
+          km: p.dist,
           amount: p.amount,
           idTrans: p.idTrans,
           idPrefix: p.idTrans ? p.idTrans.split('-')[0] : '',
           pickup: p.pickup||'',
           destination: p.destination||'',
-          source: 'ocr_v5_4_robust'
+          lokasi_jemput: p.pickup||'',
+          lokasi_antar: p.destination||'',
+          jemput: p.pickup||'',
+          antar: p.destination||'',
+          source: 'ocr_v5_4_robust_fixed_sync'
         };
         siganData.push(entry);
         saved++; datesAffected.add(entry.date);
@@ -1671,12 +1681,21 @@ window.onload=function(){
             if(ma!=null && mb!=null && mb>ma){
               gorideOrders.push({
                 date: it.date,
+                tanggal: it.date,
                 jam_awal: minutesToHHMM(ma),
                 jam_akhir: minutesToHHMM(mb),
                 jarak_km: Number(it.dist||0),
+                km: Number(it.dist||0),
+                jarak: Number(it.dist||0),
+                dist: Number(it.dist||0),
                 id_trans: it.idTrans||'',
+                idTrans: it.idTrans||'',
                 pickup: (it.pickup||'').substring(0,80),
                 destination: (it.destination||'').substring(0,80),
+                lokasi_jemput: (it.pickup||'').substring(0,80),
+                lokasi_antar: (it.destination||'').substring(0,80),
+                jemput: (it.pickup||'').substring(0,80),
+                antar: (it.destination||'').substring(0,80),
                 amount: Number(it.amount||0)
               });
             } else if(ma!=null){
@@ -1686,12 +1705,21 @@ window.onload=function(){
               if(mb2!=null && mb2>ma){
                 gorideOrders.push({
                   date: it.date,
+                  tanggal: it.date,
                   jam_awal: minutesToHHMM(ma),
                   jam_akhir: jb2,
                   jarak_km: Number(it.dist||0),
+                  km: Number(it.dist||0),
+                  jarak: Number(it.dist||0),
+                  dist: Number(it.dist||0),
                   id_trans: it.idTrans||'',
+                  idTrans: it.idTrans||'',
                   pickup: (it.pickup||'').substring(0,80),
                   destination: (it.destination||'').substring(0,80),
+                  lokasi_jemput: (it.pickup||'').substring(0,80),
+                  lokasi_antar: (it.destination||'').substring(0,80),
+                  jemput: (it.pickup||'').substring(0,80),
+                  antar: (it.destination||'').substring(0,80),
                   amount: Number(it.amount||0)
                 });
               }
