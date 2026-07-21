@@ -78,7 +78,7 @@
 <div class="max-w-2xl">
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7 Fixed Minimal</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7.1 Cluster Below Chart</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
@@ -117,6 +117,15 @@
       </div>
     </div>
 
+    <div class="maka-card">
+      <div class="flex gap-2 mb-3" style="font-size:12px;">
+        <button class="pill active" data-period="harian" onclick="setPeriod('harian',this)">Harian</button>
+        <button class="pill" data-period="mingguan" onclick="setPeriod('mingguan',this)">Mingguan</button>
+        <button class="pill" data-period="bulanan" onclick="setPeriod('bulanan',this)">Bulanan</button>
+      </div>
+      <div id="chartWrap"><canvas id="usageChart" height="196" style="display: block; box-sizing: border-box; height: 196px; width: 100%;"></canvas></div>
+    </div>
+
     <div class="maka-card" style="background: linear-gradient(180deg, #0e192f 0%, #0b1424 100%); border: 1px solid #1a2f52;">
       <div class="flex justify-between items-center" style="font-size:10px; color:#5e759e; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px;"><span>Dashboard Kluster</span><span style="color:#7dffb7">● Online</span></div>
       <div class="relative w-full flex style-flex" style="padding-top:1rem; padding-bottom:1rem;">
@@ -126,15 +135,6 @@
           <div style="background: #0d1e2a; border: 1px solid rgba(125,255,183,0.25); padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #8aa0c6;"><span>AVG: <span id="stat_avg_kmjam" style="color:#7dffb7; font-family: monospace; font-weight:800;">–</span> km/jam <span style="font-size:9px; color:#5e759e;">(AI)</span></span></div>
         </div>
       </div>
-    </div>
-
-    <div class="maka-card">
-      <div class="flex gap-2 mb-3" style="font-size:12px;">
-        <button class="pill active" data-period="harian" onclick="setPeriod('harian',this)">Harian</button>
-        <button class="pill" data-period="mingguan" onclick="setPeriod('mingguan',this)">Mingguan</button>
-        <button class="pill" data-period="bulanan" onclick="setPeriod('bulanan',this)">Bulanan</button>
-      </div>
-      <div id="chartWrap"><canvas id="usageChart" height="196" style="display: block; box-sizing: border-box; height: 196px; width: 100%;"></canvas></div>
     </div>
     
     <div class="grid grid-cols-2 gap-3 mb-3">
