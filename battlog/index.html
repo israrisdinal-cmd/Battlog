@@ -786,7 +786,7 @@ document.getElementById('f_tarif').addEventListener('input',()=>{ const pre=docu
 
 kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
 
-// === BRIDGE FIXED SINGLE ===
+// === BRIDGE FIXED SINGLE - PATCHED SYNC V5.22 COMPATIBLE (PAKEM 2.7.8 TETAP) ===
 (function(){
   const KEYS_MAKA=['maka_log_v1','maka_bms_history','maka_soh_history','factory_cap_kwh','factory_range_km','maka_soh_baseline','maka_soh_baseline_is_fallback','maka_soh_total_samples','maka_log_v1_lokasi_history','maka_charger_history','universal_custom_v','universal_custom_ah','maka_chat_id']; 
   const KEYS_SIGAN=['siganData','siganShiftData','siganGlobalTarget','siganTariffConfig'];
@@ -794,20 +794,131 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
   const safeParse=k=>{ try{ const v=localStorage.getItem(k); if(v==null) return null; try{return JSON.parse(v);}catch(e){return v;} }catch(e){return null;} };
   function getLake(){ try{ const raw=localStorage.getItem(LAKE_KEY); if(!raw) return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; const obj=JSON.parse(raw); obj.sigan=obj.sigan||{}; obj.maka=obj.maka||{}; obj.cross=obj.cross||{}; obj._sources=obj._sources||{}; return obj; }catch(e){ return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; } }
   try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); }catch(e){}
+  function isValidTime(t){ if(!t) return false; const m=String(t).trim().match(/(\d{1,2})[:.](\d{2})/); if(!m) return false; const h=parseInt(m[1],10), mm=parseInt(m[2],10); return h>=0&&h<=23&&mm>=0&&mm<=59; }
+  function mergeSiganData(lakeData, localData){
+    try{
+      if(!Array.isArray(lakeData)) return localData;
+      if(!Array.isArray(localData)) return lakeData;
+      if(!lakeData.length) return localData;
+      if(!localData.length) return lakeData;
+      // Gabung deduplicate by idTrans, prioritas yang punya jam valid
+      const map=new Map();
+      const all=[...lakeData, ...localData];
+      for(let it of all){
+        if(!it) continue;
+        const key=(it.idTrans||'').toUpperCase()|| (it.date+'_'+(it.time||'')+'_'+(it.dist||''));
+        const existing=map.get(key);
+        if(!existing){ map.set(key,it); continue; }
+        // pilih yang punya endTime valid
+        const e1Valid=isValidTime(existing.endTime||existing.jam_akhir)&&isValidTime(existing.time||existing.jam_awal);
+        const e2Valid=isValidTime(it.endTime||it.jam_akhir)&&isValidTime(it.time||it.jam_awal);
+        if(e2Valid && !e1Valid) map.set(key,it);
+        else if(e2Valid && e1Valid){
+          // pilih yang jarak lebih besar atau lebih baru
+          if((Number(it.dist||0) > Number(existing.dist||0))) map.set(key,it);
+        }
+      }
+      return Array.from(map.values());
+    }catch(e){ return localData||lakeData; }
+  }
   function buildAndSend(){
     try{
       const lake=getLake();
-      for(let i=0;i<KEYS_SIGAN.length;i++){ const v=safeParse(KEYS_SIGAN[i]); if(v!==null) lake.sigan[KEYS_SIGAN[i]]=v; }
+      // MERGE SIGAN DATA - JANGAN OVERWRITE DATA VALID DARI SIGAN V5.22
+      for(let i=0;i<KEYS_SIGAN.length;i++){
+        const k=KEYS_SIGAN[i];
+        const v=safeParse(k);
+        if(k==='siganData'){
+          const lakeV=lake.sigan && lake.sigan.siganData ? lake.sigan.siganData : null;
+          if(v!==null && lakeV){
+            const merged=mergeSiganData(lakeV, v);
+            lake.sigan[k]=merged;
+            try{ localStorage.setItem(k, JSON.stringify(merged)); }catch(e){}
+          } else if(v!==null){
+            lake.sigan[k]=v;
+          }
+        } else {
+          if(v!==null) lake.sigan[k]=v;
+        }
+      }
       for(let i=0;i<KEYS_MAKA.length;i++){ const v=safeParse(KEYS_MAKA[i]); if(v!==null) lake.maka[KEYS_MAKA[i]]=v; }
-      const makaLog=safeParse('maka_log_v1'); if(makaLog&&makaLog.length){ const ringkasBiaya={}; const ringkasEnergi={}; for(let j=0;j<makaLog.length;j++){ const e=makaLog[j]; const tgl=e.tanggal; let biaya=0; if(e.biaya!=null&&!isNaN(e.biaya)) biaya=Number(e.biaya); else if(e.tarif!=null){ const cap=Number(e.cap_kwh||localStorage.getItem('factory_cap_kwh')||4); const pct=Math.max(0,(Number(e.batt_setelah||100)-Number(e.batt_akhir||0))); biaya=(pct/100)*cap*Number(e.tarif||0); } ringkasBiaya[tgl]=(ringkasBiaya[tgl]||0)+biaya; const jarak=Math.max(0,(Number(e.km_akhir)||0)-(Number(e.km_awal)||0)); const used=Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0)); const cap2=Number(e.cap_kwh||4); const kwh=(used/100)*cap2; if(!ringkasEnergi[tgl]) ringkasEnergi[tgl]={kwh:0,km:0,whkm:[]}; ringkasEnergi[tgl].kwh+=kwh; ringkasEnergi[tgl].km+=jarak; if(jarak>0) ringkasEnergi[tgl].whkm.push((kwh*1000)/jarak); }
-        try{ localStorage.setItem('sigan_cross_ev_cost',JSON.stringify(ringkasBiaya)); localStorage.setItem('maka_cross_summary',JSON.stringify(ringkasEnergi)); lake.cross['sigan_cross_ev_cost']=ringkasBiaya; lake.cross['maka_cross_summary']=ringkasEnergi; }catch(e){} }
-      try{ const inc=safeParse('maka_cross_sigan_income'); const kmm=safeParse('maka_cross_sigan_km'); if(inc) lake.cross['maka_cross_sigan_income']=inc; if(kmm) lake.cross['maka_cross_sigan_km']=kmm; }catch(e){}
-      lake._updated=Date.now(); lake._sources['maka_fixed']=Date.now(); lake._source=Object.keys(lake._sources).join('+');
+      const makaLog=safeParse('maka_log_v1'); 
+      if(makaLog&&makaLog.length){ 
+        const ringkasBiaya={}; const ringkasEnergi={}; 
+        for(let j=0;j<makaLog.length;j++){ const e=makaLog[j]; const tgl=e.tanggal; let biaya=0; if(e.biaya!=null&&!isNaN(e.biaya)) biaya=Number(e.biaya); else if(e.tarif!=null){ const cap=Number(e.cap_kwh||localStorage.getItem('factory_cap_kwh')||4); const pct=Math.max(0,(Number(e.batt_setelah||100)-Number(e.batt_akhir||0))); biaya=(pct/100)*cap*Number(e.tarif||0); } ringkasBiaya[tgl]=(ringkasBiaya[tgl]||0)+biaya; const jarak=Math.max(0,(Number(e.km_akhir)||0)-(Number(e.km_awal)||0)); const used=Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0)); const cap2=Number(e.cap_kwh||4); const kwh=(used/100)*cap2; if(!ringkasEnergi[tgl]) ringkasEnergi[tgl]={kwh:0,km:0,whkm:[]}; ringkasEnergi[tgl].kwh+=kwh; ringkasEnergi[tgl].km+=jarak; if(jarak>0) ringkasEnergi[tgl].whkm.push((kwh*1000)/jarak); }
+        try{ 
+          localStorage.setItem('sigan_cross_ev_cost',JSON.stringify(ringkasBiaya)); 
+          // jangan overwrite maka_cross_summary kalau sudah ada avg_speed dari perhitungan STRICT
+          const existingSum=safeParse('maka_cross_summary');
+          if(existingSum && typeof existingSum.avg_speed==='number'){
+            ringkasEnergi.avg_speed=existingSum.avg_speed;
+            ringkasEnergi.mode=existingSum.mode;
+          }
+          localStorage.setItem('maka_cross_summary',JSON.stringify(ringkasEnergi)); 
+          lake.cross['sigan_cross_ev_cost']=ringkasBiaya; 
+          lake.cross['maka_cross_summary']=ringkasEnergi; 
+        }catch(e){} 
+      }
+      try{ 
+        const inc=safeParse('maka_cross_sigan_income'); 
+        const kmm=safeParse('maka_cross_sigan_km'); 
+        const goride=safeParse('maka_cross_sigan_goride');
+        if(inc) lake.cross['maka_cross_sigan_income']=inc; 
+        if(kmm) lake.cross['maka_cross_sigan_km']=kmm;
+        // PENTING: JANGAN HAPUS gorideOrders dari SiGan V5.22 - PRESERVE
+        if(goride && Array.isArray(goride) && goride.length){
+          // kalau lake sudah ada goride dari SiGan yang lebih lengkap, merge
+          const lakeGoride=lake.cross && lake.cross.maka_cross_sigan_goride ? lake.cross.maka_cross_sigan_goride : [];
+          if(lakeGoride.length===0){
+            lake.cross['maka_cross_sigan_goride']=goride;
+          } else {
+            // merge, prioritas yang punya jam_awal valid
+            const mergedMap=new Map();
+            [...lakeGoride, ...goride].forEach(o=>{
+              const key=(o.id_trans||o.idTrans||'')+'_'+(o.date||o.tanggal||'');
+              const exist=mergedMap.get(key);
+              if(!exist) mergedMap.set(key,o);
+              else {
+                const eValid=isValidTime(exist.jam_awal)&&isValidTime(exist.jam_akhir);
+                const nValid=isValidTime(o.jam_awal)&&isValidTime(o.jam_akhir);
+                if(nValid && !eValid) mergedMap.set(key,o);
+              }
+            });
+            lake.cross['maka_cross_sigan_goride']=Array.from(mergedMap.values());
+          }
+        }
+        // Sync balik AVG untuk SiGan TERBARU BATTLOG
+        try{
+          if(typeof hitungAvgKmJamGoride==='function'){
+            const res=hitungAvgKmJamGoride();
+            if(res && res.avg>0){
+              const avgData={avg_speed:res.avg, kecepatan_rata:res.avg, avg_km_per_jam:res.avg, mode:res.isStrict?'STRICT':'FALLBACK', jam_valid:res.detail?res.detail.length:0, total_km:res.totalKmMasuk, total_jam:res.totalJam, usedDateLabel:res.usedDateLabel, updated:Date.now()};
+              localStorage.setItem('battlog_avg_speed', JSON.stringify(avgData));
+              localStorage.setItem('maka_cross_summary', JSON.stringify({... (safeParse('maka_cross_summary')||{}), ...avgData}));
+              lake.cross['battlog_avg_speed']=avgData;
+              lake.maka['battlog_avg_speed']=avgData;
+              // Tulis ke maka_log_v1 satu entry khusus biar SiGan V5.22 baca TERBARU
+              let mLog=safeParse('maka_log_v1')||[];
+              if(Array.isArray(mLog)){
+                const today=new Date().toISOString().slice(0,10);
+                let idx=mLog.findIndex(x=>x.tanggal===today && x.sumber==='battlog_auto_sync');
+                const entry={tanggal:today, jarak_km:res.totalKmMasuk, kecepatan_rata:res.avg, avg_speed:res.avg, avg_km_per_jam:res.avg, mode:res.isStrict?'STRICT':'FALLBACK', jam_valid:res.detail?res.detail.length:0, sumber:'battlog_auto_sync', waktu_dibuat_asli:Date.now()};
+                if(idx>=0) mLog[idx]=entry; else mLog.push(entry);
+                localStorage.setItem('maka_log_v1', JSON.stringify(mLog));
+                lake.maka['maka_log_v1']=mLog;
+              }
+            }
+          }
+        }catch(e2){ console.log('sync avg err',e2.message); }
+      }catch(e){}
+      lake._updated=Date.now(); lake._sources['maka_fixed_v2_7_8_synced']=Date.now(); lake._source=Object.keys(lake._sources).join('+');
       try{ localStorage.setItem(LAKE_KEY,JSON.stringify(lake)); }catch(err){ console.log('Lake quota penuh, skip'); }
       try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update',from:'maka',ts:Date.now()}); }catch(e){}
     }catch(e){ console.log('Sender error',e.message); }
   }
   setTimeout(buildAndSend,1000); setInterval(buildAndSend,60000);
+  // Trigger juga saat hitung AVG selesai
+  setTimeout(()=>{ try{ if(typeof hitungAvgKmJamGoride==='function'){ buildAndSend(); } }catch(e){} },2500);
   window.kirimSemuaKeSiGan=buildAndSend;
 })();
 
