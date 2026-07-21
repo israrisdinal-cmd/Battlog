@@ -1575,29 +1575,127 @@ window.onload=function(){
   function safeParse(k){ try{ var v=localStorage.getItem(k); if(v==null) return null; try{ return JSON.parse(v); }catch(e){ return v; } }catch(e){ return null; } }
   function getExistingLake(){ try{ var raw=localStorage.getItem(LAKE_KEY); if(!raw) return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; var obj=JSON.parse(raw); obj.sigan=obj.sigan||{}; obj.maka=obj.maka||{}; obj.cross=obj.cross||{}; obj._sources=obj._sources||{}; return obj; }catch(e){ return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; } }
   try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); }catch(e){}
+  function parseTimeToMinutes(t){
+    try{
+      if(!t) return null;
+      t=String(t).trim().replace('.',':');
+      var m=t.match(/(\d{1,2}):(\d{2})/);
+      if(!m) return null;
+      var h=parseInt(m[1],10), mi=parseInt(m[2],10);
+      if(h<0||h>23||mi<0||mi>59) return null;
+      return h*60+mi;
+    }catch(e){ return null; }
+  }
+  function minutesToHHMM(mins){
+    try{
+      mins=((mins%1440)+1440)%1440;
+      var h=Math.floor(mins/60), m=mins%60;
+      return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+    }catch(e){ return ''; }
+  }
+  function estimateEndTime(startStr, distKm){
+    try{
+      var startMin=parseTimeToMinutes(startStr);
+      if(startMin==null) return '';
+      var d=Number(distKm)||0;
+      // estimasi: kecepatan kota 25 km/jam + 3 menit buffer
+      var durMin = d>0 ? Math.max(5, Math.round((d/25)*60 + 3)) : 15;
+      return minutesToHHMM(startMin+durMin);
+    }catch(e){ return ''; }
+  }
   function buildAndSendSiGan(){
     try{
       var lake=getExistingLake();
       for(var i=0;i<KEYS_SIGAN.length;i++){ var v=safeParse(KEYS_SIGAN[i]); if(v!==null) lake.sigan[KEYS_SIGAN[i]]=v; }
       for(var i=0;i<KEYS_MAKA.length;i++){ var v2=safeParse(KEYS_MAKA[i]); if(v2!==null) lake.maka[KEYS_MAKA[i]]=v2; }
-      var siganData=safeParse('siganData')||[]; var incomeMap={}, kmMap={}, gorideOrders=[];
+      var siganData=safeParse('siganData')||[]; 
+      var fixedCount=0;
+      // MIGRASI: perbaiki data lama yang jam_akhir kosong / sama dengan jam_awal
+      for(var k=0;k<siganData.length;k++){
+        var it=siganData[k];
+        if(!it) continue;
+        if(it.type!=='Pendapatan') continue;
+        var isGoride = (it.cat==='Goride' || (it.idTrans && String(it.idTrans).toUpperCase().startsWith('RB')));
+        if(!isGoride) continue;
+        var jamAwal = it.time || it.jam_awal || '';
+        var jamAkhir = it.endTime || it.predictedEndTime || it.jam_akhir || '';
+        // normalisasi format
+        var mAwal=parseTimeToMinutes(jamAwal);
+        var mAkhir=parseTimeToMinutes(jamAkhir);
+        var needFix=false;
+        if(mAwal==null && jamAwal){
+          // coba bersihin
+          jamAwal=String(jamAwal).replace('.',':');
+          mAwal=parseTimeToMinutes(jamAwal);
+        }
+        if(mAkhir==null || (mAwal!=null && mAkhir!=null && mAkhir<=mAwal)){
+          needFix=true;
+        }
+        if(!jamAkhir || jamAkhir===jamAwal) needFix=true;
+        if(needFix){
+          var newEnd = estimateEndTime(jamAwal, it.dist||0);
+          if(newEnd){
+            it.endTime=newEnd;
+            it.predictedEndTime=newEnd;
+            it.jam_akhir=newEnd;
+            it.jam_awal=jamAwal;
+            fixedCount++;
+          }
+        } else {
+          // pastikan field jam_awal/jam_akhir ada untuk kompatibilitas battlog
+          if(!it.jam_awal) it.jam_awal=jamAwal;
+          if(!it.jam_akhir) it.jam_akhir=jamAkhir;
+        }
+        if(!it.time && jamAwal) it.time=jamAwal;
+      }
+      if(fixedCount>0){
+        try{ localStorage.setItem('siganData', JSON.stringify(siganData)); lake.sigan['siganData']=siganData; }catch(e){}
+        try{ console.log('[SiGan] Auto-fix jam akhir Goride:', fixedCount, 'trip'); }catch(_){}
+      }
+      var incomeMap={}, kmMap={}, gorideOrders=[];
       for(var j=0;j<siganData.length;j++){ 
         var it=siganData[j]; 
         if(it.type==='Pendapatan'){ 
           incomeMap[it.date]=(incomeMap[it.date]||0)+Number(it.amount||0); 
           kmMap[it.date]=(kmMap[it.date]||0)+Number(it.dist||0); 
-          // khusus Goride simpan jam awal & jam akhir untuk battlog
+          // khusus Goride simpan jam awal & jam akhir untuk battlog - PASTIKAN VALID
           if(it.cat==='Goride' || (it.idTrans && String(it.idTrans).toUpperCase().startsWith('RB'))){
-            gorideOrders.push({
-              date: it.date,
-              jam_awal: it.time||'',
-              jam_akhir: it.endTime||it.predictedEndTime||it.time||'',
-              jarak_km: Number(it.dist||0),
-              id_trans: it.idTrans||'',
-              pickup: (it.pickup||'').substring(0,80),
-              destination: (it.destination||'').substring(0,80),
-              amount: Number(it.amount||0)
-            });
+            var ja = it.time || it.jam_awal || '';
+            var jb = it.endTime || it.predictedEndTime || it.jam_akhir || '';
+            // kalau masih kosong/sama, estimasi lagi
+            if(!jb || jb===ja){
+              jb=estimateEndTime(ja, it.dist||0);
+            }
+            // pastikan format HH:MM valid dan beda
+            var ma=parseTimeToMinutes(ja), mb=parseTimeToMinutes(jb);
+            if(ma!=null && mb!=null && mb>ma){
+              gorideOrders.push({
+                date: it.date,
+                jam_awal: minutesToHHMM(ma),
+                jam_akhir: minutesToHHMM(mb),
+                jarak_km: Number(it.dist||0),
+                id_trans: it.idTrans||'',
+                pickup: (it.pickup||'').substring(0,80),
+                destination: (it.destination||'').substring(0,80),
+                amount: Number(it.amount||0)
+              });
+            } else if(ma!=null){
+              // paksa buat valid
+              var jb2=estimateEndTime(minutesToHHMM(ma), it.dist||0);
+              var mb2=parseTimeToMinutes(jb2);
+              if(mb2!=null && mb2>ma){
+                gorideOrders.push({
+                  date: it.date,
+                  jam_awal: minutesToHHMM(ma),
+                  jam_akhir: jb2,
+                  jarak_km: Number(it.dist||0),
+                  id_trans: it.idTrans||'',
+                  pickup: (it.pickup||'').substring(0,80),
+                  destination: (it.destination||'').substring(0,80),
+                  amount: Number(it.amount||0)
+                });
+              }
+            }
           }
         } 
       }
@@ -1606,6 +1704,8 @@ window.onload=function(){
         localStorage.setItem('maka_cross_sigan_km', JSON.stringify(kmMap));
         localStorage.setItem('maka_cross_sigan_goride', JSON.stringify(gorideOrders));
         localStorage.setItem('sigan_hub_last_update', String(Date.now()));
+        // simpan juga di lake.sigan.siganData yang sudah difix biar battlog baca langsung
+        lake.sigan['siganData']=siganData;
         lake.cross['maka_cross_sigan_income']=incomeMap; 
         lake.cross['maka_cross_sigan_km']=kmMap;
         lake.cross['maka_cross_sigan_goride']=gorideOrders;
