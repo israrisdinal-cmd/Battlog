@@ -78,7 +78,7 @@
 <div class="max-w-2xl">
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7.1 Cluster Below Chart</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7.2 GoRide AVG</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
@@ -132,9 +132,11 @@
         <canvas id="speedoCanvas" width="320" height="150" style="display: block; max-width: 100%; height: auto; margin: 0 auto;"></canvas>
         <div style="margin-top: 8px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; align-items:center;">
           <div style="background: #070e1a; border: 1px solid #162847; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #8aa0c6;"><span>MIN: <span id="speedo_min" style="color:#7dffb7; font-family: monospace;">–</span> | MAX: <span id="speedo_max" style="color:#ff4d4d; font-family: monospace;">–</span> Wh/km</span></div>
-          <div style="background: #0d1e2a; border: 1px solid rgba(125,255,183,0.25); padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #8aa0c6;"><span>AVG: <span id="stat_avg_kmjam" style="color:#7dffb7; font-family: monospace; font-weight:800;">–</span> km/jam <span style="font-size:9px; color:#5e759e;">(AI)</span></span></div>
+          <div style="background: #0d1e2a; border: 1px solid rgba(125,255,183,0.25); padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #8aa0c6;"><span>AVG: <span id="stat_avg_kmjam" style="color:#7dffb7; font-family: monospace; font-weight:800;">–</span> km/jam <span style="font-size:9px; color:#5e759e;">(GoRide)</span></span></div>
         </div>
       </div>
+      <div id="debug_sigan_go" style="margin-top:8px; padding:8px 10px; background:#0a1328; border:1px dashed #1e2d4a; border-radius:10px; font-size:10px; color:#8aa0c6; line-height:1.5; display:none;"></div>
+      <div style="margin-top:6px; text-align:center;"><button onclick="debugSiganGoRide()" class="pill" style="font-size:10px; padding:4px 8px;">🔍 Cek Data SiGan GoRide</button></div>
     </div>
     
     <div class="grid grid-cols-2 gap-3 mb-3">
@@ -290,29 +292,243 @@ function hitungPrediksiAIWhKm(filtered){
 }
 function getPeriodeLabel(){ if(typeof ekonomiPeriod==='undefined') return 'SEMUA'; const m={harian:'HARIAN','7hari':'7 HARI','14hari':'14 HARI','30hari':'30 HARI',all:'SEMUA'}; return m[ekonomiPeriod]||ekonomiPeriod.toUpperCase(); }
 
-// FIXED: km/jam sekarang pakai jam onbid real dari SiGan, bukan selisih ID
-function hitungPrediksiAIKmJamFixed(filtered){
+// v2.7.2: AVG km/jam dari odometer yang masuk ke jam onbid GoRide SiGan (jam_awal - jam_akhir per order)
+// Sesuai ide user: SiGan nanti kirim jam_awal & jam_akhir, BattLog cocokan odometer yang masuk ke jam itu
+function parseJamMenit(str){
+  if(!str) return null;
+  const s=String(str).trim();
+  const m=s.match(/(\d{1,2})[:.](\d{2})/);
+  if(!m) return null;
+  let h=parseInt(m[1],10), mm=parseInt(m[2],10);
+  if(isNaN(h)||isNaN(mm)) return null;
+  if(h<0||h>23||mm<0||mm>59) return null;
+  return h*60+mm;
+}
+function getSiganOrdersWithJam(){
+  let orders=[];
   try{
-    let source=filtered&&filtered.length?filtered:entries;
-    if(!source.length) return {avg:0, detail:[]};
-    // Hitung total km kerja (max-min per hari, bukan sum dobel)
-    let evPerTgl={}; source.forEach(e=>{ const t=e.tanggal; if(!t) return; if(!evPerTgl[t]) evPerTgl[t]=[]; evPerTgl[t].push(e); });
-    let totalKmKerja=0;
-    for(let tgl in evPerTgl){ const list=evPerTgl[tgl].sort((a,b)=>(Number(a.km_awal)||0)-(Number(b.km_awal)||0)); const minA=Math.min(...list.map(x=>Number(x.km_awal)||0)); const maxK=Math.max(...list.map(x=>Number(x.km_akhir)||0)); let real=maxK-minA; let sum=list.reduce((a,ee)=>{ try{return a+(calcEntry(ee).jarak||0);}catch(e){return a;} },0); if(real>0&&real<400) totalKmKerja+=real; else totalKmKerja+=Math.min(sum,350); }
-    // Hitung total jam onbid dari shift
-    let shiftMap={}; try{ const raw=localStorage.getItem('siganShiftData'); if(raw) shiftMap=JSON.parse(raw); }catch(e){}
-    let totalJam=0;
-    for(let tgl in evPerTgl){
-      const s=shiftMap[tgl];
-      if(s&&s.start&&s.end){
-        try{ const [sh,sm]=s.start.split(':').map(Number); const [eh,em]=s.end.split(':').map(Number); let d=(eh*60+em)-(sh*60+sm); if(d<0) d+=24*60; totalJam+=d/60; }catch(e){}
+    let raw=localStorage.getItem('siganData');
+    if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }
+    if(!orders.length){
+      let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+      if(lakeRaw){
+        let lake=JSON.parse(lakeRaw);
+        if(lake.sigan&&Array.isArray(lake.sigan.siganData)) orders=lake.sigan.siganData;
+        else if(lake.cross&&Array.isArray(lake.cross.siganData)) orders=lake.cross.siganData;
       }
     }
-    // Jika tidak ada shift, fallback: estimasi 1.2 jam per sesi (rata2 ojol)
-    if(totalJam<=0.1){ totalJam=source.length*1.2; }
-    const avg=totalJam>0?totalKmKerja/totalJam:0;
-    return {avg:Math.min(avg,80), totalKmKerja, totalJam, detail:[]};
-  }catch(e){ console.log('kmjam fixed err',e.message); return {avg:0, detail:[]}; }
+  }catch(e){ orders=[]; }
+  // Normalisasi field: dukung jam_awal/jam_akhir, jam_mulai/jam_selesai, start/end, waktu_mulai/waktu_selesai
+  return orders.map(o=>{
+    const tanggal=o.tanggal||o.date||o.tgl||'';
+    let ja=o.jam_awal||o.jam_mulai||o.waktu_mulai||o.start||o.jam_start||null;
+    let jk=o.jam_akhir||o.jam_selesai||o.waktu_selesai||o.end||o.jam_end||null;
+    // Jika format "08:10 - 08:30" dalam satu field
+    if(!ja&&jk&&String(jk).includes('-')){
+      const parts=String(jk).split('-'); if(parts.length>=2){ ja=parts[0].trim(); jk=parts[1].trim(); }
+    }
+    if(o.jam&&String(o.jam).includes('-')&&!ja){
+      const parts=String(o.jam).split('-'); if(parts.length>=2){ ja=parts[0].trim(); jk=parts[1].trim(); }
+    }
+    const km=Number(o.jarak||o.km||o.dist||o.km_akhir||0)||0;
+    return {tanggal, jam_awal:ja, jam_akhir:jk, km, raw:o};
+  }).filter(o=>o.tanggal);
+}
+
+function hitungAvgKmJamGoride(filtered){
+  try{
+    let source=filtered&&filtered.length?filtered:entries;
+    let orders=getSiganOrdersWithJam();
+    // Filter orders sesuai periode ekonomi (sama seperti BattLog)
+    let anchor=new Date(); anchor.setHours(0,0,0,0);
+    let cutoff=new Date(anchor);
+    if(typeof ekonomiPeriod!=='undefined'){
+      if(ekonomiPeriod==='harian'){ cutoff=new Date(anchor); }
+      else if(ekonomiPeriod==='7hari'){ cutoff.setDate(anchor.getDate()-6); }
+      else if(ekonomiPeriod==='14hari'){ cutoff.setDate(anchor.getDate()-13); }
+      else if(ekonomiPeriod==='30hari'){ cutoff.setDate(anchor.getDate()-29); }
+      else { cutoff=new Date('2000-01-01'); }
+    } else { cutoff=new Date('2000-01-01'); }
+
+    let ordersInPeriod=orders.filter(o=>{ try{ const d=new Date(o.tanggal); d.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod!=='all'&&(d<cutoff||d>anchor)) return false; return true; }catch(e){return false;} });
+
+    // Bangun map jam per tanggal
+    let jamPerTgl={}; // tgl -> [{startMin,endMin,km}]
+    let totalJamPeriod=0;
+    ordersInPeriod.forEach(o=>{
+      const sMin=parseJamMenit(o.jam_awal);
+      const eMin=parseJamMenit(o.jam_akhir);
+      if(sMin===null||eMin===null) return;
+      let dur=eMin-sMin; if(dur<0) dur+=24*60; if(dur<=0||dur>720) return; // max 12 jam per order, skip aneh
+      if(!jamPerTgl[o.tanggal]) jamPerTgl[o.tanggal]=[];
+      jamPerTgl[o.tanggal].push({startMin:sMin,endMin:eMin,durMin:dur,km:o.km});
+      totalJamPeriod+=dur/60;
+    });
+
+    // Hitung odometer yang masuk ke jam onbid GoRide
+    let totalKmMasuk=0;
+    let detailMasuk=[];
+    let evPerTgl={}; source.forEach(e=>{ if(!e.tanggal) return; if(!evPerTgl[e.tanggal]) evPerTgl[e.tanggal]=[]; evPerTgl[e.tanggal].push(e); });
+
+    // Untuk setiap tanggal yang ada jam GoRide, cocokan BattLog
+    for(let tgl in jamPerTgl){
+      const windows=jamPerTgl[tgl];
+      const evList=evPerTgl[tgl]||[];
+      if(!evList.length) continue;
+      // Untuk tiap entry BattLog, cek apakah waktu log masuk ke salah satu window (+ toleransi 30 menit setelah selesai)
+      evList.forEach(ev=>{
+        try{
+          const ts=Number(ev.waktu_dibuat_asli||ev.id)||0;
+          let evMin=null;
+          if(ts>0){
+            const d=new Date(ts);
+            if(!isNaN(d.getTime())){
+              // hanya jika tanggalnya sama
+              const dStr=d.toISOString().slice(0,10);
+              if(dStr!==tgl) {
+                // kalau tanggal log beda, tetap anggap masuk jika tanggal BattLog sama dengan tgl order (anggap gambaran keseluruhan)
+                // Sesuai instruksi user: anggap gambaran keseluruhan
+                const c=calcEntry(ev);
+                totalKmMasuk+=c.jarak||0;
+                detailMasuk.push({tgl, jarak:c.jarak, mode:'tanggal_sama'});
+                return;
+              }
+              evMin=d.getHours()*60+d.getMinutes();
+            }
+          }
+          // Jika tidak ada timestamp valid, anggap masuk jika tanggal sama (gambaran keseluruhan)
+          if(evMin===null){
+            const c=calcEntry(ev);
+            totalKmMasuk+=c.jarak||0;
+            detailMasuk.push({tgl, jarak:c.jarak, mode:'no_time'});
+            return;
+          }
+          // Cek masuk window
+          let masuk=false;
+          for(let w of windows){
+            // toleransi 30 menit sebelum dan sesudah
+            let s=w.startMin-15, e=w.endMin+30;
+            if(s<0) s=0;
+            // handle overnight
+            if(w.endMin<w.startMin){ // lewat tengah malam
+              if(evMin>=w.startMin||evMin<=w.endMin+30) { masuk=true; break; }
+            } else {
+              if(evMin>=s&&evMin<=e) { masuk=true; break; }
+            }
+          }
+          if(masuk){
+            const c=calcEntry(ev);
+            totalKmMasuk+=c.jarak||0;
+            detailMasuk.push({tgl, jarak:c.jarak, evMin, mode:'jam_cocok'});
+          } else {
+            // Sesuai ide user: anggap gambaran keseluruhan, tetap hitung jika tanggal sama
+            // Tapi kita bedakan biar tidak 0
+            const c=calcEntry(ev);
+            totalKmMasuk+=c.jarak||0;
+            detailMasuk.push({tgl, jarak:c.jarak, evMin, mode:'gambaran_keseluruhan'});
+          }
+        }catch(e){}
+      });
+    }
+
+    let isFresh=true;
+    let usedDateLabel='Hari Ini';
+    // Fallback: jika tidak ada jam sama sekali di periode ini, pakai data kemarin
+    if(totalJamPeriod<=0.01||totalKmMasuk<=0.01){
+      // cari tanggal terbaru yang ada jam
+      let allDates=Object.keys(jamPerTgl).sort().reverse();
+      if(!allDates.length){
+        // coba ambil dari semua orders (bukan cuma periode)
+        let allJamPerTgl={}; let allTotalJam=0;
+        orders.forEach(o=>{
+          const sMin=parseJamMenit(o.jam_awal); const eMin=parseJamMenit(o.jam_akhir);
+          if(sMin===null||eMin===null) return;
+          let dur=eMin-sMin; if(dur<0) dur+=24*60; if(dur<=0||dur>720) return;
+          if(!allJamPerTgl[o.tanggal]) allJamPerTgl[o.tanggal]=[];
+          allJamPerTgl[o.tanggal].push({startMin:sMin,endMin:eMin,durMin:dur});
+          allTotalJam+=dur/60;
+        });
+        allDates=Object.keys(allJamPerTgl).sort().reverse();
+        if(allDates.length){
+          const latest=allDates[0];
+          jamPerTgl={[latest]: allJamPerTgl[latest]};
+          totalJamPeriod=allJamPerTgl[latest].reduce((a,w)=>a+w.durMin/60,0);
+          // ambil odometer tanggal itu
+          const evList=evPerTgl[latest]||[];
+          totalKmMasuk=0; detailMasuk=[];
+          evList.forEach(ev=>{ try{ const c=calcEntry(ev); totalKmMasuk+=c.jarak||0; detailMasuk.push({tgl:latest, jarak:c.jarak}); }catch(e){} });
+          isFresh=false; usedDateLabel=latest;
+        }
+      } else {
+        isFresh=true;
+        usedDateLabel='Periode Ini';
+      }
+      if(totalJamPeriod<=0.01){
+        // masih kosong, pakai kemarin
+        let sortedOrders=orders.slice().sort((a,b)=>new Date(b.tanggal)-new Date(a.tanggal));
+        if(sortedOrders.length){
+          const latestDate=sortedOrders[0].tanggal;
+          const dayOrders=orders.filter(o=>o.tanggal===latestDate);
+          let jam=0; dayOrders.forEach(o=>{ const s=parseJamMenit(o.jam_awal), e=parseJamMenit(o.jam_akhir); if(s!==null&&e!==null){ let d=e-s; if(d<0) d+=24*60; jam+=d/60; } });
+          totalJamPeriod=jam>0?jam:1;
+          // km masuk dari BattLog tanggal itu
+          const evList=evPerTgl[latestDate]||[];
+          if(evList.length){
+            totalKmMasuk=evList.reduce((a,ev)=>{ try{return a+(calcEntry(ev).jarak||0);}catch(e){return a;} },0);
+          } else {
+            // jika BattLog juga kosong hari itu, pakai jarak SiGan sebagai gambaran
+            totalKmMasuk=dayOrders.reduce((a,o)=>a+(Number(o.km)||0),0);
+          }
+          isFresh=false; usedDateLabel=latestDate;
+        }
+      }
+    }
+
+    // Jika masih 0 karena SiGan belum kirim jam_awal/akhir, fallback ke shift lama biar tidak kosong (tapi tandai merah)
+    if(totalJamPeriod<=0.01){
+      let shiftMap={}; try{ const raw=localStorage.getItem('siganShiftData'); if(raw) shiftMap=JSON.parse(raw); }catch(e){}
+      let jamShift=0; for(let t in evPerTgl){ const s=shiftMap[t]; if(s&&s.start&&s.end){ try{ const [sh,sm]=s.start.split(':').map(Number); const [eh,em]=s.end.split(':').map(Number); let d=(eh*60+em)-(sh*60+sm); if(d<0) d+=24*60; jamShift+=d/60; }catch(e){} } }
+      if(jamShift>0){ totalJamPeriod=jamShift; isFresh=false; usedDateLabel='Shift Lama'; }
+    }
+
+    if(totalJamPeriod<=0.1) totalJamPeriod=1; // hindari bagi 0
+    let avg=totalKmMasuk/totalJamPeriod;
+    avg=Math.min(Math.max(avg,0),80);
+    return {avg, totalKmMasuk, totalJam:totalJamPeriod, isFresh, usedDateLabel, detail:detailMasuk, jamPerTgl};
+  }catch(e){ console.log('AVG GoRide err',e.message); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
+}
+// Alias untuk kompatibilitas
+function hitungPrediksiAIKmJamFixed(filtered){ return hitungAvgKmJamGoride(filtered); }
+
+function debugSiganGoRide(){
+  try{
+    const el=document.getElementById('debug_sigan_go');
+    let orders=getSiganOrdersWithJam();
+    let filtered=entries;
+    let res=hitungAvgKmJamGoride(filtered);
+    let html=`<div style="font-weight:800; color:#6fb2ff; margin-bottom:4px;">📦 SiGan GoRide Debug</div>`;
+    html+=`Total order terdeteksi: <b>${orders.length}</b><br/>`;
+    if(!orders.length){
+      html+=`<span style="color:#ff8a80;">❌ siganData kosong di localStorage & UNIVERSAL_LAKE</span><br/>`;
+      html+=`Cek: localStorage.getItem('siganData') di console<br/>`;
+    } else {
+      const withJam=orders.filter(o=>parseJamMenit(o.jam_awal)!==null&&parseJamMenit(o.jam_akhir)!==null).length;
+      html+=`Dengan jam_awal & jam_akhir valid: <b style="color:${withJam>0?'#7dffb7':'#ff8a80'}">${withJam} / ${orders.length}</b><br/>`;
+      const sample=orders.slice(0,3);
+      html+=`Sample 3 order:<br/>`;
+      sample.forEach(o=>{
+        html+=`• ${o.tanggal} ${o.jam_awal||'-'} → ${o.jam_akhir||'-'} ${o.km?o.km+'km':''}<br/>`;
+      });
+    }
+    html+=`<hr style="border:0; border-top:1px dashed #1e2d4a; margin:6px 0;">`;
+    html+=`AVG GoRide: <b style="color:${res.isFresh?'#7dffb7':'#ff8a80'}">${res.avg.toFixed(1)} km/jam</b> ${res.isFresh?'🟢 TERUPDATE':'🔴 KEMARIN'}<br/>`;
+    html+=`TotalKmMasuk: ${res.totalKmMasuk.toFixed(1)} km / TotalJam: ${res.totalJam.toFixed(2)} jam<br/>`;
+    html+=`UsedDate: ${res.usedDateLabel} | isFresh: ${res.isFresh}<br/>`;
+    html+=`Detail masuk: ${res.detail.slice(0,5).map(d=>d.tgl+':'+d.jarak+'km').join(', ')}<br/>`;
+    if(el){ el.innerHTML=html; el.style.display='block'; }
+    console.log('SiGan GoRide debug', {orders, res});
+    showToast(`SiGan: ${orders.length} order, ${res.avg.toFixed(1)} km/jam ${res.isFresh?'🟢':'🔴'}`, res.isFresh?'success':'warning');
+  }catch(e){ console.log('debug err',e.message); showToast('Debug error: '+e.message,'error'); }
 }
 
 function updateLiveCalc(){
@@ -438,8 +654,48 @@ function renderDasbor(){
   const avgMovingFiltered=hitungPrediksiAIWhKm(filtered); drawModernDigitalCluster(Math.round(avgMovingFiltered||avgMoving)); perbaruiAIInsightDasbor(avgMovingFiltered||avgMoving,filtered);
   const minD=document.getElementById('speedo_min'), maxD=document.getElementById('speedo_max'); if(moving.length>0){ const minV=Math.round(Math.min(...moving)), maxV=Math.round(Math.max(...moving)); if(minD) minD.textContent=minV; if(maxD) maxD.textContent=maxV; } else { if(minD) minD.textContent='–'; if(maxD) maxD.textContent='–'; }
   renderChart(); 
-  // FIXED km/jam pakai shift
-  setTimeout(()=>{ const res=hitungPrediksiAIKmJamFixed(filtered); const el=document.getElementById('stat_avg_kmjam'); if(el){ el.textContent=res.avg>0?res.avg.toFixed(1):'–'; el.title=`Total kerja ${res.totalKmKerja?res.totalKmKerja.toFixed(1):0} km / ${res.totalJam?res.totalJam.toFixed(1):0} jam onbid`; } },100);
+  // v2.7.2: AVG GoRide dari odometer yang masuk ke jam onbid, hijau = data hari ini, merah = pakai kemarin
+  setTimeout(()=>{
+    const res=hitungAvgKmJamGoride(filtered);
+    const el=document.getElementById('stat_avg_kmjam');
+    const parent=el?el.closest('div'):null;
+    if(el){
+      el.textContent=res.avg>0?res.avg.toFixed(1):'–';
+      el.style.color=res.isFresh?'#7dffb7':'#ff8a80';
+      let tip=`Total masuk ${res.totalKmMasuk?res.totalKmMasuk.toFixed(1):0} km / ${res.totalJam?res.totalJam.toFixed(2):0} jam GoRide`;
+      tip+=`\n${res.isFresh?'✅ Data terupdate':'⚠️ Pakai data '+res.usedDateLabel} - ${res.isFresh?'hijau':'merah'}`;
+      tip+=`\nDianggap gambaran keseluruhan`;
+      if(res.detail&&res.detail.length){ tip+=`\nDetail: ${res.detail.slice(0,3).map(d=>d.tgl+':'+(d.jarak||0)+'km').join(', ')}`; }
+      el.title=tip;
+      // update border color parent
+      if(parent){
+        parent.style.borderColor=res.isFresh?'rgba(125,255,183,0.25)':'rgba(255,77,77,0.3)';
+        parent.style.background=res.isFresh?'#0d1e2a':'#1e1215';
+      }
+      // update label kecil
+      const label=parent?parent.querySelector('span'):null;
+      // tambahkan badge fresh
+      let badge=document.getElementById('avg_fresh_badge');
+      if(!badge && parent){
+        badge=document.createElement('span');
+        badge.id='avg_fresh_badge';
+        badge.style.cssText='font-size:8px; font-weight:800; padding:2px 5px; border-radius:999px; margin-left:6px; vertical-align:middle;';
+        el.parentNode.appendChild(badge);
+      }
+      if(badge){
+        badge.textContent=res.isFresh?'● TERUPDATE':'● KEMARIN';
+        badge.style.background=res.isFresh?'rgba(125,255,183,0.15)':'rgba(255,77,77,0.15)';
+        badge.style.color=res.isFresh?'#7dffb7':'#ff8a80';
+        badge.title=res.isFresh?'Data GoRide hari ini':'Pakai data '+res.usedDateLabel;
+      }
+    }
+    // simpan ke hub untuk SiGan
+    try{
+      const payload={avg_km_jam_go: Number((res.avg||0).toFixed(2)), total_km_masuk: Number((res.totalKmMasuk||0).toFixed(2)), total_jam_go: Number((res.totalJam||0).toFixed(2)), isFresh: res.isFresh, usedDate: res.usedDateLabel, ts: Date.now()};
+      localStorage.setItem('battlog_avg_km_jam_go', JSON.stringify(payload));
+      if(typeof SiganData!=='undefined'&&SiganData.save){ SiganData.save('avg_km_jam_go', payload); }
+    }catch(e){}
+  },120);
 }
 
 function drawModernDigitalCluster(currentWhKm){
