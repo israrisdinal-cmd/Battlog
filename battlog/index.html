@@ -78,7 +78,7 @@
 <div class="max-w-2xl">
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7.7 Hybrid STRICT</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7.8 Fix SiGan</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
@@ -305,13 +305,20 @@ function parseJamMenit(str){
 function getSiganOrdersWithJam(){
   let orders=[];
   try{
-    let raw=localStorage.getItem('siganData');
-    if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }
+    // v2.7.8: baca dari fix terbaru SiGan dulu
+    let rawFix=localStorage.getItem('maka_cross_sigan_goride');
+    if(rawFix){ try{ let p=JSON.parse(rawFix); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }catch(e){} }
+    if(!orders.length){
+      let raw=localStorage.getItem('siganData');
+      if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }
+    }
     if(!orders.length){
       let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
       if(lakeRaw){
         let lake=JSON.parse(lakeRaw);
-        if(lake.sigan&&Array.isArray(lake.sigan.siganData)) orders=lake.sigan.siganData;
+        // prioritas baru SiGan
+        if(lake.cross&&Array.isArray(lake.cross.maka_cross_sigan_goride)) orders=lake.cross.maka_cross_sigan_goride;
+        else if(lake.sigan&&Array.isArray(lake.sigan.siganData)) orders=lake.sigan.siganData;
         else if(lake.cross&&Array.isArray(lake.cross.siganData)) orders=lake.cross.siganData;
       }
     }
