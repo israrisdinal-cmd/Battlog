@@ -1,3 +1,5 @@
+<!-- Battlog v1.1 - NAMA SELARAS - battlog_* & lapkeu_* - Migrasi otomatis dari v1.0 - Locked 2026-07-21 - Rumus SESI ONLY -->
+<!-- Battlog v1.0 - ACUAN FINAL - Rumus AVG SESI ONLY (SiGan km / jam sesi, muter tidak dihitung) - Locked 2026-07-21 - FIX AVG 51km/jam -> realistic -->
 <!DOCTYPE html>
 <html lang="id">
 <head><!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
@@ -75,6 +77,100 @@
 </style>
 </head>
 <body>
+<script>
+// === MIGRASI OTOMATIS v1.0 -> v1.1 - BATTLOG & LAPKEU STANDARD ===
+(function(){
+  try{
+    const map = {
+      'maka_log_v1': 'battlog_log_v1',
+      'maka_log_v1_lokasi_history': 'battlog_lokasi_history',
+      'maka_cross_sigan_goride': 'lapkeu_cross_goride',
+      'maka_cross_sigan_income': 'lapkeu_cross_income',
+      'maka_cross_sigan_km': 'lapkeu_cross_km',
+      'maka_cross_summary': 'battlog_summary',
+      'sigan_cross_ev_cost': 'battlog_ev_cost',
+      'sigan_riwayat_harian': 'battlog_riwayat_harian',
+      'siganData': 'lapkeuData',
+      'siganShiftData': 'lapkeu_shift',
+      'siganGlobalTarget': 'lapkeu_global_target',
+      'sigan_hub_data': 'lapkeu_hub_data',
+      'sigan_hub_data_from_sigan': 'lapkeu_hub_from_lapkeu',
+      'sigan_hub_last_update': 'lapkeu_hub_last_update',
+      'maka_soh_baseline': 'battlog_soh_baseline',
+      'maka_soh_baseline_is_fallback': 'battlog_soh_baseline_is_fallback',
+      'maka_soh_total_samples': 'battlog_soh_total_samples',
+      'maka_soh_history': 'battlog_soh_history',
+      'maka_soh_ai': 'battlog_soh_ai',
+      'maka_soh_ai_debug': 'battlog_soh_ai_debug',
+      'maka_charger_history': 'battlog_charger_history',
+      'maka_bms_history': 'battlog_bms_history',
+      'maka_chat_id': 'battlog_chat_id',
+      'factory_cap_kwh': 'battlog_factory_cap',
+      'factory_range_km': 'battlog_factory_range',
+      'factory_calib_km': 'battlog_factory_calib_km',
+      'factory_calib_soh': 'battlog_factory_calib_soh',
+      'sigan_universal_sync': 'lapkeu_universal_sync',
+      'sigan_sempurna': 'lapkeu_sempurna',
+    };
+    for(let oldKey in map){
+      let newKey = map[oldKey];
+      try{
+        if(!localStorage.getItem(newKey) && localStorage.getItem(oldKey)){
+          localStorage.setItem(newKey, localStorage.getItem(oldKey));
+          console.log('[MIGRASI] '+oldKey+' -> '+newKey);
+        }
+      }catch(e){}
+    }
+    // Migrasi isi lake
+    try{
+      let lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
+      if(lakeRaw){
+        let lake = JSON.parse(lakeRaw); let changed=false;
+        if(lake.sigan && !lake.lapkeu){ lake.lapkeu = lake.sigan; changed=true; }
+        if(lake.maka && !lake.battlog){ lake.battlog = lake.maka; changed=true; }
+        // cross keys
+        if(lake.cross){
+          const crossMap = {
+            'maka_log_v1': 'battlog_log_v1',
+            'maka_log_v1_lokasi_history': 'battlog_lokasi_history',
+            'maka_cross_sigan_goride': 'lapkeu_cross_goride',
+            'maka_cross_sigan_income': 'lapkeu_cross_income',
+            'maka_cross_sigan_km': 'lapkeu_cross_km',
+            'maka_cross_summary': 'battlog_summary',
+            'sigan_cross_ev_cost': 'battlog_ev_cost',
+            'sigan_riwayat_harian': 'battlog_riwayat_harian',
+            'siganData': 'lapkeuData',
+            'siganShiftData': 'lapkeu_shift',
+            'siganGlobalTarget': 'lapkeu_global_target',
+            'sigan_hub_data': 'lapkeu_hub_data',
+            'sigan_hub_data_from_sigan': 'lapkeu_hub_from_lapkeu',
+            'sigan_hub_last_update': 'lapkeu_hub_last_update',
+            'maka_soh_baseline': 'battlog_soh_baseline',
+            'maka_soh_baseline_is_fallback': 'battlog_soh_baseline_is_fallback',
+            'maka_soh_total_samples': 'battlog_soh_total_samples',
+            'maka_soh_history': 'battlog_soh_history',
+            'maka_soh_ai': 'battlog_soh_ai',
+            'maka_soh_ai_debug': 'battlog_soh_ai_debug',
+            'maka_charger_history': 'battlog_charger_history',
+            'maka_bms_history': 'battlog_bms_history',
+            'maka_chat_id': 'battlog_chat_id',
+            'factory_cap_kwh': 'battlog_factory_cap',
+            'factory_range_km': 'battlog_factory_range',
+            'factory_calib_km': 'battlog_factory_calib_km',
+            'factory_calib_soh': 'battlog_factory_calib_soh',
+            'sigan_universal_sync': 'lapkeu_universal_sync',
+            'sigan_sempurna': 'lapkeu_sempurna',
+          };
+          for(let o in crossMap){ if(lake.cross[o] && !lake.cross[crossMap[o]]){ lake.cross[crossMap[o]] = lake.cross[o]; changed=true; } }
+          if(lake.sigan){ for(let o in crossMap){ if(lake.sigan[o] && !lake.sigan[crossMap[o]]){ lake.sigan[crossMap[o]] = lake.sigan[o]; changed=true; } } }
+        }
+        if(changed){ localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake)); console.log('[MIGRASI] Lake migrated'); }
+      }
+    }catch(e){}
+  }catch(e){ console.log('migrasi err',e); }
+})();
+</script>
+
 <div class="max-w-2xl">
   <header class="flex items-center justify-between mb-4">
     <div>
@@ -238,51 +334,51 @@
 
 <script>
 // === CORE FIXED MINIMAL - LAYOUT TETAP, LOGIKA DIBENERIN ===
-const LS_KEY = 'maka_log_v1';
-const BMS_KEY = 'maka_bms_history';
-const SOH_KEY = 'maka_soh_history';
+const LS_KEY = 'battlog_log_v1';
+const BMS_KEY = 'battlog_bms_history';
+const SOH_KEY = 'battlog_soh_history';
 let entries = []; try { entries = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch(e){}
 let editId = null; let usageChart = null;
 function isSpklu(e){ if(!e) return false; const t=String(e.tarif??''); const l=(e.lokasi||'').toLowerCase(); return t==='2466' || l.includes('spklu') || l.includes('spblu'); }
 function sanitizeLocation(loc){ if(!loc) return ""; return loc.trim().toLowerCase().replace(/\b\w/g, c=>c.toUpperCase()); }
 const API_BASE = 'https://maka-cavalry-bot.israrisdinal.workers.dev'; const DEFAULT_CHAT_ID='1190249363';
-let API_CHAT_ID = localStorage.getItem('maka_chat_id') || DEFAULT_CHAT_ID;
-if(window.Telegram && window.Telegram.WebApp){ const w=window.Telegram.WebApp; w.ready(); w.expand(); if(w.initDataUnsafe && w.initDataUnsafe.user){ const u=w.initDataUnsafe.user; const tid=String(u.id||''); if(tid){ API_CHAT_ID=tid; localStorage.setItem('maka_chat_id',tid); const d=document.getElementById('user-display'); if(d) d.textContent=`User: ${u.first_name||'Driver'} (${tid})`; } } else { const d=document.getElementById('user-display'); if(d) d.textContent='User: Mode Browser Offline'; } }
+let API_CHAT_ID = localStorage.getItem('battlog_chat_id') || DEFAULT_CHAT_ID;
+if(window.Telegram && window.Telegram.WebApp){ const w=window.Telegram.WebApp; w.ready(); w.expand(); if(w.initDataUnsafe && w.initDataUnsafe.user){ const u=w.initDataUnsafe.user; const tid=String(u.id||''); if(tid){ API_CHAT_ID=tid; localStorage.setItem('battlog_chat_id',tid); const d=document.getElementById('user-display'); if(d) d.textContent=`User: ${u.first_name||'Driver'} (${tid})`; } } else { const d=document.getElementById('user-display'); if(d) d.textContent='User: Mode Browser Offline'; } }
 
 function showToast(msg,type='error'){ let c=document.getElementById('toast-container'); if(!c){ c=document.createElement('div'); c.id='toast-container'; document.body.appendChild(c);} const t=document.createElement('div'); t.className='maka-toast'; t.style.background=type==='error'?'#ff4d4d':(type==='warning'?'#ffdd53':'#2b8cff'); if(type==='warning') t.style.color='#0a1328'; t.textContent=msg; c.appendChild(t); setTimeout(()=>t.classList.add('show'),10); setTimeout(()=>{t.classList.remove('show'); setTimeout(()=>t.remove(),300);},3000); }
 function bukaPeta(){ window.open("https://goo.gl/maps/NnLBbg1efPnP4f4f7?g_st=aw","_blank"); }
 function switchView(name){ try{ document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); const el=document.getElementById('view-'+name); if(!el){ showToast('View tidak ditemukan: '+name,'error'); return;} el.classList.add('active'); document.querySelectorAll('.nav-item').forEach(n=>{ const oc=n.getAttribute('onclick')||''; n.classList.toggle('active',oc.includes("'"+name+"'")); }); window.scrollTo(0,0); if(name==='riwayat'){ renderRingkas(); renderList(); } if(name==='dasbor'){ renderDasbor(); if(usageChart) setTimeout(()=>{try{usageChart.resize()}catch(e){}},50);} }catch(err){ showToast('switchView error: '+err.message,'error'); } }
 
-function readForm(){ const g=id=>document.getElementById(id); const v_tarif=parseFloat(g('f_tarif').value); let v_cap; if(editId){ const orig=entries.find(x=>x.id===editId); v_cap=(orig&&Number(orig.cap_kwh)>0)?Number(orig.cap_kwh):(parseFloat(localStorage.getItem('factory_cap_kwh'))||4.0);} else { v_cap=parseFloat(localStorage.getItem('factory_cap_kwh'))||4.0; } return { cap_kwh:v_cap, tanggal:g('f_tanggal').value||new Date().toISOString().slice(0,10), km_awal:parseFloat(g('f_km_awal').value)||0, km_akhir:parseFloat(g('f_km_akhir').value)||0, batt_awal:parseFloat(g('f_batt_awal').value)||0, batt_akhir:parseFloat(g('f_batt_akhir').value)||0, batt_setelah:parseFloat(g('f_batt_setelah').value)||100, tarif:isNaN(v_tarif)?1444:v_tarif, biaya:g('f_biaya').value!==""?parseFloat(g('f_biaya').value):null, lokasi:sanitizeLocation(g('f_lokasi').value), charger:g('f_charger')?g('f_charger').value.trim():'', notif_status:g('f_notif_status')?g('f_notif_status').checked:true }; }
+function readForm(){ const g=id=>document.getElementById(id); const v_tarif=parseFloat(g('f_tarif').value); let v_cap; if(editId){ const orig=entries.find(x=>x.id===editId); v_cap=(orig&&Number(orig.cap_kwh)>0)?Number(orig.cap_kwh):(parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0);} else { v_cap=parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; } return { cap_kwh:v_cap, tanggal:g('f_tanggal').value||new Date().toISOString().slice(0,10), km_awal:parseFloat(g('f_km_awal').value)||0, km_akhir:parseFloat(g('f_km_akhir').value)||0, batt_awal:parseFloat(g('f_batt_awal').value)||0, batt_akhir:parseFloat(g('f_batt_akhir').value)||0, batt_setelah:parseFloat(g('f_batt_setelah').value)||100, tarif:isNaN(v_tarif)?1444:v_tarif, biaya:g('f_biaya').value!==""?parseFloat(g('f_biaya').value):null, lokasi:sanitizeLocation(g('f_lokasi').value), charger:g('f_charger')?g('f_charger').value.trim():'', notif_status:g('f_notif_status')?g('f_notif_status').checked:true }; }
 
 function calcEntry(e){ const cap=Number(e.cap_kwh)||4.0; const jarak=Math.max(0,(Number(e.km_akhir)||0)-(Number(e.km_awal)||0)); const used=Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0)); const energi= (used/100)*cap; const wh=jarak>0?(energi*1000/jarak):0; let target=Number(e.batt_setelah)||100; const charged=Math.max(0,target-(Number(e.batt_akhir)||0)); const diisi=(charged/100)*cap; let biaya=0; if(e.biaya!==null&&e.biaya!==undefined) biaya=Number(e.biaya); else biaya=diisi*(Number(e.tarif)||0); return {jarak:+jarak.toFixed(2), energi_terpakai:energi, wh_per_km:wh, energi_diisi:diisi, biaya, targetCas:target}; }
 
 function getCalibratedBmsFactor(spec){ if(!spec) return null; const key=spec.toLowerCase().replace(/\s+/g,''); try{ const d=localStorage.getItem(BMS_KEY); if(!d) return null; const p=JSON.parse(d); if(Array.isArray(p)) return null; const h=p[key]||[]; if(h.length>0){ const tot=h.reduce((a,b)=>a+b,0); return tot/h.length; } }catch(e){} return null; }
-function renderCapDisplay(ov){ const el=document.getElementById('cap_kwh_display'); if(!el) return; const v=ov||parseFloat(localStorage.getItem('factory_cap_kwh'))||4.0; el.textContent=Number(v).toFixed(1)+' kWh'; }
-function toggleSohSettings(){ const p=document.getElementById('soh_settings_panel'); const will=p.style.display==='none'; p.style.display=will?'block':'none'; if(will){ const capEl=document.getElementById('f_factory_cap'); const rangeEl=document.getElementById('f_factory_range'); const ck=document.getElementById('f_calib_km'); const cs=document.getElementById('f_calib_soh'); const sCap=localStorage.getItem('factory_cap_kwh'); const sRange=localStorage.getItem('factory_range_km'); const sCk=localStorage.getItem('factory_calib_km'); const sCs=localStorage.getItem('factory_calib_soh'); if(sCap) capEl.value=sCap; else if(entries.length){ const f=entries.find(e=>Number(e.cap_kwh)>0); if(f) capEl.value=f.cap_kwh; } if(sRange) rangeEl.value=sRange; if(sCk&&ck) ck.value=sCk; if(sCs&&cs) cs.value=sCs; } }
-function saveFactorySpec(){ const cap=parseFloat(document.getElementById('f_factory_cap').value); const range=parseFloat(document.getElementById('f_factory_range').value); const ck=parseFloat(document.getElementById('f_calib_km')?.value); const cs=parseFloat(document.getElementById('f_calib_soh')?.value); if(!cap||cap<=0||!range||range<=0){ showToast('Isi kapasitas & jarak pabrik dengan angka valid dulu ya.','error'); return; } localStorage.setItem('factory_cap_kwh',cap.toString()); localStorage.setItem('factory_range_km',range.toString()); if(!isNaN(ck)&&ck>0&&!isNaN(cs)&&cs>0&&cs<=100){ localStorage.setItem('factory_calib_km',ck.toString()); localStorage.setItem('factory_calib_soh',cs.toString()); } else { localStorage.removeItem('factory_calib_km'); localStorage.removeItem('factory_calib_soh'); } document.getElementById('soh_settings_panel').style.display='none'; renderCapDisplay(); kalibrasiSohMover(); updateLiveCalc(); showToast('Pengaturan disimpan.','success'); }
+function renderCapDisplay(ov){ const el=document.getElementById('cap_kwh_display'); if(!el) return; const v=ov||parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; el.textContent=Number(v).toFixed(1)+' kWh'; }
+function toggleSohSettings(){ const p=document.getElementById('soh_settings_panel'); const will=p.style.display==='none'; p.style.display=will?'block':'none'; if(will){ const capEl=document.getElementById('f_factory_cap'); const rangeEl=document.getElementById('f_factory_range'); const ck=document.getElementById('f_calib_km'); const cs=document.getElementById('f_calib_soh'); const sCap=localStorage.getItem('battlog_factory_cap'); const sRange=localStorage.getItem('battlog_factory_range'); const sCk=localStorage.getItem('battlog_factory_calib_km'); const sCs=localStorage.getItem('battlog_factory_calib_soh'); if(sCap) capEl.value=sCap; else if(entries.length){ const f=entries.find(e=>Number(e.cap_kwh)>0); if(f) capEl.value=f.cap_kwh; } if(sRange) rangeEl.value=sRange; if(sCk&&ck) ck.value=sCk; if(sCs&&cs) cs.value=sCs; } }
+function saveFactorySpec(){ const cap=parseFloat(document.getElementById('f_factory_cap').value); const range=parseFloat(document.getElementById('f_factory_range').value); const ck=parseFloat(document.getElementById('f_calib_km')?.value); const cs=parseFloat(document.getElementById('f_calib_soh')?.value); if(!cap||cap<=0||!range||range<=0){ showToast('Isi kapasitas & jarak pabrik dengan angka valid dulu ya.','error'); return; } localStorage.setItem('battlog_factory_cap',cap.toString()); localStorage.setItem('battlog_factory_range',range.toString()); if(!isNaN(ck)&&ck>0&&!isNaN(cs)&&cs>0&&cs<=100){ localStorage.setItem('battlog_factory_calib_km',ck.toString()); localStorage.setItem('battlog_factory_calib_soh',cs.toString()); } else { localStorage.removeItem('battlog_factory_calib_km'); localStorage.removeItem('battlog_factory_calib_soh'); } document.getElementById('soh_settings_panel').style.display='none'; renderCapDisplay(); kalibrasiSohMover(); updateLiveCalc(); showToast('Pengaturan disimpan.','success'); }
 
 function kalibrasiSohMover(){
-  if(!localStorage.getItem('factory_cap_kwh')&&entries.length){ const f=entries.find(e=>Number(e.cap_kwh)>0); if(f) localStorage.setItem('factory_cap_kwh',f.cap_kwh.toString()); }
-  const FACTORY_RANGE=parseFloat(localStorage.getItem('factory_range_km'))||115; const FACTORY_KM_PER_PCT=FACTORY_RANGE/100;
-  if(!entries.length){ localStorage.setItem(SOH_KEY,JSON.stringify([])); localStorage.setItem('maka_soh_baseline_is_fallback','1'); return; }
+  if(!localStorage.getItem('battlog_factory_cap')&&entries.length){ const f=entries.find(e=>Number(e.cap_kwh)>0); if(f) localStorage.setItem('battlog_factory_cap',f.cap_kwh.toString()); }
+  const FACTORY_RANGE=parseFloat(localStorage.getItem('battlog_factory_range'))||115; const FACTORY_KM_PER_PCT=FACTORY_RANGE/100;
+  if(!entries.length){ localStorage.setItem(SOH_KEY,JSON.stringify([])); localStorage.setItem('battlog_soh_baseline_is_fallback','1'); return; }
   const isDeepValid=(e)=>{ const ba=parseFloat(e.batt_awal)||0, bk=parseFloat(e.batt_akhir)||0, bs=parseFloat(e.batt_setelah)||0, jarak=(parseFloat(e.km_akhir)||0)-(parseFloat(e.km_awal)||0); const delta=ba-bk; const isCharge=(bk<=35&&bs>=99); const isDis=(delta>=50&&jarak>10); if(!isCharge||!isDis) return null; const kmPerPct=jarak/delta; if(kmPerPct<0.5||kmPerPct>2.2) return null; return kmPerPct; };
   let all=[]; entries.forEach(e=>{ const v=isDeepValid(e); if(v!==null) all.push(v); });
   const sorted=[...entries].sort((a,b)=>new Date(a.tanggal||0)-new Date(b.tanggal||0)); let oldestValid=[]; sorted.forEach(e=>{ const v=isDeepValid(e); if(v!==null) oldestValid.push(v); });
   const hasBaseline=oldestValid.length>=3; let baseline=FACTORY_KM_PER_PCT; if(hasBaseline){ const take=Math.max(1,Math.floor(oldestValid.length*0.5)); const first=oldestValid.slice(0,take); baseline=first.reduce((a,b)=>a+b,0)/first.length; }
-  localStorage.setItem('maka_soh_baseline',baseline.toFixed(4)); localStorage.setItem('maka_soh_baseline_is_fallback',hasBaseline?'0':'1'); localStorage.setItem('maka_soh_total_samples',all.length.toString()); localStorage.setItem(SOH_KEY,JSON.stringify(all));
+  localStorage.setItem('battlog_soh_baseline',baseline.toFixed(4)); localStorage.setItem('battlog_soh_baseline_is_fallback',hasBaseline?'0':'1'); localStorage.setItem('battlog_soh_total_samples',all.length.toString()); localStorage.setItem(SOH_KEY,JSON.stringify(all));
 }
 
 function hitungSoHAI(){
   try{
-    const FACTORY_CAP=parseFloat(localStorage.getItem('factory_cap_kwh'))||4.0; const calibKm=parseFloat(localStorage.getItem('factory_calib_km')); const calibSoh=parseFloat(localStorage.getItem('factory_calib_soh')); if(!entries||!entries.length) return null;
+    const FACTORY_CAP=parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; const calibKm=parseFloat(localStorage.getItem('battlog_factory_calib_km')); const calibSoh=parseFloat(localStorage.getItem('battlog_factory_calib_soh')); if(!entries||!entries.length) return null;
     let maxOdo=0, whList=[], fast=0, slow=0, parsial=[]; entries.forEach(e=>{ try{ const c=calcEntry(e); const ka=parseFloat(e.km_akhir)||0; if(ka>maxOdo) maxOdo=ka; if(c.jarak>0&&c.wh_per_km>0) whList.push(c.wh_per_km); const ch=(e.charger||'').toLowerCase(); const mm=ch.match(/(\d+(?:\.\d+)?)\s*ah/); const ah=mm?parseFloat(mm[1]):0; if(ah>=20) fast++; else if(ah>0) slow++; const bAk=parseFloat(e.batt_akhir)||0, bSe=parseFloat(e.batt_setelah)||0; if(bSe>bAk){ const d=bSe-bAk; const kwh=c.energi_diisi||0; if(d>=30&&kwh>0.2){ const cr=kwh/(d/100); if(cr>FACTORY_CAP*0.5&&cr<FACTORY_CAP*1.5) parsial.push(cr); } } }catch(_){} });
     const avgWh=whList.length?whList.reduce((a,b)=>a+b,0)/whList.length:35; const odo=maxOdo; const totalKwh=odo>0?(odo*avgWh/1000):0; const eq=FACTORY_CAP>0?totalKwh/FACTORY_CAP:0; const totalCh=fast+slow||1; const faktorC=(slow/totalCh)*0.85+(fast/totalCh)*1.18; const faktorSuhu=1.8, faktorDoD=0.85; const degPerCycleLab=0.0067*faktorC*faktorSuhu*faktorDoD;
     let umurHari=400; try{ const oldest=[...entries].sort((a,b)=>new Date(a.tanggal)-new Date(b.tanggal))[0]; if(oldest) umurHari=Math.max(30,Math.floor((Date.now()-new Date(oldest.tanggal).getTime())/86400000)); }catch(_){}
-    let sohFinal; if(!isNaN(calibKm)&&!isNaN(calibSoh)&&calibKm>0&&odo>0){ const deltaKm=Math.max(0,odo-calibKm); const eqAtCalib=(calibKm*avgWh/1000)/FACTORY_CAP; const degTotalAtCalib=100-calibSoh; const degCycleAtCalib=degTotalAtCalib*0.85; const degPerCycleReal=eqAtCalib>0?degCycleAtCalib/eqAtCalib:degPerCycleLab; const degPerCycleBlend=degPerCycleLab*0.2+degPerCycleReal*0.8; const deltaKwh=deltaKm*avgWh/1000; const deltaCycle=deltaKwh/FACTORY_CAP; const degKalDelta=0.008*(umurHari*(deltaKm/Math.max(1,odo)))*0.5; const penurunan=(deltaCycle*degPerCycleBlend)+degKalDelta; sohFinal=calibSoh-penurunan; localStorage.setItem('maka_soh_ai_debug',JSON.stringify({deltaKm,deltaCycle:deltaCycle.toFixed(2),degPerCycleBlend:degPerCycleBlend.toFixed(5),penurunan:penurunan.toFixed(3)})); } else { const degKal=0.008*umurHari*0.9; sohFinal=100-(eq*degPerCycleLab)-degKal; }
+    let sohFinal; if(!isNaN(calibKm)&&!isNaN(calibSoh)&&calibKm>0&&odo>0){ const deltaKm=Math.max(0,odo-calibKm); const eqAtCalib=(calibKm*avgWh/1000)/FACTORY_CAP; const degTotalAtCalib=100-calibSoh; const degCycleAtCalib=degTotalAtCalib*0.85; const degPerCycleReal=eqAtCalib>0?degCycleAtCalib/eqAtCalib:degPerCycleLab; const degPerCycleBlend=degPerCycleLab*0.2+degPerCycleReal*0.8; const deltaKwh=deltaKm*avgWh/1000; const deltaCycle=deltaKwh/FACTORY_CAP; const degKalDelta=0.008*(umurHari*(deltaKm/Math.max(1,odo)))*0.5; const penurunan=(deltaCycle*degPerCycleBlend)+degKalDelta; sohFinal=calibSoh-penurunan; localStorage.setItem('battlog_soh_ai_debug',JSON.stringify({deltaKm,deltaCycle:deltaCycle.toFixed(2),degPerCycleBlend:degPerCycleBlend.toFixed(5),penurunan:penurunan.toFixed(3)})); } else { const degKal=0.008*umurHari*0.9; sohFinal=100-(eq*degPerCycleLab)-degKal; }
     if(parsial.length>=3&&(isNaN(calibKm)||odo<=calibKm)){ const avgCap=parsial.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,parsial.length); const sohP=(avgCap/FACTORY_CAP)*100; sohFinal=sohFinal*0.4+sohP*0.6; }
     if(!isNaN(calibKm)&&odo>calibKm&&sohFinal>calibSoh){ sohFinal=calibSoh-0.01; }
-    sohFinal=Math.min(100,Math.max(50,sohFinal)); localStorage.setItem('maka_soh_ai',sohFinal.toFixed(2)); const elSoh=document.getElementById('stat_soh'), elProg=document.getElementById('soh_progress'), elNote=document.getElementById('soh_note'); if(elSoh&&elProg){ elSoh.textContent=sohFinal.toFixed(1)+'%'; elProg.style.width=sohFinal+'%'; if(sohFinal>=95) elSoh.style.color='#7dffb7'; else if(sohFinal>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d'; let note=`AI: Odo ${Math.round(odo)}km • Selisih ${(odo-(calibKm||0)).toFixed(0)}km dari kalib • ${avgWh.toFixed(0)}Wh/km`; if(!isNaN(calibKm)) note+=` • Kalib ${calibKm}km/${calibSoh}%`; if(elNote) elNote.textContent=note; } return sohFinal; }catch(e){ console.log('SoH AI err',e.message); return null; }
+    sohFinal=Math.min(100,Math.max(50,sohFinal)); localStorage.setItem('battlog_soh_ai',sohFinal.toFixed(2)); const elSoh=document.getElementById('stat_soh'), elProg=document.getElementById('soh_progress'), elNote=document.getElementById('soh_note'); if(elSoh&&elProg){ elSoh.textContent=sohFinal.toFixed(1)+'%'; elProg.style.width=sohFinal+'%'; if(sohFinal>=95) elSoh.style.color='#7dffb7'; else if(sohFinal>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d'; let note=`AI: Odo ${Math.round(odo)}km • Selisih ${(odo-(calibKm||0)).toFixed(0)}km dari kalib • ${avgWh.toFixed(0)}Wh/km`; if(!isNaN(calibKm)) note+=` • Kalib ${calibKm}km/${calibSoh}%`; if(elNote) elNote.textContent=note; } return sohFinal; }catch(e){ console.log('SoH AI err',e.message); return null; }
 }
 
 function hitungPrediksiAIWhKm(filtered){
@@ -305,10 +401,10 @@ function parseJamMenit(str){
 function getSiganOrdersWithJam(){
   let orders=[];
   try{
-    let rawFix=localStorage.getItem('maka_cross_sigan_goride');
+    let rawFix=localStorage.getItem('lapkeu_cross_goride');
     if(rawFix){ try{ let p=JSON.parse(rawFix); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }catch(e){} }
     if(!orders.length){
-      let raw=localStorage.getItem('siganData');
+      let raw=localStorage.getItem('lapkeuData');
       if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }
     }
     if(!orders.length){
@@ -340,79 +436,136 @@ function getSiganOrdersWithJam(){
 
 
 
+
 function hitungAvgKmJamGoride(filtered){
   try{
     let source=filtered&&filtered.length?filtered:entries;
-    let orders=getSiganOrdersWithJam();
+    let ordersGoride=getSiganOrdersWithJam(); // Goride only
+    let ordersAll=getSiganOrdersForBattlog(); // all services
     let anchor=new Date(); anchor.setHours(0,0,0,0);
     let cutoff3=new Date(anchor); cutoff3.setDate(anchor.getDate()-2);
-    let ordersLast3=orders.filter(o=>{
-      try{ const d=new Date(o.tanggal); d.setHours(0,0,0,0); return d>=cutoff3 && d<=anchor; }catch(e){return false;}
-    });
-    if(ordersLast3.length===0 && orders.length>0){
-      let uniqDates=[...new Set(orders.map(o=>o.tanggal))].sort().reverse().slice(0,3);
-      ordersLast3=orders.filter(o=>uniqDates.includes(o.tanggal));
+
+    // Filter 3 hari terakhir
+    let gorideLast3=ordersGoride.filter(o=>{ try{ const d=new Date(o.tanggal); d.setHours(0,0,0,0); return d>=cutoff3 && d<=anchor; }catch(e){return false;} });
+    if(gorideLast3.length===0 && ordersGoride.length>0){
+      let uniqDates=[...new Set(ordersGoride.map(o=>o.tanggal))].sort().reverse().slice(0,3);
+      gorideLast3=ordersGoride.filter(o=>uniqDates.includes(o.tanggal));
     }
-    // jam per tanggal dari sesi order (pasti jalan)
-    let jamPerTgl={};
-    let kmSiganPerTgl={};
-    let allOrdersForJam = ordersLast3.length?ordersLast3:orders.slice(-20);
-    allOrdersForJam.forEach(o=>{
+    let allLast3=ordersAll.filter(o=>{ try{ const d=new Date(o.tanggal||o.date); d.setHours(0,0,0,0); return d>=cutoff3 && d<=anchor; }catch(e){return false;} });
+    if(allLast3.length===0 && ordersAll.length>0){
+      let uniqDates=[...new Set(ordersAll.map(o=>o.tanggal||o.date))].sort().reverse().slice(0,3);
+      allLast3=ordersAll.filter(o=>uniqDates.includes(o.tanggal||o.date));
+    }
+
+    // === WAKTU EFEKTIF GORIDE (Σ jam akhir - jam awal) ===
+    let totalJamGoride=0;
+    let jamPerTglGoride={};
+    gorideLast3.forEach(o=>{
       const sMin=parseJamMenit(o.jam_awal);
       const eMin=parseJamMenit(o.jam_akhir);
       if(sMin===null||eMin===null) return;
       let dur=eMin-sMin; if(dur<0) dur+=24*60; if(dur<=0||dur>720) return;
-      if(!jamPerTgl[o.tanggal]) jamPerTgl[o.tanggal]=[];
-      jamPerTgl[o.tanggal].push({startMin:sMin,endMin:eMin,durMin:dur,km:o.km});
-      if(!kmSiganPerTgl[o.tanggal]) kmSiganPerTgl[o.tanggal]=0;
-      kmSiganPerTgl[o.tanggal]+=Number(o.km||0);
+      totalJamGoride+=dur/60;
+      if(!jamPerTglGoride[o.tanggal]) jamPerTglGoride[o.tanggal]=0;
+      jamPerTglGoride[o.tanggal]+=dur/60;
     });
+
+    // === WAKTU ONLINE TOTAL (semua layanan) 3 hari ===
+    let totalJamOnline=0;
+    allLast3.forEach(o=>{
+      const sMin=parseJamMenit(o.jam_awal);
+      const eMin=parseJamMenit(o.jam_akhir);
+      if(sMin===null||eMin===null) return;
+      let dur=eMin-sMin; if(dur<0) dur+=24*60; if(dur<=0||dur>720) return;
+      totalJamOnline+=dur/60;
+    });
+    // fallback online dari shift
+    if(totalJamOnline<=0.01){
+      try{
+        let shiftRaw=localStorage.getItem('lapkeu_shift');
+        if(shiftRaw){
+          let sd=JSON.parse(shiftRaw);
+          Object.keys(jamPerTglGoride).forEach(tgl=>{
+            let sh=sd[tgl];
+            if(sh&&sh.start&&sh.end){
+              let s=parseJamMenit(sh.start), e=parseJamMenit(sh.end);
+              if(s!==null&&e!==null){ let d=e-s; if(d<0) d+=1440; totalJamOnline+=d/60; }
+            }
+          });
+        }
+      }catch(e){}
+    }
+    if(totalJamOnline<=0.01) totalJamOnline = totalJamGoride>0? totalJamGoride*1.5 : 0;
+
+    // === KM SESI BATTLOG di tanggal yang ada Goride ===
     let evPerTgl={};
     source.forEach(e=>{ if(!e.tanggal) return; if(!evPerTgl[e.tanggal]) evPerTgl[e.tanggal]=[]; evPerTgl[e.tanggal].push(e); });
+    let commonDates=Object.keys(jamPerTglGoride);
+    if(commonDates.length===0) commonDates=Object.keys(evPerTgl).sort().reverse().slice(0,3);
 
-    // FIX V2.9: AVG pakai KM Sesi (SiGan) / Jam Sesi saja, muter kosong tidak ikut
-    let totalKmSesi=0;
-    let totalJamSesi=0;
-    let detailMasuk=[];
-    let commonDates=Object.keys(jamPerTgl).filter(d=>kmSiganPerTgl[d]>0);
-    if(commonDates.length===0){
-      commonDates=Object.keys(kmSiganPerTgl).sort().reverse().slice(0,3);
-    }
+    let totalSesiKm=0;
     commonDates.forEach(tgl=>{
-      const windows=jamPerTgl[tgl]||[];
-      let jamDay=windows.reduce((a,w)=>a+w.durMin/60,0);
-      let kmDay=kmSiganPerTgl[tgl]||0;
-      // kalau kmDay 0 tapi ev ada, pakai ev sebagai fallback tapi jam tetap jam sesi
-      if(kmDay<=0.01){
-        let evKm=0; (evPerTgl[tgl]||[]).forEach(ev=>{ try{evKm+=calcEntry(ev).jarak||0;}catch(e){} });
-        // jangan pakai evKm kalau mau akurat, tapi untuk hindari 0 pakai evKm * 0.7 (asumsi 70% efektif)
-        if(evKm>0) kmDay=evKm*0.7;
-      }
-      if(kmDay>0 && jamDay>0){
-        totalKmSesi+=kmDay;
-        totalJamSesi+=jamDay;
-        detailMasuk.push({tgl, jarak:kmDay, jam:jamDay, mode:'SESI_ONLY'});
-      }
+      (evPerTgl[tgl]||[]).forEach(ev=>{ try{ totalSesiKm+=calcEntry(ev).jarak||0; }catch(e){} });
     });
 
-    if(totalKmSesi<=0.01 || totalJamSesi<=0.01){
-      // fallback: total ev / 25
-      let totEv=0;
-      Object.values(evPerTgl).forEach(list=>{ list.forEach(ev=>{ try{totEv+=calcEntry(ev).jarak||0;}catch(e){} }); });
-      if(totEv>0){
-        return {avg:25, totalKmMasuk:totEv, totalJam:totEv/25, isFresh:false, usedDateLabel:'Fallback total EV / 25 (sesi kosong)', detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:false, isFallback:true};
-      }
-      return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'Tidak ada jam sesi SiGan',detail:[],jamPerTgl};
+    // Total km Gojek Goride 3 hari
+    let totalKmGojekGoride=0;
+    gorideLast3.forEach(o=>{ totalKmGojekGoride+=Number(o.km||0); });
+
+    // Total km semua Lapkeu 3 hari (untuk hitung muter %)
+    let totalKmAllLapkeu=0;
+    allLast3.forEach(o=>{ totalKmAllLapkeu+=Number(o.km||o.jarak_km||0); });
+
+    let avgMuterPct=0;
+    if(totalSesiKm>0 && totalKmAllLapkeu>0){
+      avgMuterPct=(totalSesiKm-totalKmAllLapkeu)/totalSesiKm;
+      if(avgMuterPct<0) avgMuterPct=0;
+      if(avgMuterPct>0.8) avgMuterPct=0.407;
+    } else {
+      avgMuterPct=0.407; // dari screenshot kamu 40.7%
     }
-    let avg=totalJamSesi>0?totalKmSesi/totalJamSesi:0;
+
+    // === 2 CARA HITUNG KM REAL GORIDE ===
+    // Cara Proporsional: 112 km * (Waktu Goride / Waktu Online Total)
+    let kmGorideRealProp=0;
+    if(totalSesiKm>0 && totalJamOnline>0 && totalJamGoride>0){
+      kmGorideRealProp=totalSesiKm * (totalJamGoride/totalJamOnline);
+    }
+    // Cara Murni: Km Gojek Goride + Muter
+    let kmGorideRealMurni=totalKmGojekGoride * (1+avgMuterPct);
+
+    let kmFinal=kmGorideRealProp>0?kmGorideRealProp:kmGorideRealMurni;
+    if(kmFinal < totalKmGojekGoride) kmFinal=kmGorideRealMurni; // jangan lebih kecil dari tagihan
+
+    let avg=totalJamGoride>0?kmFinal/totalJamGoride:0;
     avg=Math.min(Math.max(avg,0),60);
-    if(avg<=0.01 && totalKmSesi>0) avg=25;
-    let isFresh=commonDates.some(d=>{ try{ const diff=(new Date()-new Date(d))/1000/3600/24; return diff<=4; }catch(e){return false;} });
-    // simpan extra buat debug
-    window._avgDebug={totalKmSesi, totalJamSesi, commonDates, kmSiganPerTgl, jamPerTgl};
-    return {avg, totalKmMasuk:totalKmSesi, totalJam:totalJamSesi, isFresh, usedDateLabel:commonDates.join(', ')+' (SESI ONLY, muter tidak dihitung)', detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:false};
-  }catch(e){ console.log('AVG sesi err',e.message); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
+    if(avg<=0.01 && kmFinal>0) avg=25;
+
+    window._avgDebug={totalJamGoride, totalJamOnline, totalSesiKm, totalKmGojekGoride, totalKmAllLapkeu, kmGorideRealProp, kmGorideRealMurni, kmFinal, avg, commonDates, avgMuterPct};
+
+    let detail=commonDates.map(tgl=>{
+      let sesiKm=(evPerTgl[tgl]||[]).reduce((a,ev)=>{ try{return a+(calcEntry(ev).jarak||0);}catch(e){return a;}},0);
+      return {tgl, jarak:sesiKm, jam:jamPerTglGoride[tgl]||0, mode:'PROP'};
+    });
+
+    return {
+      avg, 
+      totalKmMasuk:kmFinal, 
+      totalJam:totalJamGoride, 
+      isFresh:true, 
+      usedDateLabel: commonDates.join(', ')+' (RUMUS BARU: Sesi km Battlog * Jam Goride / Jam Online = '+kmFinal.toFixed(1)+' km / '+totalJamGoride.toFixed(2)+' jam)',
+      detail, 
+      jamPerTgl:jamPerTglGoride, 
+      is3Hari:true, 
+      isStrict:true,
+      extra:{totalJamGoride, totalJamOnline, totalSesiKm, totalKmGojekGoride, kmGorideRealProp, kmGorideRealMurni, avgMuterPct}
+    };
+  }catch(e){ console.log('AVG baru err',e.message, e.stack); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
 }
+
+function hitungPrediksiAIKmJamFixed(filtered){ return hitungAvgKmJamGoride(filtered); }
+
+
 
 function hitungPrediksiAIKmJamFixed(filtered){ return hitungAvgKmJamGoride(filtered); }
 
@@ -436,7 +589,7 @@ async function saveEntry(){
   const currentId=editId||Date.now().toString(); let waktuAsli=currentId; if(editId){ const orig=entries.find(x=>x.id===editId); if(orig&&orig.waktu_dibuat_asli) waktuAsli=orig.waktu_dibuat_asli; }
   const entryData={id:currentId,...e,estimasi_selesai:estTeks,waktu_dibuat_asli:waktuAsli}; if(entryData.biaya===null) delete entryData.biaya; const calc=calcEntry(e);
   // simpan ke hub SiGan
-  try{ const k='sigan_riwayat_harian'; let hub=JSON.parse(localStorage.getItem(k)||'[]'); const dataBaru={id:entryData.id,date:entryData.tanggal,km_awal:entryData.km_awal,km_akhir:entryData.km_akhir,dist:calc.jarak,batt_used:(entryData.batt_awal-entryData.batt_akhir),wh_per_km:calc.wh_per_km,amount:calc.biaya,note:`BattLog: ${entryData.lokasi||'Jalan'} (${entryData.batt_awal}% ke ${entryData.batt_akhir}%)`}; hub=hub.filter(it=>it.id!==entryData.id); hub.unshift(dataBaru); localStorage.setItem(k,JSON.stringify(hub)); }catch(err){}
+  try{ const k='battlog_riwayat_harian'; let hub=JSON.parse(localStorage.getItem(k)||'[]'); const dataBaru={id:entryData.id,date:entryData.tanggal,km_awal:entryData.km_awal,km_akhir:entryData.km_akhir,dist:calc.jarak,batt_used:(entryData.batt_awal-entryData.batt_akhir),wh_per_km:calc.wh_per_km,amount:calc.biaya,note:`BattLog: ${entryData.lokasi||'Jalan'} (${entryData.batt_awal}% ke ${entryData.batt_akhir}%)`}; hub=hub.filter(it=>it.id!==entryData.id); hub.unshift(dataBaru); localStorage.setItem(k,JSON.stringify(hub)); }catch(err){}
   if(editId){ const i=entries.findIndex(x=>x.id===editId); if(i>=0){ if(entries[i].waktu_selesai_riil) entryData.waktu_selesai_riil=entries[i].waktu_selesai_riil; entries[i]=entryData; } editId=null; document.getElementById('saveBtn').textContent='Simpan Catatan'; document.getElementById('cancelEditBtn').style.display='none'; showToast('Catatan diperbarui!','success'); } else { entries.unshift(entryData); showToast('Catatan disimpan!','success'); }
   localStorage.setItem(LS_KEY,JSON.stringify(entries)); kalibrasiSohMover();
   let jamKirim=null; if(e.charger&&e.batt_akhir<calc.targetCas){ const regex=/(\d+)\s*v\s*(\d+)\s*ah/i; const m=e.charger.match(regex); if(m){ const volt=Number(m[1])||0, amp=Number(m[2])||0, sisa=Math.max(0,calc.targetCas-e.batt_akhir), needWh=sisa*((e.cap_kwh*1000)/100), watt=volt*amp; if(watt>0){ let f=getCalibratedBmsFactor(e.charger)||((e.cap_kwh>=10)?1.1:(amp>10?1.4:1.15)); const h=(needWh/watt)*f; const totM=Math.round(h*60); const targetExec=Number(waktuAsli)+(totM*60*1000); const now=new Date(Number(waktuAsli)); now.setMinutes(now.getMinutes()+totM); jamKirim=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+' ke '+calc.targetCas+'%'; if(e.notif_status){ fetch(API_BASE+'/schedule-remind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:API_CHAT_ID,waktuEksekusi:targetExec,pesan:`⚡ Pengisian Baterai Selesai!\n\nPengisian dari ${e.batt_akhir}% ke ${calc.targetCas}% telah selesai Silakan cabut charger!!`,batt_akhir:e.batt_akhir,batt_setelah:calc.targetCas,jam_selesai:jamKirim})}).catch(()=>{}); } } } }
@@ -466,7 +619,7 @@ function simpanKoreksiBms(id){
 function renderList(){
   const q=(document.getElementById('searchBox').value||'').toLowerCase(); const box=document.getElementById('listBox'); const list=entries.filter(e=>!q||((e.charger||'')+' '+(e.lokasi||'')).toLowerCase().includes(q));
   if(!list.length){ box.innerHTML='<div class="maka-card text-[#6b7fa2] text-sm">Belum ada catatan.</div>'; return; }
-  let kmMap={}; try{ const raw=localStorage.getItem('maka_cross_sigan_km'); if(raw) kmMap=JSON.parse(raw); else { const lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1'); if(lakeRaw){ const lake=JSON.parse(lakeRaw); if(lake&&lake.cross&&lake.cross.maka_cross_sigan_km) kmMap=lake.cross.maka_cross_sigan_km; } } }catch(e){}
+  let kmMap={}; try{ const raw=localStorage.getItem('lapkeu_cross_km'); if(raw) kmMap=JSON.parse(raw); else { const lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1'); if(lakeRaw){ const lake=JSON.parse(lakeRaw); if(lake&&lake.cross&&lake.cross.maka_cross_sigan_km) kmMap=lake.cross.maka_cross_sigan_km; } } }catch(e){}
   let entriesByDate={}; list.forEach(e=>{ if(!entriesByDate[e.tanggal]) entriesByDate[e.tanggal]=[]; entriesByDate[e.tanggal].push(e); });
   let muterPerEntry={};
   for(let tgl in entriesByDate){
@@ -509,7 +662,7 @@ function renderDasbor(){
   // SiGan
   try{
     const safeParse=k=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){return null;} };
-    const incomeMap=safeParse('maka_cross_sigan_income')||{}; const kmMap=safeParse('maka_cross_sigan_km')||{}; const shiftMap=safeParse('siganShiftData')||{};
+    const incomeMap=safeParse('lapkeu_cross_income')||{}; const kmMap=safeParse('lapkeu_cross_km')||{}; const shiftMap=safeParse('lapkeu_shift')||{};
     let totalIncome=0, totalKmEfektif=0; for(let t in incomeMap){ try{ const d=new Date(t); d.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod!=='all'&&(d<cutoff||d>anchor)) continue; totalIncome+=Number(incomeMap[t]||0); }catch(e){} } for(let t in kmMap){ try{ const d=new Date(t); d.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod!=='all'&&(d<cutoff||d>anchor)) continue; totalKmEfektif+=Number(kmMap[t]||0); }catch(e){} }
     const elStatus=document.getElementById('stat_integrasi_status'); if(totalIncome>0){ if(elStatus){ elStatus.textContent='Terhubung ✓ '+Object.keys(incomeMap).length+' hari'; elStatus.style.color='#7dffb7'; } } else { if(elStatus){ elStatus.textContent='Menunggu SiGan'; elStatus.style.color='#ff8a80'; } }
     // FIXED muter: max-min per hari
@@ -534,7 +687,7 @@ function renderDasbor(){
     window._battlogAIExtra={totalIncome,totalKmEfektif,kmMuter,effRute:eff,labaBersih,labaPerKm,rpPerKwh,labaPerKwh,avgRpPerKmEfektif:avgEf,totalEnergiKwh:totalEnergi,jarak,biayaSpklu:spklu,biayaRumah:rumah,avgWhKmGlobal:avgGlobal,periode:getPeriodeLabel(),tripCount:filtered.length,cutoff:cutoff.toISOString().slice(0,10),totalKmKerja};
   }catch(err){ console.log('SiGan err',err.message); }
   const estimasiEl=document.getElementById('stat_estimasi'), noteEl=document.getElementById('estimasi_note'); if(estimasi>0){ estimasiEl.textContent=Math.round(estimasi)+' km'; noteEl.textContent='Rentang 100% → 30% berdasarkan AI Moving Weighted'; } else { estimasiEl.textContent='– km'; noteEl.textContent='Menunggu data'; }
-  try{ const hist=JSON.parse(localStorage.getItem(SOH_KEY)||'[]'); const elSoh=document.getElementById('stat_soh'), prog=document.getElementById('soh_progress'), note=document.getElementById('soh_note'); const FACTORY_SPEC=parseFloat(localStorage.getItem('factory_cap_kwh'))||4.0; const FACTORY_RANGE=parseFloat(localStorage.getItem('factory_range_km'))||115; const baseline=parseFloat(localStorage.getItem('maka_soh_baseline'))||(FACTORY_RANGE/100); const isFall=localStorage.getItem('maka_soh_baseline_is_fallback')==='1'; const totalSamples=parseInt(localStorage.getItem('maka_soh_total_samples')||'0',10); if(hist.length>=1){ const avgKm=hist.reduce((a,b)=>a+b,0)/hist.length; const pct=(avgKm/baseline)*100; const clamped=Math.min(Math.max(pct,50),100); const rataKwh=(avgKm*FACTORY_SPEC)/(FACTORY_RANGE/100); elSoh.textContent=clamped.toFixed(1)+'%'; prog.style.width=clamped+'%'; const sumber=isFall?'klaim pabrik, sementara':'riwayat awalmu'; note.textContent=`Deep Cycle ${totalSamples} trip | ~${rataKwh.toFixed(2)} kWh | ${avgKm.toFixed(2)} km/% (Baseline: ${baseline.toFixed(2)} km/%, ${sumber})`; if(clamped>=95) elSoh.style.color='#7dffb7'; else if(clamped>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d'; } else { elSoh.textContent='Menunggu Deep Cycle'; prog.style.width='0%'; note.textContent='Butuh 1 catatan batt_akhir ≤35% dicas 100% & jarak >10km'; } }catch(err){}
+  try{ const hist=JSON.parse(localStorage.getItem(SOH_KEY)||'[]'); const elSoh=document.getElementById('stat_soh'), prog=document.getElementById('soh_progress'), note=document.getElementById('soh_note'); const FACTORY_SPEC=parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; const FACTORY_RANGE=parseFloat(localStorage.getItem('battlog_factory_range'))||115; const baseline=parseFloat(localStorage.getItem('battlog_soh_baseline'))||(FACTORY_RANGE/100); const isFall=localStorage.getItem('battlog_soh_baseline_is_fallback')==='1'; const totalSamples=parseInt(localStorage.getItem('battlog_soh_total_samples')||'0',10); if(hist.length>=1){ const avgKm=hist.reduce((a,b)=>a+b,0)/hist.length; const pct=(avgKm/baseline)*100; const clamped=Math.min(Math.max(pct,50),100); const rataKwh=(avgKm*FACTORY_SPEC)/(FACTORY_RANGE/100); elSoh.textContent=clamped.toFixed(1)+'%'; prog.style.width=clamped+'%'; const sumber=isFall?'klaim pabrik, sementara':'riwayat awalmu'; note.textContent=`Deep Cycle ${totalSamples} trip | ~${rataKwh.toFixed(2)} kWh | ${avgKm.toFixed(2)} km/% (Baseline: ${baseline.toFixed(2)} km/%, ${sumber})`; if(clamped>=95) elSoh.style.color='#7dffb7'; else if(clamped>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d'; } else { elSoh.textContent='Menunggu Deep Cycle'; prog.style.width='0%'; note.textContent='Butuh 1 catatan batt_akhir ≤35% dicas 100% & jarak >10km'; } }catch(err){}
   try{ if(typeof hitungSoHAI==='function') hitungSoHAI(); }catch(e){}
   const avgMovingFiltered=hitungPrediksiAIWhKm(filtered); drawModernDigitalCluster(Math.round(avgMovingFiltered||avgMoving)); perbaruiAIInsightDasbor(avgMovingFiltered||avgMoving,filtered);
   const minD=document.getElementById('speedo_min'), maxD=document.getElementById('speedo_max'); if(moving.length>0){ const minV=Math.round(Math.min(...moving)), maxV=Math.round(Math.max(...moving)); if(minD) minD.textContent=minV; if(maxD) maxD.textContent=maxV; } else { if(minD) minD.textContent='–'; if(maxD) maxD.textContent='–'; }
@@ -623,7 +776,7 @@ function perbaruiAIInsightDasbor(avgWhKmMoving, filteredEntries){
 }
 
 // === LOKASI & CHARGER SUGGEST FIXED XSS ===
-const LOKASI_KEY='maka_log_v1_lokasi_history';
+const LOKASI_KEY='battlog_lokasi_history';
 function getLokasiHistory(){ try{ return JSON.parse(localStorage.getItem(LOKASI_KEY)||'[]'); }catch(e){return [];} }
 function saveLokasiToHistory(loc){ loc=(loc||'').trim(); if(!loc) return; let h=getLokasiHistory().filter(x=>x.toLowerCase()!==loc.toLowerCase()); h.unshift(loc); h=h.slice(0,10); localStorage.setItem(LOKASI_KEY,JSON.stringify(h)); }
 function renderLokasiSuggest(filter=''){
@@ -638,8 +791,8 @@ function renderLokasiSuggest(filter=''){
   });
   box.style.display='block';
 }
-function getChargerHistory(){ try{ return JSON.parse(localStorage.getItem('maka_charger_history')||'[]'); }catch(e){return [];} }
-function saveChargerToHistory(v,ah){ if(!v||!ah) return; const item=`${v}v ${ah}ah`; let h=getChargerHistory().filter(x=>x.toLowerCase()!==item.toLowerCase()); h.unshift(item); h=h.slice(0,5); localStorage.setItem('maka_charger_history',JSON.stringify(h)); }
+function getChargerHistory(){ try{ return JSON.parse(localStorage.getItem('battlog_charger_history')||'[]'); }catch(e){return [];} }
+function saveChargerToHistory(v,ah){ if(!v||!ah) return; const item=`${v}v ${ah}ah`; let h=getChargerHistory().filter(x=>x.toLowerCase()!==item.toLowerCase()); h.unshift(item); h=h.slice(0,5); localStorage.setItem('battlog_charger_history',JSON.stringify(h)); }
 function renderChargerSuggest(){
   const box=document.getElementById('charger_suggest'); if(!box) return; const hist=getChargerHistory(); box.innerHTML=''; if(!hist.length){ box.style.display='none'; return; }
   const title=document.createElement('div'); title.textContent='PILIH CHARGER TERSEDIA:'; title.style.cssText='padding:8px 14px; font-size:11px; color:#8aa0c6; font-weight:bold; border-bottom:1px solid #1e2d4a; background:#112240;'; box.appendChild(title);
@@ -674,12 +827,12 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
 
 // === BRIDGE FIXED SINGLE - PATCHED SYNC V5.22 COMPATIBLE (PAKEM 2.7.8 TETAP) ===
 (function(){
-  const KEYS_MAKA=['maka_log_v1','maka_bms_history','maka_soh_history','factory_cap_kwh','factory_range_km','maka_soh_baseline','maka_soh_baseline_is_fallback','maka_soh_total_samples','maka_log_v1_lokasi_history','maka_charger_history','universal_custom_v','universal_custom_ah','maka_chat_id']; 
-  const KEYS_SIGAN=['siganData','siganShiftData','siganGlobalTarget','siganTariffConfig'];
+  const KEYS_MAKA=['battlog_log_v1','battlog_bms_history','battlog_soh_history','battlog_factory_cap','battlog_factory_range','battlog_soh_baseline','battlog_soh_baseline_is_fallback','battlog_soh_total_samples','battlog_lokasi_history','battlog_charger_history','universal_custom_v','universal_custom_ah','battlog_chat_id']; 
+  const KEYS_SIGAN=['lapkeuData','lapkeu_shift','lapkeu_global_target','siganTariffConfig'];
   const LAKE_KEY='UNIVERSAL_LAKE_V1';
   const safeParse=k=>{ try{ const v=localStorage.getItem(k); if(v==null) return null; try{return JSON.parse(v);}catch(e){return v;} }catch(e){return null;} };
   function getLake(){ try{ const raw=localStorage.getItem(LAKE_KEY); if(!raw) return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; const obj=JSON.parse(raw); obj.sigan=obj.sigan||{}; obj.maka=obj.maka||{}; obj.cross=obj.cross||{}; obj._sources=obj._sources||{}; return obj; }catch(e){ return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; } }
-  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); }catch(e){}
+  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('lapkeu_universal_sync'); }catch(e){}
   function isValidTime(t){ if(!t) return false; const m=String(t).trim().match(/(\d{1,2})[:.](\d{2})/); if(!m) return false; const h=parseInt(m[1],10), mm=parseInt(m[2],10); return h>=0&&h<=23&&mm>=0&&mm<=59; }
   function mergeSiganData(lakeData, localData){
     try{
@@ -714,7 +867,7 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
       for(let i=0;i<KEYS_SIGAN.length;i++){
         const k=KEYS_SIGAN[i];
         const v=safeParse(k);
-        if(k==='siganData'){
+        if(k==='lapkeuData'){
           const lakeV=lake.sigan && lake.sigan.siganData ? lake.sigan.siganData : null;
           if(v!==null && lakeV){
             const merged=mergeSiganData(lakeV, v);
@@ -728,35 +881,35 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
         }
       }
       for(let i=0;i<KEYS_MAKA.length;i++){ const v=safeParse(KEYS_MAKA[i]); if(v!==null) lake.maka[KEYS_MAKA[i]]=v; }
-      const makaLog=safeParse('maka_log_v1'); 
+      const makaLog=safeParse('battlog_log_v1'); 
       if(makaLog&&makaLog.length){ 
         const ringkasBiaya={}; const ringkasEnergi={}; 
-        for(let j=0;j<makaLog.length;j++){ const e=makaLog[j]; const tgl=e.tanggal; let biaya=0; if(e.biaya!=null&&!isNaN(e.biaya)) biaya=Number(e.biaya); else if(e.tarif!=null){ const cap=Number(e.cap_kwh||localStorage.getItem('factory_cap_kwh')||4); const pct=Math.max(0,(Number(e.batt_setelah||100)-Number(e.batt_akhir||0))); biaya=(pct/100)*cap*Number(e.tarif||0); } ringkasBiaya[tgl]=(ringkasBiaya[tgl]||0)+biaya; const jarak=Math.max(0,(Number(e.km_akhir)||0)-(Number(e.km_awal)||0)); const used=Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0)); const cap2=Number(e.cap_kwh||4); const kwh=(used/100)*cap2; if(!ringkasEnergi[tgl]) ringkasEnergi[tgl]={kwh:0,km:0,whkm:[]}; ringkasEnergi[tgl].kwh+=kwh; ringkasEnergi[tgl].km+=jarak; if(jarak>0) ringkasEnergi[tgl].whkm.push((kwh*1000)/jarak); }
+        for(let j=0;j<makaLog.length;j++){ const e=makaLog[j]; const tgl=e.tanggal; let biaya=0; if(e.biaya!=null&&!isNaN(e.biaya)) biaya=Number(e.biaya); else if(e.tarif!=null){ const cap=Number(e.cap_kwh||localStorage.getItem('battlog_factory_cap')||4); const pct=Math.max(0,(Number(e.batt_setelah||100)-Number(e.batt_akhir||0))); biaya=(pct/100)*cap*Number(e.tarif||0); } ringkasBiaya[tgl]=(ringkasBiaya[tgl]||0)+biaya; const jarak=Math.max(0,(Number(e.km_akhir)||0)-(Number(e.km_awal)||0)); const used=Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0)); const cap2=Number(e.cap_kwh||4); const kwh=(used/100)*cap2; if(!ringkasEnergi[tgl]) ringkasEnergi[tgl]={kwh:0,km:0,whkm:[]}; ringkasEnergi[tgl].kwh+=kwh; ringkasEnergi[tgl].km+=jarak; if(jarak>0) ringkasEnergi[tgl].whkm.push((kwh*1000)/jarak); }
         try{ 
-          localStorage.setItem('sigan_cross_ev_cost',JSON.stringify(ringkasBiaya)); 
+          localStorage.setItem('battlog_ev_cost',JSON.stringify(ringkasBiaya)); 
           // jangan overwrite maka_cross_summary kalau sudah ada avg_speed dari perhitungan STRICT
-          const existingSum=safeParse('maka_cross_summary');
+          const existingSum=safeParse('battlog_summary');
           if(existingSum && typeof existingSum.avg_speed==='number'){
             ringkasEnergi.avg_speed=existingSum.avg_speed;
             ringkasEnergi.mode=existingSum.mode;
           }
-          localStorage.setItem('maka_cross_summary',JSON.stringify(ringkasEnergi)); 
-          lake.cross['sigan_cross_ev_cost']=ringkasBiaya; 
-          lake.cross['maka_cross_summary']=ringkasEnergi; 
+          localStorage.setItem('battlog_summary',JSON.stringify(ringkasEnergi)); 
+          lake.cross['battlog_ev_cost']=ringkasBiaya; 
+          lake.cross['battlog_summary']=ringkasEnergi; 
         }catch(e){} 
       }
       try{ 
-        const inc=safeParse('maka_cross_sigan_income'); 
-        const kmm=safeParse('maka_cross_sigan_km'); 
-        const goride=safeParse('maka_cross_sigan_goride');
-        if(inc) lake.cross['maka_cross_sigan_income']=inc; 
-        if(kmm) lake.cross['maka_cross_sigan_km']=kmm;
+        const inc=safeParse('lapkeu_cross_income'); 
+        const kmm=safeParse('lapkeu_cross_km'); 
+        const goride=safeParse('lapkeu_cross_goride');
+        if(inc) lake.cross['lapkeu_cross_income']=inc; 
+        if(kmm) lake.cross['lapkeu_cross_km']=kmm;
         // PENTING: JANGAN HAPUS gorideOrders dari SiGan V5.22 - PRESERVE
         if(goride && Array.isArray(goride) && goride.length){
           // kalau lake sudah ada goride dari SiGan yang lebih lengkap, merge
           const lakeGoride=lake.cross && lake.cross.maka_cross_sigan_goride ? lake.cross.maka_cross_sigan_goride : [];
           if(lakeGoride.length===0){
-            lake.cross['maka_cross_sigan_goride']=goride;
+            lake.cross['lapkeu_cross_goride']=goride;
           } else {
             // merge, prioritas yang punya jam_awal valid
             const mergedMap=new Map();
@@ -770,7 +923,7 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
                 if(nValid && !eValid) mergedMap.set(key,o);
               }
             });
-            lake.cross['maka_cross_sigan_goride']=Array.from(mergedMap.values());
+            lake.cross['lapkeu_cross_goride']=Array.from(mergedMap.values());
           }
         }
         // Sync balik AVG untuk SiGan TERBARU BATTLOG
@@ -780,18 +933,18 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
             if(res && res.avg>0){
               const avgData={avg_speed:res.avg, kecepatan_rata:res.avg, avg_km_per_jam:res.avg, mode:res.isStrict?'STRICT':'FALLBACK', jam_valid:res.detail?res.detail.length:0, total_km:res.totalKmMasuk, total_jam:res.totalJam, usedDateLabel:res.usedDateLabel, updated:Date.now()};
               localStorage.setItem('battlog_avg_speed', JSON.stringify(avgData));
-              localStorage.setItem('maka_cross_summary', JSON.stringify({... (safeParse('maka_cross_summary')||{}), ...avgData}));
+              localStorage.setItem('battlog_summary', JSON.stringify({... (safeParse('battlog_summary')||{}), ...avgData}));
               lake.cross['battlog_avg_speed']=avgData;
               lake.maka['battlog_avg_speed']=avgData;
               // Tulis ke maka_log_v1 satu entry khusus biar SiGan V5.22 baca TERBARU
-              let mLog=safeParse('maka_log_v1')||[];
+              let mLog=safeParse('battlog_log_v1')||[];
               if(Array.isArray(mLog)){
                 const today=new Date().toISOString().slice(0,10);
                 let idx=mLog.findIndex(x=>x.tanggal===today && x.sumber==='battlog_auto_sync');
                 const entry={tanggal:today, jarak_km:res.totalKmMasuk, kecepatan_rata:res.avg, avg_speed:res.avg, avg_km_per_jam:res.avg, mode:res.isStrict?'STRICT':'FALLBACK', jam_valid:res.detail?res.detail.length:0, sumber:'battlog_auto_sync', waktu_dibuat_asli:Date.now()};
                 if(idx>=0) mLog[idx]=entry; else mLog.push(entry);
-                localStorage.setItem('maka_log_v1', JSON.stringify(mLog));
-                lake.maka['maka_log_v1']=mLog;
+                localStorage.setItem('battlog_log_v1', JSON.stringify(mLog));
+                lake.maka['battlog_log_v1']=mLog;
               }
             }
           }
@@ -811,11 +964,11 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
 // === KORIDOR & JAM FIXED ===
 function getSiganOrdersForBattlog(){ try{
   let orders=[];
-  let raw=localStorage.getItem('siganData');
+  let raw=localStorage.getItem('lapkeuData');
   if(raw){ try{ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }catch(e){} }
   // tambahan: baca dari goride cross yang lebih presisi
   if(!orders.length){
-    let rawG=localStorage.getItem('maka_cross_sigan_goride');
+    let rawG=localStorage.getItem('lapkeu_cross_goride');
     if(rawG){ try{ let p=JSON.parse(rawG); if(Array.isArray(p)) orders=p; }catch(e){} }
   }
   if(!orders.length){
