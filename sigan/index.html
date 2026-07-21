@@ -1508,14 +1508,36 @@ window.onload=function(){
       var lake=getExistingLake();
       for(var i=0;i<KEYS_SIGAN.length;i++){ var v=safeParse(KEYS_SIGAN[i]); if(v!==null) lake.sigan[KEYS_SIGAN[i]]=v; }
       for(var i=0;i<KEYS_MAKA.length;i++){ var v2=safeParse(KEYS_MAKA[i]); if(v2!==null) lake.maka[KEYS_MAKA[i]]=v2; }
-      var siganData=safeParse('siganData')||[]; var incomeMap={}, kmMap={};
-      for(var j=0;j<siganData.length;j++){ var it=siganData[j]; if(it.type==='Pendapatan'){ incomeMap[it.date]=(incomeMap[it.date]||0)+Number(it.amount||0); kmMap[it.date]=(kmMap[it.date]||0)+Number(it.dist||0); } }
+      var siganData=safeParse('siganData')||[]; var incomeMap={}, kmMap={}, gorideOrders=[];
+      for(var j=0;j<siganData.length;j++){ 
+        var it=siganData[j]; 
+        if(it.type==='Pendapatan'){ 
+          incomeMap[it.date]=(incomeMap[it.date]||0)+Number(it.amount||0); 
+          kmMap[it.date]=(kmMap[it.date]||0)+Number(it.dist||0); 
+          // khusus Goride simpan jam awal & jam akhir untuk battlog
+          if(it.cat==='Goride' || (it.idTrans && String(it.idTrans).toUpperCase().startsWith('RB'))){
+            gorideOrders.push({
+              date: it.date,
+              jam_awal: it.time||'',
+              jam_akhir: it.endTime||it.predictedEndTime||it.time||'',
+              jarak_km: Number(it.dist||0),
+              id_trans: it.idTrans||'',
+              pickup: (it.pickup||'').substring(0,80),
+              destination: (it.destination||'').substring(0,80),
+              amount: Number(it.amount||0)
+            });
+          }
+        } 
+      }
       try{
         localStorage.setItem('maka_cross_sigan_income', JSON.stringify(incomeMap));
         localStorage.setItem('maka_cross_sigan_km', JSON.stringify(kmMap));
+        localStorage.setItem('maka_cross_sigan_goride', JSON.stringify(gorideOrders));
         localStorage.setItem('sigan_hub_last_update', String(Date.now()));
-        lake.cross['maka_cross_sigan_income']=incomeMap; lake.cross['maka_cross_sigan_km']=kmMap;
-        lake.cross['sigan_hub_data_from_sigan']={siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()};
+        lake.cross['maka_cross_sigan_income']=incomeMap; 
+        lake.cross['maka_cross_sigan_km']=kmMap;
+        lake.cross['maka_cross_sigan_goride']=gorideOrders;
+        lake.cross['sigan_hub_data_from_sigan']={siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,gorideOrders:gorideOrders,ts:Date.now()};
       }catch(e){}
       var biayaEv=safeParse('sigan_cross_ev_cost'); var summaryEv=safeParse('maka_cross_summary'); if(biayaEv) lake.cross['sigan_cross_ev_cost']=biayaEv; if(summaryEv) lake.cross['maka_cross_summary']=summaryEv;
       var riwayatEv=safeParse('sigan_riwayat_harian'); if(riwayatEv) lake.cross['sigan_riwayat_harian']=riwayatEv;
