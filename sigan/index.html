@@ -1,3 +1,4 @@
+<!-- Lapkeu v1.2 ACUAN FINAL LOCKED - 2026-07-21 - Rumus Goride Murni + Insight Strategi Hari Sama - SEMPURNA -->
 <!-- Lapkeu v1.2 - ACUAN BARU FIX TAB - Insight Strategi Hari Sama - Locked 2026-07-21 -->
 <!-- Lapkeu v1.1 - NAMA SELARAS - lapkeu_* & battlog_* - Migrasi otomatis dari v1.0 - Locked 2026-07-21 - SYNC FIX -->
 <!-- Lapkeu v1.0 - SiGan FIXED SYNC - Field kompatibel Battlog v1.0 (tanggal, km, lokasi_jemput, lokasi_antar, jam_awal, jam_akhir) - Locked 2026-07-21 -->
@@ -833,113 +834,170 @@ function loadData(){
 // ===== Rekap Presisi V5 =====
 
 // ====== V6 HELPER - STRATEGI HARI SAMA (TIDAK SENTUH KODE LAIN) ======
+
 function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extractAreaSimple, getDurationInHours, categories){
+    // === INSIGHT MAKSIMAL v2 - GABUNGAN 7 HARI + 21 HARI HARI SAMA + SEMUA DATA ===
     let targetWeekday = anchorDate.getDay();
     let targetWeekdayName = dayNames[targetWeekday];
-    let historicalSameDay = data.filter(item=>{
-        if(!item.date) return false;
-        if(item.date === targetDateStr) return false;
+    
+    let anchor = new Date(anchorDate);
+    let cutoff7 = new Date(anchor); cutoff7.setDate(anchor.getDate()-7);
+    let cutoff21 = new Date(anchor); cutoff21.setDate(anchor.getDate()-21);
+    
+    // Filter data
+    let data7Hari = data.filter(item=>{
+        if(!item.date || item.date===targetDateStr) return false;
+        let d=new Date(item.date); d.setHours(0,0,0,0);
+        return d>=cutoff7 && d<=anchor;
+    });
+    let dataSameDay21 = data.filter(item=>{
+        if(!item.date || item.date===targetDateStr) return false;
         let p=item.date.split('-'); if(p.length!==3) return false;
-        let d=new Date(p[0], p[1]-1, p[2]);
-        return d.getDay() === targetWeekday;
+        let d=new Date(p[0],p[1]-1,p[2]); d.setHours(0,0,0,0);
+        if(d<cutoff21 || d>anchor) return false;
+        return d.getDay()===targetWeekday;
+    });
+    let dataSameDayAll = data.filter(item=>{
+        if(!item.date || item.date===targetDateStr) return false;
+        let p=item.date.split('-'); if(p.length!==3) return false;
+        let d=new Date(p[0],p[1]-1,p[2]);
+        return d.getDay()===targetWeekday;
     });
 
-    if(historicalSameDay.length===0){
-        return `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:12px; padding:14px;">
-            <div style="font-size:13px; font-weight:800; color:#6fb2ff; margin-bottom:6px;">🗓️ Belum Ada Data ${targetWeekdayName} Sebelumnya</div>
-            <div style="font-size:12px; color:#8aa0c6; line-height:1.6;">
-                AI belum bisa nyusun strategi buat hari <strong style="color:#eaf2ff;">${targetWeekdayName}</strong> karena belum ada riwayat ${targetWeekdayName} di masa lalu.<br><br>
-                Gas terus hari ini, biar minggu depan AI udah punya bekal buat kasih tau <em>harus nongkrong dimana & jam berapa enaknya istirahat</em>.
-            </div>
-        </div>`;
+    if(data.length===0){
+        return `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:12px; padding:14px; font-size:12px; color:#8aa0c6;">Belum ada data sama sekali buat bikin strategi.</div>`;
     }
 
-    let hourStats = {}; for(let h=0;h<24;h++) hourStats[h]={income:0, km:0, hours:0, orders:0};
-    let areaStats = {};
-    let serviceStatsSameDay = {}; categories["Pendapatan"].forEach(c=>serviceStatsSameDay[c]={income:0, orders:0, hours:0, km:0});
-    let deadTripsSameDay = {};
-    let byDateMap={};
-    let totalIncomeSameDay=0, totalHoursSameDay=0;
+    // Helper weighted stats
+    function buildWeightedStats(){
+        let hourMap={}; for(let h=0;h<24;h++) hourMap[h]={income:0, hours:0, orders:0, score:0};
+        let areaMap={};
+        let serviceMap={}; categories["Pendapatan"].forEach(c=>serviceMap[c]={income:0, hours:0, orders:0, km:0});
+        let deadTrips={};
+        let byDateMap={};
 
-    historicalSameDay.forEach(item=>{ let d=item.date; if(!byDateMap[d]) byDateMap[d]=[]; byDateMap[d].push(item); });
-
-    historicalSameDay.forEach(item=>{
-        if(item.type!=='Pendapatan') return;
-        let amt=Number(item.amount)||0;
-        let km=Number(item.dist)||0;
-        let t=item.time||'00:00';
-        let h=parseInt(t.split(':')[0])||0;
-        let dur=getDurationInHours(item.time||'', item.endTime||item.predictedEndTime||item.time||'');
-        if(dur===0 && km>0) dur=km*2/60;
-        if(dur===0) dur=0.25;
-        if(dur<0 || dur>5) dur=0.3;
-        if(!hourStats[h]) hourStats[h]={income:0, km:0, hours:0, orders:0};
-        hourStats[h].income+=amt; hourStats[h].km+=km; hourStats[h].hours+=dur; hourStats[h].orders+=1;
-        totalIncomeSameDay+=amt; totalHoursSameDay+=dur;
-        let area = (typeof extractAreaSimple==='function'? extractAreaSimple(item.pickup||'') : (item.pickup||'').substring(0,20)) || 'Unknown';
-        if(!areaStats[area]) areaStats[area]={income:0, orders:0, hours:0};
-        areaStats[area].income+=amt; areaStats[area].orders+=1; areaStats[area].hours+=dur;
-        let cat=item.cat||'Goride';
-        if(!serviceStatsSameDay[cat]) serviceStatsSameDay[cat]={income:0, orders:0, hours:0, km:0};
-        serviceStatsSameDay[cat].income+=amt; serviceStatsSameDay[cat].orders+=1; serviceStatsSameDay[cat].hours+=dur; serviceStatsSameDay[cat].km+=km;
-    });
-
-    Object.values(byDateMap).forEach(dayOrders=>{
-        let sorted=dayOrders.filter(o=>o.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-        for(let i=0;i<sorted.length-1;i++){
-            let prev=sorted[i], next=sorted[i+1];
-            let gap=getDurationInHours(prev.endTime||prev.time, next.time);
-            if(gap>0.25){
-                let key=(prev.destination||prev.pickup||'').substring(0,18)+' → '+(next.pickup||'').substring(0,18);
-                if(!deadTripsSameDay[key]) deadTripsSameDay[key]={totalGap:0, count:0};
-                deadTripsSameDay[key].totalGap+=gap; deadTripsSameDay[key].count+=1;
-            }
+        function addItem(item, weight){
+            if(item.type!=='Pendapatan') return;
+            let amt=Number(item.amount)||0;
+            let km=Number(item.dist)||0;
+            let dur=getDurationInHours(item.time||'', item.endTime||item.predictedEndTime||item.time||'');
+            if(dur===0 && km>0) dur=km*2/60;
+            if(dur===0) dur=0.25;
+            if(dur<0||dur>5) dur=0.3;
+            let h=parseInt((item.time||'00:00').split(':')[0])||0;
+            hourMap[h].income+=amt*weight; hourMap[h].hours+=dur*weight; hourMap[h].orders+=1*weight; hourMap[h].score+= (dur>0? (amt/dur)*weight : 0);
+            
+            let area = (typeof extractAreaSimple==='function'? extractAreaSimple(item.pickup||'') : (item.pickup||'').substring(0,20)) || 'Unknown';
+            if(!areaMap[area]) areaMap[area]={income:0, hours:0, orders:0, score:0};
+            areaMap[area].income+=amt*weight; areaMap[area].hours+=dur*weight; areaMap[area].orders+=1*weight; areaMap[area].score+= (dur>0? (amt/dur)*weight : 0);
+            
+            let cat=item.cat||'Goride';
+            if(!serviceMap[cat]) serviceMap[cat]={income:0, hours:0, orders:0, km:0};
+            serviceMap[cat].income+=amt*weight; serviceMap[cat].hours+=dur*weight; serviceMap[cat].orders+=1*weight; serviceMap[cat].km+=km*weight;
         }
-    });
 
-    let hoursRanked = Object.entries(hourStats).map(([h,s])=>({h:parseInt(h), ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
-    let areasRanked = Object.entries(areaStats).map(([area,s])=>({area, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).sort((a,b)=>b.rpPerJam-a.rpPerJam);
-    let servicesRanked = Object.entries(serviceStatsSameDay).map(([cat,s])=>({cat, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
+        // Bobot: 7 hari x3, SameDay 21 hari x2, SameDay all x1
+        data7Hari.forEach(it=>{ addItem(it, 3); let d=it.date; if(!byDateMap[d]) byDateMap[d]=[]; byDateMap[d].push(it); });
+        dataSameDay21.forEach(it=>{ addItem(it, 2); });
+        dataSameDayAll.forEach(it=>{ addItem(it, 1); });
+
+        // Dead trips dari 7 hari terakhir (paling relevan)
+        let sortedByDate={};
+        data7Hari.forEach(it=>{ if(!sortedByDate[it.date]) sortedByDate[it.date]=[]; sortedByDate[it.date].push(it); });
+        Object.values(sortedByDate).forEach(dayOrders=>{
+            let sorted=dayOrders.filter(o=>o.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+            for(let i=0;i<sorted.length-1;i++){
+                let gap=getDurationInHours(sorted[i].endTime||sorted[i].time, sorted[i+1].time);
+                if(gap>0.25){
+                    let key=(sorted[i].destination||sorted[i].pickup||'').substring(0,18)+' → '+(sorted[i+1].pickup||'').substring(0,18);
+                    if(!deadTrips[key]) deadTrips[key]={totalGap:0, count:0};
+                    deadTrips[key].totalGap+=gap; deadTrips[key].count+=1;
+                }
+            }
+        });
+
+        return {hourMap, areaMap, serviceMap, deadTrips, byDateMap};
+    }
+
+    let stats = buildWeightedStats();
+
+    let hoursRanked = Object.entries(stats.hourMap).map(([h,s])=>({h:parseInt(h), ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
+    let areasRanked = Object.entries(stats.areaMap).map(([area,s])=>({area, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).sort((a,b)=>b.rpPerJam-a.rpPerJam);
+    let servicesRanked = Object.entries(stats.serviceMap).map(([cat,s])=>({cat, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
 
     let bestHour = hoursRanked[0];
     let worstHour = hoursRanked.length>0? hoursRanked[hoursRanked.length-1] : null;
     let bestArea = areasRanked[0];
     let worstArea = areasRanked.length>1? areasRanked[areasRanked.length-1] : null;
 
+    // Battlog muter info kalau ada
+    let muterInfo='';
+    try{
+        let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+        if(lakeRaw){
+            let lake=JSON.parse(lakeRaw);
+            let battEntries = lake.maka && lake.maka.maka_log_v1 ? lake.maka.maka_log_v1 : [];
+            if(battEntries.length>0){
+                let last3 = battEntries.slice(0,3);
+                let avgMuter = last3.reduce((a,b)=>{ 
+                    let s=(b.km_akhir||0)-(b.km_awal||0); 
+                    return a + (s>0? 0.4 : 0); 
+                },0)/Math.max(1,last3.length);
+                if(avgMuter>0.35) muterInfo = `⚡ Battlog 3 sesi terakhir muter ${Math.round(avgMuter*100)}%, usahakan jangan nongkrong kejauhan dari area rame.`;
+            }
+        }
+    }catch(e){}
+
     let aiHtml = `<div style="background:linear-gradient(135deg,#111d35 0%,#0f1f36 100%); border:1px solid #1e2d4a; border-radius:12px; padding:14px;">`;
-    aiHtml+=`<div style="font-size:12px; font-weight:800; color:#7dffb7; margin-bottom:10px; letter-spacing:0.5px;">🎯 STRATEGI HARI INI - ${targetWeekdayName.toUpperCase()} (berdasarkan ${historicalSameDay.length} order ${targetWeekdayName} lalu)</div>`;
+    aiHtml+=`<div style="font-size:12px; font-weight:800; color:#7dffb7; margin-bottom:10px; letter-spacing:0.5px;">🎯 APA YANG HARUS SAYA LAKUKAN HARI INI - ${targetWeekdayName.toUpperCase()}<br><span style="font-size:10px; color:#8aa0c6; font-weight:600;">Maksimal semua data: 7 hari terakhir (${data7Hari.length} order) + 21 hari ${targetWeekdayName} (${dataSameDay21.length} order) + total ${targetWeekdayName} (${dataSameDayAll.length} order)</span></div>`;
 
     if(bestArea){
-        aiHtml+=`<div style="margin-bottom:10px;"><span style="font-size:11px; font-weight:700; color:#2b8cff; background:rgba(43,140,255,0.15); padding:3px 8px; border-radius:999px;">📍 HARUS NONGKRONG DIMANA</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">Historis <strong>${targetWeekdayName}</strong>, area <strong style="color:#7dffb7;">${bestArea.area}</strong> paling gurih: <strong>${bestArea.orders}x order</strong>, avg <strong>Rp ${Math.round(bestArea.rpPerJam).toLocaleString('id-ID')}/jam</strong>. ${areasRanked[1]?`Runner up: <strong>${areasRanked[1].area}</strong> (${Math.round(areasRanked[1].rpPerJam).toLocaleString('id-ID')}/jam).`:''}<br><span style="color:#8aa0c6; font-size:11px;">Jangan kelamaan di ${worstArea?worstArea.area:'area sepi'}, data ${targetWeekdayName} lalu cuma ${worstArea?Math.round(worstArea.rpPerJam).toLocaleString('id-ID')+'/jam':''}.</span></div></div>`;
+        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#2b8cff; background:rgba(43,140,255,0.15); padding:3px 8px; border-radius:999px;">📍 TOP 3 NONGKRONG HARI INI</span><div style="margin-top:6px;">`;
+        areasRanked.slice(0,3).forEach((a,i)=>{
+            let medal=i===0?'🥇':i===1?'🥈':'🥉';
+            let jamEmas = hoursRanked.length>0? `${String(hoursRanked[0].h).padStart(2,'0')}:00` : '';
+            aiHtml+=`<div style="display:flex; justify-content:space-between; background:#0f1f36; border-radius:8px; padding:6px 10px; margin-top:4px; font-size:12px;"><span>${medal} ${a.area} - ${Math.round(a.orders)} order</span><span style="color:#7dffb7; font-weight:700;">Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')}/jam</span></div>`;
+        });
+        aiHtml+=`</div><div style="font-size:11px; color:#8aa0c6; margin-top:4px;">Fokus utama di <strong style="color:#7dffb7;">${bestArea.area}</strong>, hindari <strong style="color:#ff8a80;">${worstArea?worstArea.area:'area sepi'}</strong> (cuma Rp ${worstArea?Math.round(worstArea.rpPerJam).toLocaleString('id-ID'):''}/jam)</div></div>`;
     }
     if(bestHour){
-        let worstText = worstHour? `Jam <strong>${String(worstHour.h).padStart(2,'0')}:00</strong> (${Math.round(worstHour.rpPerJam).toLocaleString('id-ID')}/jam, ${worstHour.orders} order) paling boncos, mending buat istirahat/sholat/makan.` : '';
-        aiHtml+=`<div style="margin-bottom:10px;"><span style="font-size:11px; font-weight:700; color:#ffcc66; background:rgba(255,204,102,0.15); padding:3px 8px; border-radius:999px;">⏰ JAM CUAN vs JAM ISTIRAHAT</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">Jam emas ${targetWeekdayName}: <strong style="color:#00e676;">${String(bestHour.h).padStart(2,'0')}:00 - ${String(bestHour.h+1).padStart(2,'0')}:00</strong> tembus <strong>Rp ${Math.round(bestHour.rpPerJam).toLocaleString('id-ID')}/jam</strong> (${bestHour.orders} order).<br>${worstText}</div></div>`;
+        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#ffcc66; background:rgba(255,204,102,0.15); padding:3px 8px; border-radius:999px;">⏰ JAM EMAS vs JAM ISTIRAHAT</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">`;
+        hoursRanked.slice(0,2).forEach(h=>{
+            aiHtml+=`✅ <strong>${String(h.h).padStart(2,'0')}:00-${String(h.h+1).padStart(2,'0')}:00</strong> = Rp ${Math.round(h.rpPerJam).toLocaleString('id-ID')}/jam (${Math.round(h.orders)} order) - <strong>WAJIB ON</strong><br>`;
+        });
+        if(worstHour){
+            aiHtml+=`❌ <strong>${String(worstHour.h).padStart(2,'0')}:00-${String(worstHour.h+1).padStart(2,'0')}:00</strong> = Rp ${Math.round(worstHour.rpPerJam).toLocaleString('id-ID')}/jam - <strong>ISTIRAHAT / CAS / SHOLAT</strong><br>`;
+        }
+        aiHtml+=`</div></div>`;
     }
     if(servicesRanked.length>0){
-        let bestServ = servicesRanked[0];
-        let servDetail = servicesRanked.map(s=>`${s.cat} ${Math.round(s.rpPerJam).toLocaleString('id-ID')}/jam`).join(' • ');
-        aiHtml+=`<div style="margin-bottom:10px;"><span style="font-size:11px; font-weight:700; color:#00e676; background:rgba(0,230,118,0.15); padding:3px 8px; border-radius:999px;">🏍️ FOKUS LAYANAN</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">${targetWeekdayName} kemarin-kemarin, <strong>${bestServ.cat}</strong> rajanya: <strong>Rp ${Math.round(bestServ.rpPerJam).toLocaleString('id-ID')}/jam</strong> (${bestServ.orders} order).<br><span style="color:#8aa0c6; font-size:11px;">Urutan cuan: ${servDetail}</span></div></div>`;
+        let bestServ=servicesRanked[0];
+        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#00e676; background:rgba(0,230,118,0.15); padding:3px 8px; border-radius:999px;">🏍️ FOKUS LAYANAN HARI INI</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px;">`;
+        aiHtml+=`Hari ini utamakan <strong style="color:#00e676;">${bestServ.cat}</strong> (Rp ${Math.round(bestServ.rpPerJam).toLocaleString('id-ID')}/jam, ${Math.round(bestServ.orders)} order).<br><span style="font-size:11px; color:#8aa0c6;">Urutan: ${servicesRanked.map(s=>`${s.cat} ${Math.round(s.rpPerJam).toLocaleString('id-ID')}`).join(' → ')}</span></div></div>`;
     }
-    let deadEntries = Object.entries(deadTripsSameDay).sort((a,b)=>b[1].count-a[1].count).slice(0,2);
+    let deadEntries = Object.entries(stats.deadTrips).sort((a,b)=>b[1].count-a[1].count).slice(0,2);
     if(deadEntries.length>0){
-        aiHtml+=`<div style="margin-bottom:10px;"><span style="font-size:11px; font-weight:700; color:#ff8a80; background:rgba(255,138,128,0.15); padding:3px 8px; border-radius:999px;">🚫 JANGAN DIULANG</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">`;
+        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#ff8a80; background:rgba(255,138,128,0.15); padding:3px 8px; border-radius:999px;">🚫 JANGAN DIULANG (7 hari terakhir)</span><div style="font-size:12px; color:#eaf2ff; margin-top:6px;">`;
         deadEntries.forEach(([k,v])=>{
-            aiHtml+=`Setelah drop di <strong>${k.split(' → ')[0]}</strong> kamu kosong <strong>${Math.round(v.totalGap/v.count*60)} menit</strong> baru dapet lagi di <strong>${k.split(' → ')[1]}</strong> (${v.count}x kejadian ${targetWeekdayName}).<br>`;
+            aiHtml+=`• Abis drop <strong>${k.split(' → ')[0]}</strong> kosong <strong>${Math.round(v.totalGap/v.count*60)} menit</strong> baru dapet di <strong>${k.split(' → ')[1]}</strong> (${v.count}x)<br>`;
         });
-        aiHtml+=`<span style="color:#8aa0c6; font-size:11px;">Solusi: abis drop di situ langsung geser ke ${bestArea?bestArea.area:'titik rame'} jangan nungguin.</span></div></div>`;
+        aiHtml+=`<span style="font-size:11px; color:#8aa0c6;">Solusi: langsung geser ke ${bestArea?bestArea.area:'area rame'} jangan nunggu.</span></div></div>`;
     }
-    let totalAvgSameDay = totalHoursSameDay>0? totalIncomeSameDay/totalHoursSameDay : 0;
-    aiHtml+=`<div style="margin-top:12px; padding-top:10px; border-top:1px dashed #1e2d4a;"><span style="font-size:11px; font-weight:800; color:#7dffb7;">💡 TAKTIK HARI INI:</span><div style="font-size:12.5px; color:#dbe8ff; margin-top:4px; line-height:1.7;">`;
-    aiHtml+=`Bos, hari ini <strong>${targetWeekdayName}</strong>. Data ${historicalSameDay.length} order ${targetWeekdayName} lalu bilang: rata-rata ${targetWeekdayName} bisa <strong>Rp ${Math.round(totalAvgSameDay).toLocaleString('id-ID')}/jam</strong>. `;
-    if(bestHour && bestArea) aiHtml+=`Kunci: jam <strong>${String(bestHour.h).padStart(2,'0')}:00-an</strong> standby di <strong>${bestArea.area}</strong>, `;
-    if(servicesRanked[0]) aiHtml+=`utamain <strong>${servicesRanked[0].cat}</strong>. `;
-    if(worstHour) aiHtml+=`Jam <strong>${String(worstHour.h).padStart(2,'0')}:00</strong> kalau sepi jangan dipaksa, mending off bentar, cas baterai & badan.`;
+    if(muterInfo){
+        aiHtml+=`<div style="background:rgba(255,204,102,0.08); border:1px dashed #ffcc66; border-radius:8px; padding:8px; font-size:11px; color:#ffcc66; margin-bottom:12px;">${muterInfo}</div>`;
+    }
+    // Taktik final
+    let totalAvg = (data7Hari.reduce((a,b)=>a+(Number(b.amount)||0),0) / Math.max(1, data7Hari.reduce((a,b)=>{ let d=getDurationInHours(b.time||'', b.endTime||b.time||''); if(d===0) d=0.25; return a+d; },0)) );
+    aiHtml+=`<div style="margin-top:12px; padding-top:10px; border-top:1px dashed #1e2d4a; background:#0a1328; border-radius:8px; padding:10px;"><span style="font-size:11px; font-weight:800; color:#7dffb7;">💡 TAKTIK HARI INI (MAKSIMAL DATA):</span><div style="font-size:12.5px; color:#dbe8ff; margin-top:6px; line-height:1.8;">`;
+    aiHtml+=`Bos, hari ini <strong>${targetWeekdayName}</strong>. Gabungan data bilang:<br>`;
+    if(bestHour) aiHtml+=`1. <strong>Jam ${String(bestHour.h).padStart(2,'0')}:00 wajib ON</strong> di <strong>${bestArea?bestArea.area:'area top'}</strong><br>`;
+    if(servicesRanked[0]) aiHtml+=`2. <strong>Utamakan ${servicesRanked[0].cat}</strong>, matiin yang boncos dulu<br>`;
+    if(worstHour) aiHtml+=`3. <strong>Jam ${String(worstHour.h).padStart(2,'0')}:00 OFF</strong> - cas badan & baterai<br>`;
+    if(bestArea) aiHtml+=`4. Target hari ini: <strong>Rp ${Math.round(totalAvg).toLocaleString('id-ID')}/jam</strong> (avg 7 hari terakhir)<br>`;
     aiHtml+=`</div></div>`;
     aiHtml+=`</div>`;
     return aiHtml;
 }
-
 
 function loadRekapData(){
     const period=document.getElementById('rekapPeriod').value;
@@ -1287,10 +1345,24 @@ function loadRekapData(){
     let sortedServices=Object.keys(serviceRates).map(cat=>{
         let r=serviceRates[cat];
         let rpPerJam=r.hours>0?Math.round(r.amt/r.hours):0;
+        // RUMUS BARU SESUAI REQUEST: AVG MURNI dari durasi real per order (jam_awal - jam_akhir) selama periode, tanpa campur speed battlog
+        // contoh: order1 6m + order2 10m + order3 20m = 36m / 3 = 12m avg
         let avgDur=r.durCount>0? (r.hours/r.durCount):0;
-        let avgTravel=r.waitingCount>0? (r.travelHours/r.waitingCount):0;
-        let avgWaiting=r.waitingCount>0? (r.waitingHours/r.waitingCount):0;
-        let waitingPct=r.hours>0? Math.round((r.waitingHours/r.hours)*100):0;
+        // Untuk Goride/Gosend, macet/cari alamat tidak dihitung dari speed battlog lagi, jadi waiting 0
+        let avgTravel=avgDur; // jalan = avg itu sendiri
+        let avgWaiting=0;
+        let waitingPct=0;
+        // Untuk Gofood/Gomart tetap hitung nunggu resto dari selisih travel ideal vs real (opsional, tapi tetap pakai avgDur untuk badge)
+        if(cat==='Gofood' || cat==='Gomart'){
+            // tetap pakai waiting lama kalau ada, tapi kalau travel > hours, anggap 0
+            let travelTmp=r.waitingCount>0? (r.travelHours/r.waitingCount):0;
+            let waitTmp=r.waitingCount>0? (r.waitingHours/r.waitingCount):0;
+            if(waitTmp>0 && waitTmp<avgDur){
+                avgTravel=travelTmp;
+                avgWaiting=waitTmp;
+                waitingPct=r.hours>0? Math.round((r.waitingHours/r.hours)*100):0;
+            }
+        }
         return {cat, r, rpPerJam, avgDur, avgTravel, avgWaiting, waitingPct};
     }).sort((a,b)=>b.rpPerJam-a.rpPerJam);
     let maxRpPerJamService=Math.max(...sortedServices.map(s=>s.rpPerJam),1);
@@ -1322,14 +1394,20 @@ function loadRekapData(){
             extraIcon='🔍';
             badgeColor='#1f1a33';
         }
-        let waitingBadge=`<span style="background:${badgeColor}; color:${s.waitingPct>40?'#ff8a80':'#8aa0c6'}; border:1px solid #2a2a4a; padding:2px 6px; border-radius:6px; font-size:9px;">${extraIcon} ${s.waitingPct}% ${extraLabel}</span>`;
+        // RUMUS BARU: Untuk Goride & Gosend, tampilkan AVG MURNI tanpa embel jalan+macet, biar sesuai request 6m+10m+20m/3
+        let waitingBadge='';
         let detailText='';
         if(cat==='Gofood' || cat==='Gomart'){
-            detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`;
-        } else if(cat==='Goride'){
-            detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`;
+            if(s.waitingPct>0){
+                detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`;
+                waitingBadge=`<span style="background:${badgeColor}; color:${s.waitingPct>40?'#ff8a80':'#8aa0c6'}; border:1px solid #2a2a4a; padding:2px 6px; border-radius:6px; font-size:9px;">${extraIcon} ${s.waitingPct}% ${extraLabel}</span>`;
+            } else {
+                detailText=`${avgMenit}m avg per order`;
+            }
         } else {
-            detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`;
+            // Goride & Gosend: hanya avg murni
+            detailText=`${avgMenit}m avg per order`;
+            waitingBadge=''; // hilangkan 0% macet / 0% cari alamat biar nggak bingung
         }
         ratesContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:700; color:#eaf2ff;">${icon} ${cat} <span style="font-size:10px; color:var(--muted);">(${r.totalCount} order • ${r.km.toFixed(1)}km)</span></span><span style="font-weight:800; color:${barColor};">Rp ${rpPerJam.toLocaleString('id-ID')}/jam</span></div>
