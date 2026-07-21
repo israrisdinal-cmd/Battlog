@@ -78,7 +78,7 @@
 <div class="max-w-2xl">
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7.6 STRICT 3 Hari</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7.7 Hybrid STRICT</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
@@ -432,7 +432,6 @@ function hitungAvgKmJamGoride(filtered){
 
     // === v2.7.6 STRICT Fallback: kalau 3 hari tidak ada yang masuk jam, cari 7 hari terakhir yang strict ===
     if(totalJamPeriod<=0.01||totalKmMasuk<=0.01){
-      // Cari di semua tanggal yang ada jam (bukan cuma 3 hari) tapi tetap STRICT
       let allJamPerTgl={};
       orders.forEach(o=>{
         const sMin=parseJamMenit(o.jam_awal); const eMin=parseJamMenit(o.jam_akhir);
@@ -441,7 +440,7 @@ function hitungAvgKmJamGoride(filtered){
         if(!allJamPerTgl[o.tanggal]) allJamPerTgl[o.tanggal]=[];
         allJamPerTgl[o.tanggal].push({startMin:sMin,endMin:eMin,durMin:dur});
       });
-      let allDates=Object.keys(allJamPerTgl).sort().reverse().slice(0,7); // 7 hari terakhir yang ada jam
+      let allDates=Object.keys(allJamPerTgl).sort().reverse().slice(0,7);
       let found=false;
       for(let dt of allDates){
         const windows=allJamPerTgl[dt]||[];
@@ -477,18 +476,47 @@ function hitungAvgKmJamGoride(filtered){
         isFresh=false;
         usedDateLabel=allDates.join(', ')+' STRICT 7 hari';
       } else {
-        // Tetap 0 - biar akurat, jangan estimasi
         isFresh=false;
         usedDateLabel='Tidak ada odometer dalam jam GoRide (STRICT)';
       }
     }
 
     if(totalJamPeriod<=0.01){
-      return {avg:0, totalKmMasuk:0, totalJam:0, isFresh:false, usedDateLabel:'STRICT - Butuh jam_awal & jam_akhir SiGan', detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:true};
+      // === v2.7.7 HYBRID: kalau STRICT kosong karena SiGan belum kirim jam, fallback ke 3 hari tanggal (biar tidak kosong) ===
+      let uniq3=[...new Set(orders.map(o=>o.tanggal))].sort().reverse().slice(0,3);
+      let totalK=0, totalJ=0;
+      uniq3.forEach(dt=>{
+        const evList=evPerTgl[dt]||[];
+        let kmDt=0;
+        evList.forEach(ev=>{ try{ const c=calcEntry(ev); kmDt+=c.jarak||0; }catch(e){} });
+        if(kmDt===0){
+          // kalau BattLog kosong, pakai km SiGan
+          orders.filter(o=>o.tanggal===dt).forEach(o=> kmDt+=Number(o.km||0));
+        }
+        totalK+=kmDt;
+      });
+      // estimasi jam dari km SiGan / 25 km/jam biar tidak 0
+      let totalKmSigan=0;
+      ordersLast3.forEach(o=> totalKmSigan+=Number(o.km||0));
+      if(totalKmSigan<=0) totalKmSigan=totalK;
+      if(totalKmSigan>0){
+        totalJ=totalKmSigan/25;
+        totalKmMasuk=totalK>0?totalK:totalKmSigan;
+        totalJamPeriod=totalJ;
+        isFresh=false;
+        usedDateLabel=uniq3.join(', ')+' (Fallback tanggal, jam SiGan kosong)';
+        // kembalikan dengan flag fallback
+        if(totalJamPeriod>0){
+          let avg=totalKmMasuk/totalJamPeriod;
+          avg=Math.min(Math.max(avg,0),60);
+          return {avg, totalKmMasuk, totalJam:totalJamPeriod, isFresh, usedDateLabel, detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:false, isFallback:true};
+        }
+      }
+      return {avg:0, totalKmMasuk:0, totalJam:0, isFresh:false, usedDateLabel:'STRICT - Butuh jam_awal & jam_akhir SiGan ('+uniq3.join(', ')+')', detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:true};
     }
 
     let avg=totalJamPeriod>0?totalKmMasuk/totalJamPeriod:0;
-    avg=Math.min(Math.max(avg,0),60); // cap 60 biar tidak 80, tapi tetap akurat
+    avg=Math.min(Math.max(avg,0),60);
     return {avg, totalKmMasuk, totalJam:totalJamPeriod, isFresh, usedDateLabel, detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:true};
   }catch(e){ console.log('AVG GoRide err',e.message); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
 }
