@@ -1,3 +1,6 @@
+<!-- Lapkeu v1.2 - ACUAN BARU FIX TAB - Insight Strategi Hari Sama - Locked 2026-07-21 -->
+<!-- Lapkeu v1.1 - NAMA SELARAS - lapkeu_* & battlog_* - Migrasi otomatis dari v1.0 - Locked 2026-07-21 - SYNC FIX -->
+<!-- Lapkeu v1.0 - SiGan FIXED SYNC - Field kompatibel Battlog v1.0 (tanggal, km, lokasi_jemput, lokasi_antar, jam_awal, jam_akhir) - Locked 2026-07-21 -->
 <!--
 LOCKED CODE - SiGan Analytics Pro
 Version: V5.22 FIX_JAM_AWAL - RB/F/MT/GK - LOCKED
@@ -74,6 +77,90 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     </style>
 </head>
 <body>
+<script>
+// === MIGRASI OTOMATIS v1.0 -> v1.1 - BATTLOG & LAPKEU STANDARD ===
+(function(){
+  try{
+    const map = {
+      'siganData': 'lapkeuData',
+      'siganShiftData': 'lapkeu_shift',
+      'siganGlobalTarget': 'lapkeu_global_target',
+      'maka_log_v1': 'battlog_log_v1',
+      'maka_log_v1_lokasi_history': 'battlog_lokasi_history',
+      'maka_cross_sigan_goride': 'lapkeu_cross_goride',
+      'maka_cross_sigan_income': 'lapkeu_cross_income',
+      'maka_cross_sigan_km': 'lapkeu_cross_km',
+      'sigan_cross_ev_cost': 'battlog_ev_cost',
+      'maka_cross_summary': 'battlog_summary',
+      'sigan_riwayat_harian': 'battlog_riwayat_harian',
+      'sigan_hub_data': 'lapkeu_hub_data',
+      'sigan_hub_data_from_sigan': 'lapkeu_hub_from_lapkeu',
+      'sigan_hub_last_update': 'lapkeu_hub_last_update',
+      'sigan_last_date': 'lapkeu_last_date',
+      'sigan_universal_sync': 'lapkeu_universal_sync',
+      'sigan_sempurna': 'lapkeu_sempurna',
+      'maka_soh_baseline': 'battlog_soh_baseline',
+      'maka_soh_baseline_is_fallback': 'battlog_soh_baseline_is_fallback',
+      'maka_soh_total_samples': 'battlog_soh_total_samples',
+      'maka_soh_history': 'battlog_soh_history',
+      'maka_bms_history': 'battlog_bms_history',
+      'maka_charger_history': 'battlog_charger_history',
+      'maka_chat_id': 'battlog_chat_id',
+    };
+    for(let oldKey in map){
+      let newKey = map[oldKey];
+      try{
+        if(!localStorage.getItem(newKey) && localStorage.getItem(oldKey)){
+          localStorage.setItem(newKey, localStorage.getItem(oldKey));
+          console.log('[MIGRASI] '+oldKey+' -> '+newKey);
+        }
+      }catch(e){}
+    }
+    // Migrasi isi lake
+    try{
+      let lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
+      if(lakeRaw){
+        let lake = JSON.parse(lakeRaw); let changed=false;
+        if(lake.sigan && !lake.lapkeu){ lake.lapkeu = lake.sigan; changed=true; }
+        if(lake.maka && !lake.battlog){ lake.battlog = lake.maka; changed=true; }
+        // cross keys
+        if(lake.cross){
+          const crossMap = {
+            'siganData': 'lapkeuData',
+            'siganShiftData': 'lapkeu_shift',
+            'siganGlobalTarget': 'lapkeu_global_target',
+            'maka_log_v1': 'battlog_log_v1',
+            'maka_log_v1_lokasi_history': 'battlog_lokasi_history',
+            'maka_cross_sigan_goride': 'lapkeu_cross_goride',
+            'maka_cross_sigan_income': 'lapkeu_cross_income',
+            'maka_cross_sigan_km': 'lapkeu_cross_km',
+            'sigan_cross_ev_cost': 'battlog_ev_cost',
+            'maka_cross_summary': 'battlog_summary',
+            'sigan_riwayat_harian': 'battlog_riwayat_harian',
+            'sigan_hub_data': 'lapkeu_hub_data',
+            'sigan_hub_data_from_sigan': 'lapkeu_hub_from_lapkeu',
+            'sigan_hub_last_update': 'lapkeu_hub_last_update',
+            'sigan_last_date': 'lapkeu_last_date',
+            'sigan_universal_sync': 'lapkeu_universal_sync',
+            'sigan_sempurna': 'lapkeu_sempurna',
+            'maka_soh_baseline': 'battlog_soh_baseline',
+            'maka_soh_baseline_is_fallback': 'battlog_soh_baseline_is_fallback',
+            'maka_soh_total_samples': 'battlog_soh_total_samples',
+            'maka_soh_history': 'battlog_soh_history',
+            'maka_bms_history': 'battlog_bms_history',
+            'maka_charger_history': 'battlog_charger_history',
+            'maka_chat_id': 'battlog_chat_id',
+          };
+          for(let o in crossMap){ if(lake.cross[o] && !lake.cross[crossMap[o]]){ lake.cross[crossMap[o]] = lake.cross[o]; changed=true; } }
+          if(lake.sigan){ for(let o in crossMap){ if(lake.sigan[o] && !lake.sigan[crossMap[o]]){ lake.sigan[crossMap[o]] = lake.sigan[o]; changed=true; } } }
+        }
+        if(changed){ localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake)); console.log('[MIGRASI] Lake migrated'); }
+      }
+    }catch(e){}
+  }catch(e){ console.log('migrasi err',e); }
+})();
+</script>
+
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <div style="font-weight:900; font-size:16px; color:#eaf2ff;">SiGan V5.0 <span style="color:#7dffb7">OCR FULL</span></div>
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -197,8 +284,8 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
         <script>
         function debugShowAll(){
             try{
-                let data=JSON.parse(localStorage.getItem('siganData')||'[]');
-                let shift=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+                let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
+                let shift=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
                 let perDate={};
                 data.forEach(d=>{ perDate[d.date]=(perDate[d.date]||0)+1; });
                 let txt=`Total data: ${data.length} trip\n`;
@@ -222,12 +309,12 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             let date=document.getElementById('globalDate').value;
             if(!date) return alert('Pilih tanggal dulu');
             if(!confirm(`Hapus semua data tanggal ${date}?`)) return;
-            let data=JSON.parse(localStorage.getItem('siganData')||'[]');
+            let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
             let filtered=data.filter(d=>d.date!==date);
-            localStorage.setItem('siganData', JSON.stringify(filtered));
-            let shift=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+            localStorage.setItem('lapkeuData', JSON.stringify(filtered));
+            let shift=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
             delete shift[date];
-            localStorage.setItem('siganShiftData', JSON.stringify(shift));
+            localStorage.setItem('lapkeu_shift', JSON.stringify(shift));
             loadData();
             alert('Data '+date+' dihapus');
         }
@@ -235,12 +322,12 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             if(!confirm('HAPUS SEMUA DATA SIGAN? Ketik OK untuk lanjut')) return;
             let c=prompt('Ketik HAPUS untuk konfirmasi');
             if(c!=='HAPUS') return;
-            localStorage.removeItem('siganData');
-            localStorage.removeItem('siganShiftData');
-            localStorage.removeItem('siganGlobalTarget');
+            localStorage.removeItem('lapkeuData');
+            localStorage.removeItem('lapkeu_shift');
+            localStorage.removeItem('lapkeu_global_target');
             localStorage.removeItem('UNIVERSAL_LAKE_V1');
-            localStorage.removeItem('maka_cross_sigan_income');
-            localStorage.removeItem('maka_cross_sigan_km');
+            localStorage.removeItem('lapkeu_cross_income');
+            localStorage.removeItem('lapkeu_cross_km');
             alert('Semua data dihapus, reload...');
             location.reload();
         }
@@ -378,13 +465,13 @@ function handleDateChange(){
     const t=document.getElementById("globalDate").value;
     if(!t) return;
     try{
-        const shiftData=JSON.parse(localStorage.getItem("siganShiftData")||"{}");
+        const shiftData=JSON.parse(localStorage.getItem("lapkeu_shift")||"{}");
         const dayShift=shiftData[t]||{start:"",end:""};
         const startEl=document.getElementById("globalStartTime");
         const endEl=document.getElementById("globalEndTime");
         if(startEl) startEl.value=dayShift.start||"";
         if(endEl) endEl.value=dayShift.end||"";
-        localStorage.setItem("sigan_last_date", t);
+        localStorage.setItem("lapkeu_last_date", t);
     }catch(e){}
     try{ loadData(); }catch(e){ console.log(e); }
     try{ if(typeof checkOnOffLock==='function') checkOnOffLock(); }catch(e){}
@@ -431,7 +518,7 @@ function updateShiftTime(){
     if(!targetDate) return;
     const startTime=document.getElementById('globalStartTime').value;
     const endTime=document.getElementById('globalEndTime').value;
-    let shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    let shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
     let startAt=parseDateTime(targetDate,startTime);
     let endAt=parseDateTime(targetDate,endTime);
     if(startAt&&endAt&&endAt<=startAt){ endAt.setDate(endAt.getDate()+1); }
@@ -446,7 +533,7 @@ function updateShiftTime(){
             if(shiftData[prev].startAt&&shiftData[prev].endAt&&shiftData[prev].endAt<=shiftData[prev].startAt){
                 let ea=new Date(shiftData[prev].endAt); ea.setDate(ea.getDate()+1); shiftData[prev].endAt=ea.getTime();
             }
-            localStorage.setItem('siganShiftData',JSON.stringify(shiftData));
+            localStorage.setItem('lapkeu_shift',JSON.stringify(shiftData));
             loadData(); return;
         }
     }
@@ -456,7 +543,7 @@ function updateShiftTime(){
     shiftData[targetDate].endAt=endAt?endAt.getTime():null;
     shiftData[targetDate].startDate=targetDate;
     shiftData[targetDate].endDate=endAt?endAt.toLocaleDateString('sv-SE'):targetDate;
-    localStorage.setItem('siganShiftData',JSON.stringify(shiftData));
+    localStorage.setItem('lapkeu_shift',JSON.stringify(shiftData));
     loadData();
 }
 function pressOnBid(){
@@ -465,18 +552,18 @@ function pressOnBid(){
     const targetDate=document.getElementById('globalDate').value;
     if(!targetDate) return alert("Pilih tanggal operasional terlebih dahulu!");
     const now=new Date(); const hh=String(now.getHours()).padStart(2,'0'); const mm=String(now.getMinutes()).padStart(2,'0'); const currentTime=`${hh}:${mm}`;
-    let shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    let shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
     if(!shiftData[targetDate]) shiftData[targetDate]={start:'',end:'',isLocked:false};
     shiftData[targetDate].start=currentTime; shiftData[targetDate].startAt=now.getTime(); shiftData[targetDate].startDate=targetDate;
     document.getElementById('globalStartTime').value=currentTime;
-    localStorage.setItem('siganShiftData',JSON.stringify(shiftData));
+    localStorage.setItem('lapkeu_shift',JSON.stringify(shiftData));
     loadData(); alert(`Mulai On-Bid: ${currentTime}`);
 }
 function updateTarget(){
     let targetVal=Number(document.getElementById('inputTarget').value)||0;
     if(targetVal<0) targetVal=0;
     document.getElementById('inputTarget').value=targetVal;
-    localStorage.setItem('siganGlobalTarget',targetVal);
+    localStorage.setItem('lapkeu_global_target',targetVal);
     loadData();
 }
 
@@ -484,7 +571,7 @@ function updateTarget(){
 function getIstirahatCasForDate(targetDate){
   try{
     let battEntries=[];
-    let raw=localStorage.getItem('maka_log_v1');
+    let raw=localStorage.getItem('battlog_log_v1');
     if(raw){ try{ let arr=JSON.parse(raw); if(Array.isArray(arr)) battEntries=arr; }catch(e){} }
     if(battEntries.length===0){
       let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
@@ -524,7 +611,7 @@ function getEvSpkluCostMap(){
   try{
     let makaLog=null;
     try{ const lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1'); if(lakeRaw){ const lake=JSON.parse(lakeRaw); if(lake?.maka?.maka_log_v1) makaLog=lake.maka.maka_log_v1; } }catch(e){}
-    if(!makaLog){ makaLog=JSON.parse(localStorage.getItem('maka_log_v1')||'[]'); }
+    if(!makaLog){ makaLog=JSON.parse(localStorage.getItem('battlog_log_v1')||'[]'); }
     if(!Array.isArray(makaLog)) return map;
     for(let i=0;i<makaLog.length;i++){ const e=makaLog[i]; if(!isSpkluEv(e)) continue; const tgl=e.tanggal; if(!tgl) continue; const biaya=calcBiayaEv(e); if(biaya>0) map[tgl]=(map[tgl]||0)+biaya; }
   }catch(err){}
@@ -547,16 +634,16 @@ function saveData(){
     if(amount<0) return alert("Nominal tidak boleh negatif!");
     if(amount===0&&dist===0) return alert("Nominal dan Jarak tidak boleh kosong!");
     const entry={ date, time, type, cat, note, dist, amount, predictedEndTime: time, endTime: time, pickup:'', destination:'', idTrans:'', idPrefix:'', source:'manual' };
-    let data=JSON.parse(localStorage.getItem('siganData')||'[]');
+    let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
     if(editIndex!==null){ data[editIndex]=entry; editIndex=null; document.getElementById('btnSubmit').innerText="Rekam Data"; document.getElementById('btnCancelEdit').classList.add('hidden'); } else { data.push(entry); }
     try{
-        localStorage.setItem('siganData',JSON.stringify(data));
+        localStorage.setItem('lapkeuData',JSON.stringify(data));
         document.getElementById('distance').value=''; document.getElementById('amount').value=''; document.getElementById('note').value='';
         isTimeManuallyLocked=false; loadData(); alert("Data berhasil direkam!");
     }catch(e){ alert("Gagal simpan, memori penuh"); }
 }
 function editItem(index){
-    const data=JSON.parse(localStorage.getItem('siganData')||'[]'); const item=data[index]; if(!item) return;
+    const data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); const item=data[index]; if(!item) return;
     editIndex=index; isTimeManuallyLocked=true;
     document.getElementById('globalDate').value=item.date;
     document.getElementById('txTime').value=item.time||'00:00';
@@ -571,13 +658,13 @@ function editItem(index){
     loadData(); switchTab('input');
 }
 function cancelEdit(){ editIndex=null; isTimeManuallyLocked=false; document.getElementById('btnSubmit').innerText="Rekam Data"; document.getElementById('btnCancelEdit').classList.add('hidden'); document.getElementById('distance').value=''; document.getElementById('amount').value=''; document.getElementById('note').value=''; }
-function deleteItem(index){ if(!confirm("Hapus data ini?")) return; let data=JSON.parse(localStorage.getItem('siganData')||'[]'); data.splice(index,1); localStorage.setItem('siganData',JSON.stringify(data)); if(editIndex===index) cancelEdit(); loadData(); }
+function deleteItem(index){ if(!confirm("Hapus data ini?")) return; let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); data.splice(index,1); localStorage.setItem('lapkeuData',JSON.stringify(data)); if(editIndex===index) cancelEdit(); loadData(); }
 function toggleSub(id){ const el=document.getElementById(id); el.classList.toggle('hidden'); }
 
 // ===== Auto Jam Online dari First-Last Order =====
 function updateShiftFromOrders(dateStr){
     try{
-        const allData=JSON.parse(localStorage.getItem('siganData')||'[]');
+        const allData=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
         const orders=allData.filter(x=>x.date===dateStr && x.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
         if(orders.length===0) return;
         const first=orders[0];
@@ -585,7 +672,7 @@ function updateShiftFromOrders(dateStr){
         const startTime=first.time||first.startTime||'';
         const endTime=last.endTime||last.predictedEndTime||last.time||'';
         if(!startTime||!endTime) return;
-        let shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+        let shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
         let startAt=parseDateTime(dateStr,startTime);
         let endAt=parseDateTime(dateStr,endTime);
         if(startAt&&endAt&&endAt<=startAt) endAt.setDate(endAt.getDate()+1);
@@ -597,7 +684,7 @@ function updateShiftFromOrders(dateStr){
         shiftData[dateStr].startDate=dateStr;
         shiftData[dateStr].endDate=endAt?endAt.toLocaleDateString('sv-SE'):dateStr;
         shiftData[dateStr].autoFromOcr=true;
-        localStorage.setItem('siganShiftData',JSON.stringify(shiftData));
+        localStorage.setItem('lapkeu_shift',JSON.stringify(shiftData));
         // update UI if currently viewing same date
         const curDate=document.getElementById('globalDate').value;
         if(curDate===dateStr){
@@ -636,7 +723,7 @@ function getOnlineHoursFromOrders(dateStr, ordersForDay, shiftForDay){
 function loadData(){
     const targetDate=document.getElementById('globalDate').value;
     if(!targetDate) return;
-    let data=JSON.parse(localStorage.getItem('siganData')||'[]');
+    let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
     const container=document.getElementById('historyContainer');
     // SYNC JAM: pastikan shiftData sinkron dari order OCR dulu biar jam debug = jam app
     try{
@@ -648,7 +735,7 @@ function loadData(){
             }
         }
     }catch(e){}
-    let shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    let shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
     let dayShift=shiftData[targetDate]||{start:'',end:''};
     const startEl=document.getElementById('globalStartTime');
     const endEl=document.getElementById('globalEndTime');
@@ -734,7 +821,7 @@ function loadData(){
         }
     }
 
-    const globalTarget=Number(localStorage.getItem('siganGlobalTarget'))||200000;
+    const globalTarget=Number(localStorage.getItem('lapkeu_global_target'))||200000;
     document.getElementById('inputTarget').value=globalTarget;
     let actualPercent=globalTarget>0?Math.round((income/globalTarget)*100):0;
     let barPercent=Math.min(actualPercent,100);
@@ -744,15 +831,125 @@ function loadData(){
 }
 
 // ===== Rekap Presisi V5 =====
+
+// ====== V6 HELPER - STRATEGI HARI SAMA (TIDAK SENTUH KODE LAIN) ======
+function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extractAreaSimple, getDurationInHours, categories){
+    let targetWeekday = anchorDate.getDay();
+    let targetWeekdayName = dayNames[targetWeekday];
+    let historicalSameDay = data.filter(item=>{
+        if(!item.date) return false;
+        if(item.date === targetDateStr) return false;
+        let p=item.date.split('-'); if(p.length!==3) return false;
+        let d=new Date(p[0], p[1]-1, p[2]);
+        return d.getDay() === targetWeekday;
+    });
+
+    if(historicalSameDay.length===0){
+        return `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:12px; padding:14px;">
+            <div style="font-size:13px; font-weight:800; color:#6fb2ff; margin-bottom:6px;">🗓️ Belum Ada Data ${targetWeekdayName} Sebelumnya</div>
+            <div style="font-size:12px; color:#8aa0c6; line-height:1.6;">
+                AI belum bisa nyusun strategi buat hari <strong style="color:#eaf2ff;">${targetWeekdayName}</strong> karena belum ada riwayat ${targetWeekdayName} di masa lalu.<br><br>
+                Gas terus hari ini, biar minggu depan AI udah punya bekal buat kasih tau <em>harus nongkrong dimana & jam berapa enaknya istirahat</em>.
+            </div>
+        </div>`;
+    }
+
+    let hourStats = {}; for(let h=0;h<24;h++) hourStats[h]={income:0, km:0, hours:0, orders:0};
+    let areaStats = {};
+    let serviceStatsSameDay = {}; categories["Pendapatan"].forEach(c=>serviceStatsSameDay[c]={income:0, orders:0, hours:0, km:0});
+    let deadTripsSameDay = {};
+    let byDateMap={};
+    let totalIncomeSameDay=0, totalHoursSameDay=0;
+
+    historicalSameDay.forEach(item=>{ let d=item.date; if(!byDateMap[d]) byDateMap[d]=[]; byDateMap[d].push(item); });
+
+    historicalSameDay.forEach(item=>{
+        if(item.type!=='Pendapatan') return;
+        let amt=Number(item.amount)||0;
+        let km=Number(item.dist)||0;
+        let t=item.time||'00:00';
+        let h=parseInt(t.split(':')[0])||0;
+        let dur=getDurationInHours(item.time||'', item.endTime||item.predictedEndTime||item.time||'');
+        if(dur===0 && km>0) dur=km*2/60;
+        if(dur===0) dur=0.25;
+        if(dur<0 || dur>5) dur=0.3;
+        if(!hourStats[h]) hourStats[h]={income:0, km:0, hours:0, orders:0};
+        hourStats[h].income+=amt; hourStats[h].km+=km; hourStats[h].hours+=dur; hourStats[h].orders+=1;
+        totalIncomeSameDay+=amt; totalHoursSameDay+=dur;
+        let area = (typeof extractAreaSimple==='function'? extractAreaSimple(item.pickup||'') : (item.pickup||'').substring(0,20)) || 'Unknown';
+        if(!areaStats[area]) areaStats[area]={income:0, orders:0, hours:0};
+        areaStats[area].income+=amt; areaStats[area].orders+=1; areaStats[area].hours+=dur;
+        let cat=item.cat||'Goride';
+        if(!serviceStatsSameDay[cat]) serviceStatsSameDay[cat]={income:0, orders:0, hours:0, km:0};
+        serviceStatsSameDay[cat].income+=amt; serviceStatsSameDay[cat].orders+=1; serviceStatsSameDay[cat].hours+=dur; serviceStatsSameDay[cat].km+=km;
+    });
+
+    Object.values(byDateMap).forEach(dayOrders=>{
+        let sorted=dayOrders.filter(o=>o.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+        for(let i=0;i<sorted.length-1;i++){
+            let prev=sorted[i], next=sorted[i+1];
+            let gap=getDurationInHours(prev.endTime||prev.time, next.time);
+            if(gap>0.25){
+                let key=(prev.destination||prev.pickup||'').substring(0,18)+' → '+(next.pickup||'').substring(0,18);
+                if(!deadTripsSameDay[key]) deadTripsSameDay[key]={totalGap:0, count:0};
+                deadTripsSameDay[key].totalGap+=gap; deadTripsSameDay[key].count+=1;
+            }
+        }
+    });
+
+    let hoursRanked = Object.entries(hourStats).map(([h,s])=>({h:parseInt(h), ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
+    let areasRanked = Object.entries(areaStats).map(([area,s])=>({area, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).sort((a,b)=>b.rpPerJam-a.rpPerJam);
+    let servicesRanked = Object.entries(serviceStatsSameDay).map(([cat,s])=>({cat, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
+
+    let bestHour = hoursRanked[0];
+    let worstHour = hoursRanked.length>0? hoursRanked[hoursRanked.length-1] : null;
+    let bestArea = areasRanked[0];
+    let worstArea = areasRanked.length>1? areasRanked[areasRanked.length-1] : null;
+
+    let aiHtml = `<div style="background:linear-gradient(135deg,#111d35 0%,#0f1f36 100%); border:1px solid #1e2d4a; border-radius:12px; padding:14px;">`;
+    aiHtml+=`<div style="font-size:12px; font-weight:800; color:#7dffb7; margin-bottom:10px; letter-spacing:0.5px;">🎯 STRATEGI HARI INI - ${targetWeekdayName.toUpperCase()} (berdasarkan ${historicalSameDay.length} order ${targetWeekdayName} lalu)</div>`;
+
+    if(bestArea){
+        aiHtml+=`<div style="margin-bottom:10px;"><span style="font-size:11px; font-weight:700; color:#2b8cff; background:rgba(43,140,255,0.15); padding:3px 8px; border-radius:999px;">📍 HARUS NONGKRONG DIMANA</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">Historis <strong>${targetWeekdayName}</strong>, area <strong style="color:#7dffb7;">${bestArea.area}</strong> paling gurih: <strong>${bestArea.orders}x order</strong>, avg <strong>Rp ${Math.round(bestArea.rpPerJam).toLocaleString('id-ID')}/jam</strong>. ${areasRanked[1]?`Runner up: <strong>${areasRanked[1].area}</strong> (${Math.round(areasRanked[1].rpPerJam).toLocaleString('id-ID')}/jam).`:''}<br><span style="color:#8aa0c6; font-size:11px;">Jangan kelamaan di ${worstArea?worstArea.area:'area sepi'}, data ${targetWeekdayName} lalu cuma ${worstArea?Math.round(worstArea.rpPerJam).toLocaleString('id-ID')+'/jam':''}.</span></div></div>`;
+    }
+    if(bestHour){
+        let worstText = worstHour? `Jam <strong>${String(worstHour.h).padStart(2,'0')}:00</strong> (${Math.round(worstHour.rpPerJam).toLocaleString('id-ID')}/jam, ${worstHour.orders} order) paling boncos, mending buat istirahat/sholat/makan.` : '';
+        aiHtml+=`<div style="margin-bottom:10px;"><span style="font-size:11px; font-weight:700; color:#ffcc66; background:rgba(255,204,102,0.15); padding:3px 8px; border-radius:999px;">⏰ JAM CUAN vs JAM ISTIRAHAT</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">Jam emas ${targetWeekdayName}: <strong style="color:#00e676;">${String(bestHour.h).padStart(2,'0')}:00 - ${String(bestHour.h+1).padStart(2,'0')}:00</strong> tembus <strong>Rp ${Math.round(bestHour.rpPerJam).toLocaleString('id-ID')}/jam</strong> (${bestHour.orders} order).<br>${worstText}</div></div>`;
+    }
+    if(servicesRanked.length>0){
+        let bestServ = servicesRanked[0];
+        let servDetail = servicesRanked.map(s=>`${s.cat} ${Math.round(s.rpPerJam).toLocaleString('id-ID')}/jam`).join(' • ');
+        aiHtml+=`<div style="margin-bottom:10px;"><span style="font-size:11px; font-weight:700; color:#00e676; background:rgba(0,230,118,0.15); padding:3px 8px; border-radius:999px;">🏍️ FOKUS LAYANAN</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">${targetWeekdayName} kemarin-kemarin, <strong>${bestServ.cat}</strong> rajanya: <strong>Rp ${Math.round(bestServ.rpPerJam).toLocaleString('id-ID')}/jam</strong> (${bestServ.orders} order).<br><span style="color:#8aa0c6; font-size:11px;">Urutan cuan: ${servDetail}</span></div></div>`;
+    }
+    let deadEntries = Object.entries(deadTripsSameDay).sort((a,b)=>b[1].count-a[1].count).slice(0,2);
+    if(deadEntries.length>0){
+        aiHtml+=`<div style="margin-bottom:10px;"><span style="font-size:11px; font-weight:700; color:#ff8a80; background:rgba(255,138,128,0.15); padding:3px 8px; border-radius:999px;">🚫 JANGAN DIULANG</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">`;
+        deadEntries.forEach(([k,v])=>{
+            aiHtml+=`Setelah drop di <strong>${k.split(' → ')[0]}</strong> kamu kosong <strong>${Math.round(v.totalGap/v.count*60)} menit</strong> baru dapet lagi di <strong>${k.split(' → ')[1]}</strong> (${v.count}x kejadian ${targetWeekdayName}).<br>`;
+        });
+        aiHtml+=`<span style="color:#8aa0c6; font-size:11px;">Solusi: abis drop di situ langsung geser ke ${bestArea?bestArea.area:'titik rame'} jangan nungguin.</span></div></div>`;
+    }
+    let totalAvgSameDay = totalHoursSameDay>0? totalIncomeSameDay/totalHoursSameDay : 0;
+    aiHtml+=`<div style="margin-top:12px; padding-top:10px; border-top:1px dashed #1e2d4a;"><span style="font-size:11px; font-weight:800; color:#7dffb7;">💡 TAKTIK HARI INI:</span><div style="font-size:12.5px; color:#dbe8ff; margin-top:4px; line-height:1.7;">`;
+    aiHtml+=`Bos, hari ini <strong>${targetWeekdayName}</strong>. Data ${historicalSameDay.length} order ${targetWeekdayName} lalu bilang: rata-rata ${targetWeekdayName} bisa <strong>Rp ${Math.round(totalAvgSameDay).toLocaleString('id-ID')}/jam</strong>. `;
+    if(bestHour && bestArea) aiHtml+=`Kunci: jam <strong>${String(bestHour.h).padStart(2,'0')}:00-an</strong> standby di <strong>${bestArea.area}</strong>, `;
+    if(servicesRanked[0]) aiHtml+=`utamain <strong>${servicesRanked[0].cat}</strong>. `;
+    if(worstHour) aiHtml+=`Jam <strong>${String(worstHour.h).padStart(2,'0')}:00</strong> kalau sepi jangan dipaksa, mending off bentar, cas baterai & badan.`;
+    aiHtml+=`</div></div>`;
+    aiHtml+=`</div>`;
+    return aiHtml;
+}
+
+
 function loadRekapData(){
     const period=document.getElementById('rekapPeriod').value;
-    const data=JSON.parse(localStorage.getItem('siganData')||'[]');
-    const shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    const data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
+    const shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
     let targetDateStr=document.getElementById('globalDate').value;
     if(!targetDateStr) return;
     // FIX: jika ada data di masa depan (seperti 11 Juli 2026), anchor pakai tanggal terbaru biar rekap tidak kosong
     try{
-        let allDataForAnchor=JSON.parse(localStorage.getItem('siganData')||'[]');
+        let allDataForAnchor=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
         let maxDateStr=allDataForAnchor.map(d=>d.date).filter(Boolean).sort().reverse()[0];
         if(maxDateStr && maxDateStr > targetDateStr){
             // jika max date lebih baru dari globalDate dan selisih < 90 hari, pakai max date sebagai anchor
@@ -941,7 +1138,7 @@ function loadRekapData(){
                 if(lake?.maka?.maka_log_v1) rawBatt=JSON.stringify(lake.maka.maka_log_v1);
             }
         }catch(_){}
-        if(!rawBatt) rawBatt=localStorage.getItem('maka_log_v1');
+        if(!rawBatt) rawBatt=localStorage.getItem('battlog_log_v1');
         if(rawBatt){
             let arr=JSON.parse(rawBatt);
             if(Array.isArray(arr) && arr.length>0){
@@ -1012,7 +1209,7 @@ function loadRekapData(){
         }
         // Cek juga kalau battlog punya ringkasan khusus avg speed terpisah
         try{
-            let summaryRaw = localStorage.getItem('maka_cross_summary') || localStorage.getItem('battlog_avg_speed');
+            let summaryRaw = localStorage.getItem('battlog_summary') || localStorage.getItem('battlog_avg_speed');
             if(summaryRaw){
                 let sumObj=JSON.parse(summaryRaw);
                 let avgFromSummary = sumObj.avg_speed ?? sumObj.kecepatan_rata ?? sumObj.avg_km_per_jam ?? sumObj.speed;
@@ -1203,69 +1400,25 @@ function loadRekapData(){
         daysContainer.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label"><span>${d.name} <span style="font-size:10px; color:var(--muted);">(Net: Rp ${d.net.toLocaleString('id-ID')})</span></span><span style="color:${barColor}; font-weight:bold;">Rp ${d.rpPerHour.toLocaleString('id-ID')}/jam</span></div><div class="breakdown-bg"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div><div style="font-size:9px; color:#777; margin-top:2px; text-align:right;">Total: ${d.hours.toFixed(1)} Jam</div></div>`;
     });
 
-    // Insight V5 presisi + No.5 Dead Trip
+    // ===== INSIGHT PRESISI V6 - STRATEGI HARI SAMA (TIDAK SENTUH KODE LAIN, HANYA PANGGIL HELPER) =====
     const insightContainer=document.getElementById('rekapInsightContainer'); insightContainer.innerHTML="";
-    if(totalIncome===0){ insightContainer.innerHTML=`<div style="color:var(--muted); font-style:italic; font-size:12px;">Belum ada data.</div>`; }
-    else {
-        let aiInsights=[];
-        if(avgRpPerHourPeriod>0){
-            if(avgRpPerHourPeriod>=35000) aiInsights.push("🔥 <strong>Efisiensi Puncak:</strong> Rp/jam di atas 35rb, jam online first-last sangat efisien.");
-            else if(avgRpPerHourPeriod>=20000) aiInsights.push("🔄 <strong>Standar:</strong> Ada jeda kosong antar order pertama-terakhir, cek dead time.");
-            else aiInsights.push("⚠️ <strong>Jam Online Boros:</strong> Jarak first-last panjang tapi netto tipis, kurangi nongkrong kosong.");
+    if(totalIncome===0){ 
+        insightContainer.innerHTML=`<div style="color:var(--muted); font-style:italic; font-size:12px;">Belum ada data.</div>`; 
+    } else {
+        try{
+            insightContainer.innerHTML = buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extractAreaSimple, getDurationInHours, categories);
+        }catch(e){
+            console.log('Insight V6 error', e);
+            insightContainer.innerHTML=`<div style="color:#ff8a80; font-size:12px;">AI strategi error: ${e.message}</div>`;
         }
-        let bestBlock=hourlyBlocks[0]; let maxAvg=0; hourlyBlocks.forEach(b=>{ let avg=b.hours>0?b.net/b.hours:0; if(avg>maxAvg){ maxAvg=avg; bestBlock=b; } });
-        if(maxAvg>0) aiInsights.push(`⏰ <strong>Zona Emas:</strong> <strong>${bestBlock.label}</strong> paling gurih ${bestBlock.orderCount} order, Rp ${Math.round(maxAvg).toLocaleString('id-ID')}/jam.`);
-        
-        // No.5 Dead Trip Analysis
-        let deadTrips=[];
-        for(let dStr in dailyAgg){
-            let orders=dailyAgg[dStr].orders.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-            for(let i=0;i<orders.length-1;i++){
-                let prev=orders[i]; let next=orders[i+1];
-                let gap=getDurationInHours(prev.endTime||prev.time, next.time);
-                if(gap>0.25){ // >15 menit kosong
-                    let fromArea=extractAreaSimple(prev.destination||prev.pickup||'');
-                    let toArea=extractAreaSimple(next.pickup||'');
-                    if(fromArea && toArea && fromArea!==toArea){
-                        deadTrips.push({from:fromArea, to:toArea, gap:gap, date:dStr});
-                    }
-                }
-            }
-        }
-        // group dead trips
-        let deadMap={};
-        deadTrips.forEach(dt=>{
-            let key=`${dt.from} → ${dt.to}`;
-            if(!deadMap[key]) deadMap[key]={count:0, totalGap:0, examples:[]};
-            deadMap[key].count++;
-            deadMap[key].totalGap+=dt.gap;
-            if(deadMap[key].examples.length<2) deadMap[key].examples.push(dt);
-        });
-        let sortedDead=Object.entries(deadMap).sort((a,b)=>b[1].count-a[1].count).slice(0,3);
-        if(sortedDead.length>0){
-            sortedDead.forEach(([key, val])=>{
-                let avgGap=Math.round((val.totalGap/val.count)*60);
-                aiInsights.push(`🚫 <strong>Dead Trip:</strong> Setelah ngedrop di <strong>${key.split(' → ')[0]}</strong> kamu kosong <strong>${avgGap} menit</strong> sebelum dapet di <strong>${key.split(' → ')[1]}</strong> (${val.count}x kejadian). Jangan lama-lama nongkrong di ${key.split(' → ')[0]}!`);
-            });
-        } else if(deadTrips.length===0 && Object.keys(dailyAgg).length>0){
-            aiInsights.push(`✅ <strong>Order Nyambung:</strong> Tidak ada dead trip >15 menit terdeteksi, rute kamu efisien!`);
-        }
-
-        let pGoride=((incomeByCat["Goride"]||0))/totalIncome; let pGofood=(incomeByCat["Gofood"]||0)/totalIncome; 
-        if(pGoride>=0.25) aiInsights.push(`🏍️ <strong>Goride RB (${Math.round(pGoride*100)}%):</strong> Dominan, cek alamat untuk hindari macet.`);
-        if(pGofood>=0.25) aiInsights.push(`🍔 <strong>Gofood F (${Math.round(pGofood*100)}%):</strong> Cek waiting time di Profitabilitas, resto dengan waiting >15m skip.`);
-        let totalEv=0; for(let k in evSpkluMap){ const pp=k.split('-'); const dd=new Date(pp[0],pp[1]-1,pp[2]); dd.setHours(0,0,0,0); if(dd>=cutoffDate&&dd<=anchorDate) totalEv+=evSpkluMap[k]; }
-        if(totalEv>0){ let avgEv=totalKm>0?Math.round(totalEv/totalKm):0; aiInsights.push(`⚡ <strong>Biaya SPKLU:</strong> Rp ${Math.round(totalEv).toLocaleString('id-ID')} (${avgEv>0?'Rp '+avgEv+'/km':''})`); }
-        let htmlInsight=`<ul style="margin:0; padding-left:18px; font-size:12.5px; color:#e0e0e0; line-height:1.6; display:flex; flex-direction:column; gap:10px;">`;
-        aiInsights.forEach(s=>{ htmlInsight+=`<li>${s}</li>`; }); htmlInsight+=`</ul>`;
-        insightContainer.innerHTML=htmlInsight;
     }
 }
 
-function exportToCSV(){
-    const data=JSON.parse(localStorage.getItem('siganData')||'[]');
+function exportToCSV()
+{
+    const data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
     if(data.length===0) return alert("Belum ada data!");
-    const shiftData=JSON.parse(localStorage.getItem('siganShiftData')||'{}');
+    const shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
     let csvContent="Tanggal;Jam Awal;Jam Akhir;Tipe;Kategori;ID Transaksi;ID Prefix;Jarak KM;Nominal;Alamat Jemput;Alamat Tujuan;Jam Mulai Shift;Jam Selesai Shift;Keterangan;Source\n";
     data.forEach(item=>{
         const dayShift=shiftData[item.date]||{start:'',end:''};
@@ -1279,7 +1432,7 @@ function exportToCSV(){
 window.onload=function(){
     const today=new Date().toLocaleDateString('sv-SE');
     document.getElementById('globalDate').value=today;
-    if(!localStorage.getItem('siganGlobalTarget')) localStorage.setItem('siganGlobalTarget',200000);
+    if(!localStorage.getItem('lapkeu_global_target')) localStorage.setItem('lapkeu_global_target',200000);
     startLiveClock(); updateCategories(); loadData(); checkOnOffLock();
 };
 </script>
@@ -1441,7 +1594,7 @@ window.onload=function(){
   function isDuplicateById(idTrans){
     if(!idTrans) return false;
     try{
-      let data=JSON.parse(localStorage.getItem('siganData')||'[]');
+      let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
       idTrans=idTrans.toUpperCase();
       for(let e of data){
         if(e.idTrans && e.idTrans.toUpperCase()===idTrans) return true;
@@ -1522,7 +1675,7 @@ window.onload=function(){
       perDateCount[p.date]=(perDateCount[p.date]||0)+1;
     }
     if(unique.length){
-      let siganData=JSON.parse(localStorage.getItem('siganData')||'[]');
+      let siganData=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
       let saved=0; let datesAffected=new Set();
       for(let p of unique){
         let entry={
@@ -1554,7 +1707,7 @@ window.onload=function(){
         siganData.push(entry);
         saved++; datesAffected.add(entry.date);
       }
-      localStorage.setItem('siganData', JSON.stringify(siganData));
+      localStorage.setItem('lapkeuData', JSON.stringify(siganData));
       datesAffected.forEach(d=>{ if(window.updateShiftFromOrders) window.updateShiftFromOrders(d); });
       let perDateTxt=Object.entries(perDateCount).map(([d,c])=>d+': '+c+' trip').join(', ');
       statusEl.innerHTML+='<br><br>✅ <strong>'+saved+' trip tercatat!</strong><br>📅 '+perDateTxt+'<br>Kalender auto pindah ke tanggal terbaru.';
@@ -1579,12 +1732,12 @@ window.onload=function(){
 <!-- Sync Lake (tetap) -->
 <script>
 (function(){
-  var KEYS_SIGAN=['siganData','siganShiftData','siganGlobalTarget'];
-  var KEYS_MAKA=['maka_log_v1','maka_bms_history','maka_soh_history','factory_cap_kwh','factory_range_km','maka_soh_baseline','maka_soh_baseline_is_fallback','maka_soh_total_samples','maka_log_v1_lokasi_history','maka_charger_history','universal_custom_v','universal_custom_ah','maka_chat_id','sigan_hub_data','sigan_riwayat_harian','sigan_cross_ev_cost','maka_cross_summary'];
+  var KEYS_SIGAN=['lapkeuData','lapkeu_shift','lapkeu_global_target'];
+  var KEYS_MAKA=['battlog_log_v1','battlog_bms_history','battlog_soh_history','factory_cap_kwh','factory_range_km','battlog_soh_baseline','battlog_soh_baseline_is_fallback','battlog_soh_total_samples','battlog_lokasi_history','battlog_charger_history','universal_custom_v','universal_custom_ah','battlog_chat_id','lapkeu_hub_data','battlog_riwayat_harian','battlog_ev_cost','battlog_summary'];
   var LAKE_KEY='UNIVERSAL_LAKE_V1';
   function safeParse(k){ try{ var v=localStorage.getItem(k); if(v==null) return null; try{ return JSON.parse(v); }catch(e){ return v; } }catch(e){ return null; } }
   function getExistingLake(){ try{ var raw=localStorage.getItem(LAKE_KEY); if(!raw) return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; var obj=JSON.parse(raw); obj.sigan=obj.sigan||{}; obj.maka=obj.maka||{}; obj.cross=obj.cross||{}; obj._sources=obj._sources||{}; return obj; }catch(e){ return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; } }
-  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); }catch(e){}
+  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('lapkeu_universal_sync'); }catch(e){}
   function parseTimeToMinutes(t){
     try{
       if(!t) return null;
@@ -1618,7 +1771,7 @@ window.onload=function(){
       var lake=getExistingLake();
       for(var i=0;i<KEYS_SIGAN.length;i++){ var v=safeParse(KEYS_SIGAN[i]); if(v!==null) lake.sigan[KEYS_SIGAN[i]]=v; }
       for(var i=0;i<KEYS_MAKA.length;i++){ var v2=safeParse(KEYS_MAKA[i]); if(v2!==null) lake.maka[KEYS_MAKA[i]]=v2; }
-      var siganData=safeParse('siganData')||[]; 
+      var siganData=safeParse('lapkeuData')||[]; 
       var fixedCount=0;
       // MIGRASI: perbaiki data lama yang jam_akhir kosong / sama dengan jam_awal
       for(var k=0;k<siganData.length;k++){
@@ -1659,7 +1812,7 @@ window.onload=function(){
         if(!it.time && jamAwal) it.time=jamAwal;
       }
       if(fixedCount>0){
-        try{ localStorage.setItem('siganData', JSON.stringify(siganData)); lake.sigan['siganData']=siganData; }catch(e){}
+        try{ localStorage.setItem('lapkeuData', JSON.stringify(siganData)); lake.sigan['lapkeuData']=siganData; }catch(e){}
         try{ console.log('[SiGan] Auto-fix jam akhir Goride:', fixedCount, 'trip'); }catch(_){}
       }
       var incomeMap={}, kmMap={}, gorideOrders=[];
@@ -1728,33 +1881,33 @@ window.onload=function(){
         } 
       }
       try{
-        localStorage.setItem('maka_cross_sigan_income', JSON.stringify(incomeMap));
-        localStorage.setItem('maka_cross_sigan_km', JSON.stringify(kmMap));
-        localStorage.setItem('maka_cross_sigan_goride', JSON.stringify(gorideOrders));
-        localStorage.setItem('sigan_hub_last_update', String(Date.now()));
+        localStorage.setItem('lapkeu_cross_income', JSON.stringify(incomeMap));
+        localStorage.setItem('lapkeu_cross_km', JSON.stringify(kmMap));
+        localStorage.setItem('lapkeu_cross_goride', JSON.stringify(gorideOrders));
+        localStorage.setItem('lapkeu_hub_last_update', String(Date.now()));
         // simpan juga di lake.sigan.siganData yang sudah difix biar battlog baca langsung
-        lake.sigan['siganData']=siganData;
-        lake.cross['maka_cross_sigan_income']=incomeMap; 
-        lake.cross['maka_cross_sigan_km']=kmMap;
-        lake.cross['maka_cross_sigan_goride']=gorideOrders;
-        lake.cross['sigan_hub_data_from_sigan']={siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,gorideOrders:gorideOrders,ts:Date.now()};
+        lake.sigan['lapkeuData']=siganData;
+        lake.cross['lapkeu_cross_income']=incomeMap; 
+        lake.cross['lapkeu_cross_km']=kmMap;
+        lake.cross['lapkeu_cross_goride']=gorideOrders;
+        lake.cross['lapkeu_hub_from_lapkeu']={siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,gorideOrders:gorideOrders,ts:Date.now()};
       }catch(e){}
-      var biayaEv=safeParse('sigan_cross_ev_cost'); var summaryEv=safeParse('maka_cross_summary'); if(biayaEv) lake.cross['sigan_cross_ev_cost']=biayaEv; if(summaryEv) lake.cross['maka_cross_summary']=summaryEv;
-      var riwayatEv=safeParse('sigan_riwayat_harian'); if(riwayatEv) lake.cross['sigan_riwayat_harian']=riwayatEv;
-      try{ localStorage.setItem('sigan_hub_data_from_sigan', JSON.stringify({siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()})); }catch(e){}
-      lake._updated=Date.now(); lake._sources['sigan_sempurna']=Date.now(); lake._source=Object.keys(lake._sources).join('+');
+      var biayaEv=safeParse('battlog_ev_cost'); var summaryEv=safeParse('battlog_summary'); if(biayaEv) lake.cross['battlog_ev_cost']=biayaEv; if(summaryEv) lake.cross['battlog_summary']=summaryEv;
+      var riwayatEv=safeParse('battlog_riwayat_harian'); if(riwayatEv) lake.cross['battlog_riwayat_harian']=riwayatEv;
+      try{ localStorage.setItem('lapkeu_hub_from_lapkeu', JSON.stringify({siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()})); }catch(e){}
+      lake._updated=Date.now(); lake._sources['lapkeu_sempurna']=Date.now(); lake._source=Object.keys(lake._sources).join('+');
       try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
       try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update',from:'sigan',ts:Date.now()}); }catch(e){}
     }catch(e){ console.log('SiGan Sender error', e.message); }
   }
-  function bacaDataEvLog(){ try{ var lake=safeParse(LAKE_KEY)||{}; var riwayatEv=safeParse('sigan_riwayat_harian')||(lake.cross&&lake.cross.sigan_riwayat_harian)||[]; var biayaEv=safeParse('sigan_cross_ev_cost')||(lake.cross&&lake.cross.sigan_cross_ev_cost)||{}; var summaryEv=safeParse('maka_cross_summary')||(lake.cross&&lake.cross.maka_cross_summary)||{}; var hubData=safeParse('sigan_hub_data')||(lake.cross&&lake.cross.sigan_hub_data)||{}; window.__CROSS_EV_RIWAYAT=riwayatEv; window.__CROSS_EV_COST_MAP=biayaEv; window.__CROSS_EV_SUMMARY=summaryEv; window.__CROSS_EV_HUB=hubData; window.__CROSS_EV_LAKE=lake; window.__CROSS_EV_LAST_UPDATE=localStorage.getItem('sigan_hub_last_update'); return {riwayat:riwayatEv,biaya:biayaEv,summary:summaryEv}; }catch(e){ return null; } }
+  function bacaDataEvLog(){ try{ var lake=safeParse(LAKE_KEY)||{}; var riwayatEv=safeParse('battlog_riwayat_harian')||(lake.cross&&lake.cross.sigan_riwayat_harian)||[]; var biayaEv=safeParse('battlog_ev_cost')||(lake.cross&&lake.cross.sigan_cross_ev_cost)||{}; var summaryEv=safeParse('battlog_summary')||(lake.cross&&lake.cross.maka_cross_summary)||{}; var hubData=safeParse('lapkeu_hub_data')||(lake.cross&&lake.cross.sigan_hub_data)||{}; window.__CROSS_EV_RIWAYAT=riwayatEv; window.__CROSS_EV_COST_MAP=biayaEv; window.__CROSS_EV_SUMMARY=summaryEv; window.__CROSS_EV_HUB=hubData; window.__CROSS_EV_LAKE=lake; window.__CROSS_EV_LAST_UPDATE=localStorage.getItem('lapkeu_hub_last_update'); return {riwayat:riwayatEv,biaya:biayaEv,summary:summaryEv}; }catch(e){ return null; } }
   function hookSiGan(){
     if(window.saveData&&!window.saveData.__hooked){ var origSave=window.saveData; window.saveData=function(){ var res=origSave.apply(this,arguments); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },200); return res; }; window.saveData.__hooked=true; }
     if(window.deleteItem&&!window.deleteItem.__hooked){ var origDel=window.deleteItem; window.deleteItem=function(){ var res=origDel.apply(this,arguments); setTimeout(buildAndSendSiGan,200); return res; }; window.deleteItem.__hooked=true; }
     if(window.updateShiftTime&&!window.updateShiftTime.__hooked){ var origShift=window.updateShiftTime; window.updateShiftTime=function(){ var res=origShift.apply(this,arguments); setTimeout(buildAndSendSiGan,200); return res; }; window.updateShiftTime.__hooked=true; }
   }
-  window.addEventListener('storage',function(e){ if(!e) return; if(e.key==='sigan_riwayat_harian'||e.key==='sigan_cross_ev_cost'||e.key==='sigan_hub_last_update'||e.key==='UNIVERSAL_LAKE_V1'||e.key==='sigan_hub_data'){ setTimeout(bacaDataEvLog,100); } });
-  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('sigan_universal_sync'); window.__siganBC.onmessage=function(ev){ if(ev.data&&ev.data.type==='lake_update'&&ev.data.from==='maka'){ setTimeout(bacaDataEvLog,80); } }; }catch(e){}
+  window.addEventListener('storage',function(e){ if(!e) return; if(e.key==='battlog_riwayat_harian'||e.key==='battlog_ev_cost'||e.key==='lapkeu_hub_last_update'||e.key==='UNIVERSAL_LAKE_V1'||e.key==='lapkeu_hub_data'){ setTimeout(bacaDataEvLog,100); } });
+  try{ window.__siganBC=window.__siganBC||new BroadcastChannel('lapkeu_universal_sync'); window.__siganBC.onmessage=function(ev){ if(ev.data&&ev.data.type==='lake_update'&&ev.data.from==='maka'){ setTimeout(bacaDataEvLog,80); } }; }catch(e){}
   setTimeout(hookSiGan,600); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },1000); setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); },60000);
   window.kirimSiGanKeEvLog=buildAndSendSiGan; window.bacaDataEvLog=bacaDataEvLog; window.getUniversalLake=window.getUniversalLake||function(){ try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; } }; console.log('SiGan V5 Receiver+Sender aktif: MERGE mode + OCR FULL');
 })();
@@ -1765,13 +1918,13 @@ window.onload=function(){
   function fmt(t){ if(!t) return ""; var d=new Date(t); return d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
   function cek(){
     var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); var tm=document.getElementById('sigan-sync-time');
-    if(!dot||!txt) return; var last=parseInt(localStorage.getItem('sigan_hub_last_update')||'0'); var diff=Date.now()-last; var hasLake=!!localStorage.getItem('UNIVERSAL_LAKE_V1');
+    if(!dot||!txt) return; var last=parseInt(localStorage.getItem('lapkeu_hub_last_update')||'0'); var diff=Date.now()-last; var hasLake=!!localStorage.getItem('UNIVERSAL_LAKE_V1');
     if(hasLake && diff<8000){ dot.classList.add('active'); dot.style.background='#00e676'; txt.textContent='AUTO-SYNC AKTIF'; txt.style.color='#00e676'; if(tm) tm.textContent='update '+fmt(last); }
     else if(hasLake){ dot.style.background='#7dffb7'; txt.textContent='TERHUBUNG'; txt.style.color='#7dffb7'; if(tm) tm.textContent='last '+fmt(last); }
     else { dot.style.background='#555'; txt.textContent='SYNC STANDBY'; txt.style.color='#aaaaaa'; if(tm) tm.textContent=''; }
   }
   setInterval(cek,3000); setTimeout(cek,800);
-  window.addEventListener('storage', function(e){ if(e.key==='sigan_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1'){ var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); if(dot){ dot.style.background='#00e676'; txt.textContent='BERTUKAR DATA...'; setTimeout(cek,1300); } } });
+  window.addEventListener('storage', function(e){ if(e.key==='lapkeu_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1'){ var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); if(dot){ dot.style.background='#00e676'; txt.textContent='BERTUKAR DATA...'; setTimeout(cek,1300); } } });
 })();
 </script>
 
