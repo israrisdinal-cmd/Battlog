@@ -924,15 +924,23 @@ function loadRekapData(){
         });
     }
 
-    // ===== Hitung Kecepatan Dinamis dari Data Sigan + BattLog =====
-    // Goride = patokan kecepatan murni kota (tanpa nunggu resto)
-    let gorideData=serviceRates["Goride"];
-    let overallProdHours=Object.values(serviceRates).reduce((s,r)=>s+r.hours,0);
-    let overallProdKm=Object.values(serviceRates).reduce((s,r)=>s+r.km,0);
-    // Cek battlog: ada data jarak dari Maka log? Jika ada, pakai sebagai koreksi
+    // ===== Hitung Kecepatan Dinamis MURNI dari BattLog (koreksi user) =====
+    // Sekarang AVG km/jam diambil 100% dari battlog, tidak diolah blend Sigan lagi
     let battLogKm=0;
+    let battLogHours=0;
+    let battLogSpeedSum=0;
+    let battLogSpeedCount=0;
+    let battLogRawEntries=0;
     try{
-        let rawBatt=localStorage.getItem('maka_log_v1');
+        let rawBatt=null;
+        try{
+            let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+            if(lakeRaw){
+                let lake=JSON.parse(lakeRaw);
+                if(lake?.maka?.maka_log_v1) rawBatt=JSON.stringify(lake.maka.maka_log_v1);
+            }
+        }catch(_){}
+        if(!rawBatt) rawBatt=localStorage.getItem('maka_log_v1');
         if(rawBatt){
             let arr=JSON.parse(rawBatt);
             if(Array.isArray(arr)){
@@ -940,9 +948,31 @@ function loadRekapData(){
                     try{
                         if(!e.tanggal) return;
                         const p=e.tanggal.split('-'); const d=new Date(p[0],p[1]-1,p[2]); d.setHours(0,0,0,0);
-                        if(d>=cutoffDate && d<=anchorDate){
-                            if(e.jarak_km) battLogKm+=Number(e.jarak_km)||0;
-                            else if(e.km) battLogKm+=Number(e.km)||0;
+                        if(!(d>=cutoffDate && d<=anchorDate)) return;
+                        battLogRawEntries++;
+                        let kmVal=0;
+                        if(e.jarak_km!=null) kmVal=Number(e.jarak_km)||0;
+                        else if(e.km!=null) kmVal=Number(e.km)||0;
+                        if(kmVal>0) battLogKm+=kmVal;
+
+                        // Cek apakah battlog sudah punya kecepatan jadi (jangan diolah lagi)
+                        let directSpeed=e.kecepatan_rata ?? e.avg_speed ?? e.avg_km_per_jam ?? e.kecepatan ?? e.speed ?? e.avg_speed_kmh;
+                        if(directSpeed!=null && Number(directSpeed)>0){
+                            battLogSpeedSum+=Number(directSpeed);
+                            battLogSpeedCount++;
+                        } else {
+                            // Kalau tidak ada speed jadi, coba hitung durasi dari field trip battlog
+                            let dur=0;
+                            if(e.durasi_jam!=null) dur=Number(e.durasi_jam)||0;
+                            else if(e.durasi_menit!=null) dur=(Number(e.durasi_menit)||0)/60;
+                            else if(e.waktu_tempuh_menit!=null) dur=(Number(e.waktu_tempuh_menit)||0)/60;
+                            else if(e.lama_jalan_menit!=null) dur=(Number(e.lama_jalan_menit)||0)/60;
+                            else if(e.jam_mulai_jalan && e.jam_selesai_jalan){
+                                try{ dur=getDurationInHours(e.jam_mulai_jalan, e.jam_selesai_jalan); }catch(_){}
+                            } else if(e.jam_mulai && e.jam_selesai){
+                                try{ dur=getDurationInHours(e.jam_mulai, e.jam_selesai); }catch(_){}
+                            }
+                            if(dur>0 && dur<12) battLogHours+=dur;
                         }
                     }catch(_){}
                 });
@@ -951,23 +981,25 @@ function loadRekapData(){
     }catch(_){}
 
     let dynamicSpeed=30;
-    if(gorideData && gorideData.hours>0.1 && gorideData.km>0.1){
-        dynamicSpeed=gorideData.km / gorideData.hours; // kecepatan real Goride
-    } else if(overallProdHours>0.1 && overallProdKm>0.1){
-        dynamicSpeed=overallProdKm / overallProdHours;
-    } else if(totalHoursPeriod>0.1 && totalKm>0.1){
-        dynamicSpeed=totalKm / totalHoursPeriod;
+    let speedSource='fallback 30 km/jam (battlog kosong)';
+    if(battLogSpeedCount>0){
+        // Murni: battlog sudah punya avg km/jam per trip, tinggal rata-rata
+        dynamicSpeed=battLogSpeedSum / battLogSpeedCount;
+        speedSource=`murni battlog avg speed (${battLogSpeedCount} trip)`;
+    } else if(battLogKm>0 && battLogHours>0.05){
+        // Murni: total km battlog / total jam battlog
+        dynamicSpeed=battLogKm / battLogHours;
+        speedSource=`murni battlog ${battLogKm.toFixed(1)}km / ${battLogHours.toFixed(1)} jam`;
+    } else if(battLogKm>0){
+        // Kalau battlog cuma punya km tanpa jam, pakai jam online Sigan sebagai pembagi tapi km tetap murni battlog
+        // Ini masih dianggap murni sumber km dari battlog sesuai request "murni ambil dari battlog"
+        let fallbackHours=Object.values(serviceRates).reduce((s,r)=>s+r.hours,0) || totalHoursPeriod || 1;
+        dynamicSpeed=battLogKm / fallbackHours;
+        speedSource=`murni battlog km ${battLogKm.toFixed(1)}km / jam Sigan ${fallbackHours.toFixed(1)} jam (battlog tanpa durasi)`;
     }
-    // Jika battlog punya jarak lebih besar (biasanya lebih akurat), blend 50:50
-    if(battLogKm>0 && overallProdKm>0){
-        let battSpeed=battLogKm / (overallProdHours||totalHoursPeriod||1);
-        if(battSpeed>5 && battSpeed<80){
-            dynamicSpeed=(dynamicSpeed*0.6 + battSpeed*0.4);
-        }
-    }
-    dynamicSpeed=Math.max(12, Math.min(45, dynamicSpeed)); // clamp biar wajar 12-45 km/jam
+    dynamicSpeed=Math.max(5, Math.min(80, dynamicSpeed)); // clamp longgar 5-80 karena murni battlog
     DYNAMIC_CITY_SPEED=dynamicSpeed;
-    AVG_CITY_SPEED=dynamicSpeed; // untuk kompatibilitas kode lama
+    AVG_CITY_SPEED=dynamicSpeed;
 
     // Hitung ulang travel vs waiting per layanan pakai kecepatan dinamis
     for(let cat in serviceRates){
@@ -1074,10 +1106,15 @@ function loadRekapData(){
             <div class="breakdown-bg" style="margin-top:6px;"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div>
         </div>`;
     }
-    // Update badge kecepatan dinamis
+    // Update badge kecepatan dinamis MURNI battlog
     try{
         let badge=document.getElementById('dynamicSpeedBadge');
-        if(badge) badge.innerHTML=`⚡ ${DYNAMIC_CITY_SPEED.toFixed(1)} km/jam dinamis ${battLogKm>0?' (blend battlog)':''}`;
+        if(badge){
+            let srcInfo = (typeof speedSource !== 'undefined' ? speedSource : '');
+            let kmInfo = (typeof battLogKm !== 'undefined' && battLogKm>0) ? ` • ${battLogKm.toFixed(1)} km` : '';
+            badge.innerHTML=`⚡ ${DYNAMIC_CITY_SPEED.toFixed(1)} km/jam MURNI BATTLOG${kmInfo}`;
+            badge.title=srcInfo;
+        }
     }catch(e){}
     // Insight dinamis dengan koreksi logika layanan
     if(sortedServices.length>0 && sortedServices[0].r.totalCount>0){
