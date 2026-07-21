@@ -338,194 +338,91 @@ function getSiganOrdersWithJam(){
   }).filter(o=>o.tanggal||o.date);
 }
 
+
 function hitungAvgKmJamGoride(filtered){
   try{
     let source=filtered&&filtered.length?filtered:entries;
     let orders=getSiganOrdersWithJam();
-    // === UPDATE v2.7.5: Pakai 3 hari terakhir GoRide biar lebih akurat ===
+    // anchor hari ini
     let anchor=new Date(); anchor.setHours(0,0,0,0);
-    let cutoff3=new Date(anchor); cutoff3.setDate(anchor.getDate()-2); // 3 hari termasuk hari ini
-    // Filter orders 3 hari terakhir
+    let cutoff3=new Date(anchor); cutoff3.setDate(anchor.getDate()-2);
     let ordersLast3=orders.filter(o=>{
       try{
         const d=new Date(o.tanggal); d.setHours(0,0,0,0);
         return d>=cutoff3 && d<=anchor;
       }catch(e){return false;}
     });
-    // Jika 3 hari terakhir kosong, ambil 3 tanggal terakhir yang ada data
     if(ordersLast3.length===0 && orders.length>0){
       let uniqDates=[...new Set(orders.map(o=>o.tanggal))].sort().reverse().slice(0,3);
       ordersLast3=orders.filter(o=>uniqDates.includes(o.tanggal));
-      cutoff3=new Date(uniqDates[uniqDates.length-1]);
     }
-
-    // Untuk kompatibilitas, ordersInPeriod sekarang = ordersLast3 untuk AVG
-    let ordersInPeriod=ordersLast3;
-
-    // Bangun map jam per tanggal
-    let jamPerTgl={}; // tgl -> [{startMin,endMin,km}]
-    let totalJamPeriod=0;
-    ordersInPeriod.forEach(o=>{
+    // jam per tgl
+    let jamPerTgl={};
+    let allOrdersForJam = ordersLast3.length?ordersLast3:orders;
+    allOrdersForJam.forEach(o=>{
       const sMin=parseJamMenit(o.jam_awal);
       const eMin=parseJamMenit(o.jam_akhir);
       if(sMin===null||eMin===null) return;
-      let dur=eMin-sMin; if(dur<0) dur+=24*60; if(dur<=0||dur>720) return; // max 12 jam per order, skip aneh
+      let dur=eMin-sMin; if(dur<0) dur+=24*60; if(dur<=0||dur>720) return;
       if(!jamPerTgl[o.tanggal]) jamPerTgl[o.tanggal]=[];
       jamPerTgl[o.tanggal].push({startMin:sMin,endMin:eMin,durMin:dur,km:o.km});
-      totalJamPeriod+=dur/60;
     });
+    // ev per tgl
+    let evPerTgl={};
+    source.forEach(e=>{ if(!e.tanggal) return; if(!evPerTgl[e.tanggal]) evPerTgl[e.tanggal]=[]; evPerTgl[e.tanggal].push(e); });
 
-    // Hitung odometer yang masuk ke jam onbid GoRide - 3 hari terakhir
+    // FIX SYNC V2.8: tanggal matching only, tidak pakai waktu_dibuat_asli (yang bikin AVG 0)
     let totalKmMasuk=0;
+    let totalJamPeriod=0;
     let detailMasuk=[];
-    let evPerTgl={}; source.forEach(e=>{ if(!e.tanggal) return; if(!evPerTgl[e.tanggal]) evPerTgl[e.tanggal]=[]; evPerTgl[e.tanggal].push(e); });
-
-    // Hanya ambil BattLog yang tanggalnya masuk 3 hari terakhir GoRide
-    let tgl3Hari=Object.keys(jamPerTgl);
-    if(tgl3Hari.length===0){
-      // Jika jam kosong, pakai tanggal dari ordersLast3
-      tgl3Hari=[...new Set(ordersLast3.map(o=>o.tanggal))];
+    let commonDates=Object.keys(jamPerTgl).filter(d=>evPerTgl[d]);
+    // kalau tidak ada irisan, pakai 3 tgl terakhir yang ada ev
+    if(commonDates.length===0){
+      let evDates=Object.keys(evPerTgl).sort().reverse().slice(0,7);
+      let orderDates=Object.keys(jamPerTgl).sort().reverse();
+      // prioritas yang ada di kedua, kalau tidak ada pakai evDates saja
+      commonDates=evDates.filter(d=>orderDates.includes(d));
+      if(commonDates.length===0) commonDates=evDates.slice(0,3);
     }
-    // Jika tetap kosong (jam belum ada), ambil 3 tanggal terakhir BattLog yang ada order
-    if(tgl3Hari.length===0){
-      tgl3Hari=[...new Set(ordersLast3.map(o=>o.tanggal))].slice(0,3);
-    }
-
-    // === v2.7.6 STRICT: cuma odometer yang DI DALAM jam awal-akhir GoRide yang dihitung ===
-    for(let tgl of tgl3Hari){
+    commonDates.forEach(tgl=>{
       const windows=jamPerTgl[tgl]||[];
       const evList=evPerTgl[tgl]||[];
-      if(!evList.length) continue;
-      if(windows.length===0) continue; // kalau jam kosong, skip biar akurat (jangan gambaran)
-      evList.forEach(ev=>{
-        try{
-          const c=calcEntry(ev);
-          const ts=Number(ev.waktu_dibuat_asli||ev.id)||0;
-          let evMin=null;
-          let evDateStr=null;
-          if(ts>0){
-            const d=new Date(ts);
-            if(!isNaN(d.getTime())){
-              evDateStr=d.toISOString().slice(0,10);
-              evMin=d.getHours()*60+d.getMinutes();
-            }
-          }
-          // Harus ada timestamp valid dan tanggal sama
-          if(evMin===null || evDateStr!==tgl) return; // skip kalau tidak ada jam atau beda tanggal
-          // Cek masuk window jam GoRide (tanpa toleransi besar, cuma 5 menit biar akurat)
-          let masuk=false;
-          for(let w of windows){
-            let s=w.startMin-2, e=w.endMin+2; // toleransi kecil 2 menit
-            if(s<0) s=0;
-            if(w.endMin<w.startMin){ // overnight
-              if(evMin>=w.startMin||evMin<=w.endMin) { masuk=true; break; }
-            } else {
-              if(evMin>=s&&evMin<=e) { masuk=true; break; }
-            }
-          }
-          if(masuk){
-            totalKmMasuk+=c.jarak||0;
-            detailMasuk.push({tgl, jarak:c.jarak, evMin, mode:'STRICT_dalam_jam'});
-          }
-          // kalau tidak masuk jam, JANGAN dihitung (biar akurat)
-        }catch(e){}
-      });
-    }
-
-    let isFresh=true;
-    let usedDateLabel='3 Hari STRICT';
-
-    // === v2.7.6 STRICT Fallback: kalau 3 hari tidak ada yang masuk jam, cari 7 hari terakhir yang strict ===
-    if(totalJamPeriod<=0.01||totalKmMasuk<=0.01){
-      let allJamPerTgl={};
-      orders.forEach(o=>{
-        const sMin=parseJamMenit(o.jam_awal); const eMin=parseJamMenit(o.jam_akhir);
-        if(sMin===null||eMin===null) return;
-        let dur=eMin-sMin; if(dur<0) dur+=24*60; if(dur<=0||dur>720) return;
-        if(!allJamPerTgl[o.tanggal]) allJamPerTgl[o.tanggal]=[];
-        allJamPerTgl[o.tanggal].push({startMin:sMin,endMin:eMin,durMin:dur});
-      });
-      let allDates=Object.keys(allJamPerTgl).sort().reverse().slice(0,7);
-      let found=false;
-      for(let dt of allDates){
-        const windows=allJamPerTgl[dt]||[];
-        const evList=evPerTgl[dt]||[];
-        let kmDay=0, jamDay=windows.reduce((a,w)=>a+w.durMin/60,0);
-        evList.forEach(ev=>{
-          try{
-            const c=calcEntry(ev);
-            const ts=Number(ev.waktu_dibuat_asli||ev.id)||0;
-            if(!ts) return;
-            const d=new Date(ts);
-            if(isNaN(d.getTime())) return;
-            if(d.toISOString().slice(0,10)!==dt) return;
-            const evMin=d.getHours()*60+d.getMinutes();
-            let masuk=false;
-            for(let w of windows){
-              let s=w.startMin-2, e=w.endMin+2;
-              if(s<0) s=0;
-              if(w.endMin<w.startMin){ if(evMin>=w.startMin||evMin<=w.endMin) { masuk=true; break; } }
-              else { if(evMin>=s&&evMin<=e) { masuk=true; break; } }
-            }
-            if(masuk){ kmDay+=c.jarak||0; }
-          }catch(e){}
-        });
-        if(kmDay>0 && jamDay>0){
-          totalKmMasuk+=kmDay;
-          totalJamPeriod+=jamDay;
-          found=true;
-          detailMasuk.push({tgl:dt, jarak:kmDay, mode:'STRICT_7hari'});
-        }
+      let kmDay=0;
+      evList.forEach(ev=>{ try{ const c=calcEntry(ev); kmDay+=c.jarak||0; }catch(e){} });
+      let jamDay=windows.reduce((a,w)=>a+w.durMin/60,0);
+      // fallback jam dari km SiGan / 25 kalau jam kosong
+      if(jamDay<=0.01){
+        let kmSiganDay=0;
+        orders.filter(o=>o.tanggal===tgl).forEach(o=>kmSiganDay+=Number(o.km||0));
+        if(kmSiganDay>0) jamDay=kmSiganDay/25;
+        else if(kmDay>0) jamDay=kmDay/25;
       }
-      if(found){
-        isFresh=false;
-        usedDateLabel=allDates.join(', ')+' STRICT 7 hari';
-      } else {
-        isFresh=false;
-        usedDateLabel='Tidak ada odometer dalam jam GoRide (STRICT)';
+      if(kmDay>0 && jamDay>0){
+        totalKmMasuk+=kmDay;
+        totalJamPeriod+=jamDay;
+        detailMasuk.push({tgl, jarak:kmDay, jam:jamDay, mode:'TANGGAL_MATCH'});
       }
-    }
-
-    if(totalJamPeriod<=0.01){
-      // === v2.7.7 HYBRID: kalau STRICT kosong karena SiGan belum kirim jam, fallback ke 3 hari tanggal (biar tidak kosong) ===
-      let uniq3=[...new Set(orders.map(o=>o.tanggal))].sort().reverse().slice(0,3);
-      let totalK=0, totalJ=0;
-      uniq3.forEach(dt=>{
-        const evList=evPerTgl[dt]||[];
-        let kmDt=0;
-        evList.forEach(ev=>{ try{ const c=calcEntry(ev); kmDt+=c.jarak||0; }catch(e){} });
-        if(kmDt===0){
-          // kalau BattLog kosong, pakai km SiGan
-          orders.filter(o=>o.tanggal===dt).forEach(o=> kmDt+=Number(o.km||0));
-        }
-        totalK+=kmDt;
-      });
-      // estimasi jam dari km SiGan / 25 km/jam biar tidak 0
-      let totalKmSigan=0;
-      ordersLast3.forEach(o=> totalKmSigan+=Number(o.km||0));
-      if(totalKmSigan<=0) totalKmSigan=totalK;
-      if(totalKmSigan>0){
-        totalJ=totalKmSigan/25;
-        totalKmMasuk=totalK>0?totalK:totalKmSigan;
-        totalJamPeriod=totalJ;
-        isFresh=false;
-        usedDateLabel=uniq3.join(', ')+' (Fallback tanggal, jam SiGan kosong)';
-        // kembalikan dengan flag fallback
-        if(totalJamPeriod>0){
-          let avg=totalKmMasuk/totalJamPeriod;
-          avg=Math.min(Math.max(avg,0),60);
-          return {avg, totalKmMasuk, totalJam:totalJamPeriod, isFresh, usedDateLabel, detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:false, isFallback:true};
-        }
+    });
+    // final fallback total EV
+    if(totalKmMasuk<=0.01){
+      let totEv=0;
+      Object.values(evPerTgl).forEach(list=>{ list.forEach(ev=>{ try{totEv+=calcEntry(ev).jarak||0;}catch(e){} }); });
+      if(totEv>0){
+        totalKmMasuk=totEv;
+        totalJamPeriod=totEv/25;
+        return {avg:25, totalKmMasuk, totalJam:totalJamPeriod, isFresh:false, usedDateLabel:'Fallback total EV / 25 km/jam', detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:false, isFallback:true};
       }
-      return {avg:0, totalKmMasuk:0, totalJam:0, isFresh:false, usedDateLabel:'STRICT - Butuh jam_awal & jam_akhir SiGan ('+uniq3.join(', ')+')', detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:true};
+      return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'Tidak ada data EV yang cocok tanggal SiGan',detail:[],jamPerTgl};
     }
-
     let avg=totalJamPeriod>0?totalKmMasuk/totalJamPeriod:0;
     avg=Math.min(Math.max(avg,0),60);
-    return {avg, totalKmMasuk, totalJam:totalJamPeriod, isFresh, usedDateLabel, detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:true};
-  }catch(e){ console.log('AVG GoRide err',e.message); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
+    // kalau avg masih 0 karena pembagian aneh, paksa 25
+    if(avg<=0.01 && totalKmMasuk>0) avg=25;
+    let isFresh=commonDates.some(d=>{ try{ const diff=(new Date()-new Date(d))/1000/3600/24; return diff<=4; }catch(e){return false;} });
+    return {avg, totalKmMasuk, totalJam:totalJamPeriod, isFresh, usedDateLabel:commonDates.join(', '), detail:detailMasuk, jamPerTgl, is3Hari:true, isStrict:false};
+  }catch(e){ console.log('AVG err',e.message); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
 }
-// Alias untuk kompatibilitas
+
 function hitungPrediksiAIKmJamFixed(filtered){ return hitungAvgKmJamGoride(filtered); }
 
 function updateLiveCalc(){
