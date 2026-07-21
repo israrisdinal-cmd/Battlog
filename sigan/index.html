@@ -924,13 +924,14 @@ function loadRekapData(){
         });
     }
 
-    // ===== Hitung Kecepatan Dinamis MURNI dari BattLog (koreksi user) =====
-    // Sekarang AVG km/jam diambil 100% dari battlog, tidak diolah blend Sigan lagi
+        // ===== Hitung Kecepatan Dinamis MURNI dari BattLog - V5.21 SIMPLEST =====
+    // Koreksi user: ambil data TERBARU aja, biar battlog yang kelola. Sigan tinggal ambil.
+    // Tidak pakai filter 7/14/30 hari lagi untuk kecepatan.
     let battLogKm=0;
-    let battLogHours=0;
-    let battLogSpeedSum=0;
-    let battLogSpeedCount=0;
-    let battLogRawEntries=0;
+    let battLogLatestSpeed=null;
+    let battLogLatestDate='';
+    let speedSource='fallback';
+    let debugFields=[];
     try{
         let rawBatt=null;
         try{
@@ -943,61 +944,95 @@ function loadRekapData(){
         if(!rawBatt) rawBatt=localStorage.getItem('maka_log_v1');
         if(rawBatt){
             let arr=JSON.parse(rawBatt);
-            if(Array.isArray(arr)){
-                arr.forEach(e=>{
+            if(Array.isArray(arr) && arr.length>0){
+                try{ debugFields=Object.keys(arr[arr.length-1]||{}).slice(0,30); }catch(_){}
+                // Sort by tanggal terbaru dulu (descending) biar ambil yang paling baru
+                let sorted = [...arr].sort((a,b)=>{
                     try{
-                        if(!e.tanggal) return;
-                        const p=e.tanggal.split('-'); const d=new Date(p[0],p[1]-1,p[2]); d.setHours(0,0,0,0);
-                        if(!(d>=cutoffDate && d<=anchorDate)) return;
-                        battLogRawEntries++;
+                        let da = a.tanggal||''; let db = b.tanggal||'';
+                        if(da===db){
+                            // kalau tanggal sama, cek waktu
+                            let ta = a.waktu_dibuat_asli||a.jam_selesai||'';
+                            let tb = b.waktu_dibuat_asli||b.jam_selesai||'';
+                            return String(tb).localeCompare(String(ta));
+                        }
+                        return String(db).localeCompare(String(da));
+                    }catch(_){ return 0; }
+                });
+                // Ambil data terbaru yang punya kecepatan valid
+                for(let i=0;i<sorted.length;i++){
+                    let e=sorted[i];
+                    try{
+                        if(!e) continue;
+                        // Cek kecepatan langsung - battlog yang sudah kelola
+                        let directSpeed = e.kecepatan_rata ?? e.avg_speed ?? e.avg_km_per_jam ?? e.kecepatan ?? e.speed ?? e.avg_speed_kmh ?? e.rata_kecepatan ?? e.kecepatan_avg ?? e.avg_kph ?? e.kph ?? e.avg_kmh ?? e.avg ?? e.avg_km_per_hour;
+                        if(e.trip) directSpeed = directSpeed ?? e.trip.kecepatan_rata ?? e.trip.avg_speed ?? e.trip.speed;
+                        // Kadang battlog simpan di summary harian
+                        if(directSpeed==null && e.summary) directSpeed = e.summary.avg_speed ?? e.summary.kecepatan_rata;
+                        
+                        if(directSpeed!=null && Number(directSpeed)>0 && Number(directSpeed)<120){
+                            battLogLatestSpeed=Number(directSpeed);
+                            battLogLatestDate=e.tanggal||'';
+                            let kmVal = Number(e.jarak_km ?? e.km ?? e.distance ?? 0);
+                            if(kmVal>0) battLogKm=kmVal;
+                            break; // ketemu yang terbaru, stop
+                        }
+                        // Kalau tidak ada field speed, coba hitung dari km & durasi di entry terbaru itu sendiri
                         let kmVal=0;
                         if(e.jarak_km!=null) kmVal=Number(e.jarak_km)||0;
                         else if(e.km!=null) kmVal=Number(e.km)||0;
-                        if(kmVal>0) battLogKm+=kmVal;
-
-                        // Cek apakah battlog sudah punya kecepatan jadi (jangan diolah lagi)
-                        let directSpeed=e.kecepatan_rata ?? e.avg_speed ?? e.avg_km_per_jam ?? e.kecepatan ?? e.speed ?? e.avg_speed_kmh;
-                        if(directSpeed!=null && Number(directSpeed)>0){
-                            battLogSpeedSum+=Number(directSpeed);
-                            battLogSpeedCount++;
-                        } else {
-                            // Kalau tidak ada speed jadi, coba hitung durasi dari field trip battlog
-                            let dur=0;
-                            if(e.durasi_jam!=null) dur=Number(e.durasi_jam)||0;
-                            else if(e.durasi_menit!=null) dur=(Number(e.durasi_menit)||0)/60;
-                            else if(e.waktu_tempuh_menit!=null) dur=(Number(e.waktu_tempuh_menit)||0)/60;
-                            else if(e.lama_jalan_menit!=null) dur=(Number(e.lama_jalan_menit)||0)/60;
-                            else if(e.jam_mulai_jalan && e.jam_selesai_jalan){
-                                try{ dur=getDurationInHours(e.jam_mulai_jalan, e.jam_selesai_jalan); }catch(_){}
-                            } else if(e.jam_mulai && e.jam_selesai){
-                                try{ dur=getDurationInHours(e.jam_mulai, e.jam_selesai); }catch(_){}
-                            }
-                            if(dur>0 && dur<12) battLogHours+=dur;
+                        else if(e.distance!=null) kmVal=Number(e.distance)||0;
+                        let dur=0;
+                        if(e.durasi_jam!=null) dur=Number(e.durasi_jam)||0;
+                        else if(e.durasi_menit!=null) dur=(Number(e.durasi_menit)||0)/60;
+                        else if(e.waktu_tempuh_menit!=null) dur=(Number(e.waktu_tempuh_menit)||0)/60;
+                        else if(e.lama_jalan_menit!=null) dur=(Number(e.lama_jalan_menit)||0)/60;
+                        else if(e.durasi!=null && Number(e.durasi)>0){
+                            let dval=Number(e.durasi); dur = dval>10 ? dval/60 : dval;
+                        } else if(e.jam_mulai_jalan && e.jam_selesai_jalan){
+                            try{ dur=getDurationInHours(e.jam_mulai_jalan, e.jam_selesai_jalan); }catch(_){}
+                        }
+                        if(kmVal>0 && dur>0.05){
+                            battLogLatestSpeed=kmVal/dur;
+                            battLogLatestDate=e.tanggal||'';
+                            battLogKm=kmVal;
+                            break;
                         }
                     }catch(_){}
-                });
+                }
+                // Fallback kalau tidak ada yang valid di loop terbaru, ambil entry terakhir aja yang punya km
+                if(battLogLatestSpeed==null){
+                    for(let i=0;i<sorted.length;i++){
+                        let e=sorted[i];
+                        let kmVal=Number(e.jarak_km ?? e.km ?? 0);
+                        if(kmVal>0){ battLogKm=kmVal; battLogLatestDate=e.tanggal||''; break; }
+                    }
+                }
             }
         }
+        // Cek juga kalau battlog punya ringkasan khusus avg speed terpisah
+        try{
+            let summaryRaw = localStorage.getItem('maka_cross_summary') || localStorage.getItem('battlog_avg_speed');
+            if(summaryRaw){
+                let sumObj=JSON.parse(summaryRaw);
+                let avgFromSummary = sumObj.avg_speed ?? sumObj.kecepatan_rata ?? sumObj.avg_km_per_jam ?? sumObj.speed;
+                if(avgFromSummary!=null && Number(avgFromSummary)>0){
+                    battLogLatestSpeed=Number(avgFromSummary);
+                    speedSource=`murni battlog summary: ${battLogLatestSpeed} km/jam`;
+                }
+            }
+        }catch(_){}
     }catch(_){}
 
     let dynamicSpeed=30;
-    let speedSource='fallback 30 km/jam (battlog kosong)';
-    if(battLogSpeedCount>0){
-        // Murni: battlog sudah punya avg km/jam per trip, tinggal rata-rata
-        dynamicSpeed=battLogSpeedSum / battLogSpeedCount;
-        speedSource=`murni battlog avg speed (${battLogSpeedCount} trip)`;
-    } else if(battLogKm>0 && battLogHours>0.05){
-        // Murni: total km battlog / total jam battlog
-        dynamicSpeed=battLogKm / battLogHours;
-        speedSource=`murni battlog ${battLogKm.toFixed(1)}km / ${battLogHours.toFixed(1)} jam`;
-    } else if(battLogKm>0){
-        // Kalau battlog cuma punya km tanpa jam, pakai jam online Sigan sebagai pembagi tapi km tetap murni battlog
-        // Ini masih dianggap murni sumber km dari battlog sesuai request "murni ambil dari battlog"
-        let fallbackHours=Object.values(serviceRates).reduce((s,r)=>s+r.hours,0) || totalHoursPeriod || 1;
-        dynamicSpeed=battLogKm / fallbackHours;
-        speedSource=`murni battlog km ${battLogKm.toFixed(1)}km / jam Sigan ${fallbackHours.toFixed(1)} jam (battlog tanpa durasi)`;
+    if(battLogLatestSpeed!=null && battLogLatestSpeed>0){
+        dynamicSpeed=battLogLatestSpeed;
+        speedSource=`murni battlog TERBARU tgl ${battLogLatestDate} = ${dynamicSpeed.toFixed(1)} km/jam`;
+    } else {
+        speedSource=`fallback 30 km/jam (battlog terbaru tidak ada speed, km terakhir ${battLogKm} )`;
     }
-    dynamicSpeed=Math.max(5, Math.min(80, dynamicSpeed)); // clamp longgar 5-80 karena murni battlog
+    try{ console.log('[SiGan] Battlog TERBARU:', {latestDate:battLogLatestDate, latestSpeed:battLogLatestSpeed, latestKm:battLogKm, sampleFields:debugFields, finalSpeed:dynamicSpeed, source:speedSource}); }catch(_){}
+    dynamicSpeed=Math.max(5, Math.min(80, dynamicSpeed));
     DYNAMIC_CITY_SPEED=dynamicSpeed;
     AVG_CITY_SPEED=dynamicSpeed;
 
@@ -1112,7 +1147,7 @@ function loadRekapData(){
         if(badge){
             let srcInfo = (typeof speedSource !== 'undefined' ? speedSource : '');
             let kmInfo = (typeof battLogKm !== 'undefined' && battLogKm>0) ? ` • ${battLogKm.toFixed(1)} km` : '';
-            badge.innerHTML=`⚡ ${DYNAMIC_CITY_SPEED.toFixed(1)} km/jam MURNI BATTLOG${kmInfo}`;
+            badge.innerHTML=`⚡ ${DYNAMIC_CITY_SPEED.toFixed(1)} km/jam TERBARU BATTLOG${kmInfo}`;
             badge.title=srcInfo;
         }
     }catch(e){}
