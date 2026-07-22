@@ -286,9 +286,6 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             <button onclick="debugShowAll()" style="width:100%; background:#2a1212; border:1px solid #5a2a2a; color:#ff8a80; padding:8px; border-radius:8px; font-size:11px;">📋 Lihat Semua Tanggal & Jumlah Data</button>
             <div id="debugOutput" style="margin-top:8px; font-size:10px; background:#0a1328; padding:8px; border-radius:8px; max-height:200px; overflow:auto; display:none; white-space:pre-wrap;"></div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;">
-                <button onclick="clearGeminiCacheOnly()" style="background:#1a1033; border:1px solid #4c1d95; color:#a78bfa; padding:6px; border-radius:8px; font-size:10px; margin-bottom:6px; width:100%;">🧹 Hapus Cache Gemini (Template Lama)</button>
-            </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;">
                 <button onclick="clearToday()" style="background:#1a1212; border:1px solid #5a2a2a; color:#ff8a80; padding:6px; border-radius:8px; font-size:10px;">🗑️ Hapus Hari Ini</button>
                 <button onclick="clearAllDataFull()" style="background:#5a1212; border:1px solid #ff5252; color:#fff; padding:6px; border-radius:8px; font-size:10px;">💣 HAPUS SEMUA</button>
             </div>
@@ -318,51 +315,30 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             }catch(e){ alert('Error '+e.message); }
         }
         function clearToday(){
-            try{
-                let dateEl=document.getElementById('globalDate');
-                let date=dateEl?dateEl.value:new Date().toISOString().split('T')[0];
-                let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
-                let before=data.length;
-                let filtered=data.filter(d=>d.date!==date);
-                localStorage.setItem('lapkeuData', JSON.stringify(filtered));
-                let shift=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
-                delete shift[date];
-                localStorage.setItem('lapkeu_shift', JSON.stringify(shift));
-                if(typeof loadData==='function') loadData();
-                alert('Data '+date+' dihapus: '+(before-filtered.length)+' item');
-                if(typeof debugShowAll==='function') setTimeout(debugShowAll, 300);
-            }catch(e){ alert('Gagal: '+e.message); }
-        }
-        function clearGeminiCacheOnly(){
-            try{
-                let keys=[];
-                for(let i=0;i<localStorage.length;i++){
-                    let k=localStorage.key(i);
-                    if(k && k.toLowerCase().includes('gemini')){
-                        keys.push(k);
-                    }
-                }
-                keys.forEach(k=>{ try{ localStorage.removeItem(k);}catch(e){} });
-                localStorage.removeItem('lapkeu_gemini_last_result');
-                localStorage.removeItem('lapkeu_gemini_last_result_v13_force');
-                alert('Cache Gemini dihapus');
-                let c=document.getElementById('rekapInsightContainer');
-                if(c) c.innerHTML='<div style="padding:12px; text-align:center; color:#8aa0c6;">Cache dibersihkan, input 1 order untuk generate ulang...</div>';
-            }catch(e){ alert('Gagal: '+e.message); }
+            let date=document.getElementById('globalDate').value;
+            if(!date) return alert('Pilih tanggal dulu');
+            if(!confirm(`Hapus semua data tanggal ${date}?`)) return;
+            let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
+            let filtered=data.filter(d=>d.date!==date);
+            localStorage.setItem('lapkeuData', JSON.stringify(filtered));
+            let shift=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
+            delete shift[date];
+            localStorage.setItem('lapkeu_shift', JSON.stringify(shift));
+            loadData();
+            alert('Data '+date+' dihapus');
         }
         function clearAllDataFull(){
-            try{
-                let keys=['lapkeuData','lapkeu_shift','lapkeu_global_target','UNIVERSAL_LAKE_V1','lapkeu_cross_income','lapkeu_cross_km','lapkeu_cross_goride','lapkeu_hub_data','lapkeu_hub_from_lapkeu','sigan_riwayat_harian','battlog_log_v1'];
-                for(let i=0;i<localStorage.length;i++){
-                    let k=localStorage.key(i);
-                    if(k && (k.includes('gemini') || k.startsWith('lapkeu_') || k==='UNIVERSAL_LAKE_V1')){
-                        if(!keys.includes(k)) keys.push(k);
-                    }
-                }
-                keys.forEach(k=>{ try{ localStorage.removeItem(k);}catch(e){} });
-                alert('Semua data dihapus, reload...');
-                setTimeout(()=>location.reload(), 500);
-            }catch(e){ alert('Error: '+e.message); }
+            if(!confirm('HAPUS SEMUA DATA SIGAN? Ketik OK untuk lanjut')) return;
+            let c=prompt('Ketik HAPUS untuk konfirmasi');
+            if(c!=='HAPUS') return;
+            localStorage.removeItem('lapkeuData');
+            localStorage.removeItem('lapkeu_shift');
+            localStorage.removeItem('lapkeu_global_target');
+            localStorage.removeItem('UNIVERSAL_LAKE_V1');
+            localStorage.removeItem('lapkeu_cross_income');
+            localStorage.removeItem('lapkeu_cross_km');
+            alert('Semua data dihapus, reload...');
+            location.reload();
         }
         </script>
 
@@ -873,15 +849,11 @@ function loadData(){
 // ====== V6 HELPER - STRATEGI HARI SAMA (TIDAK SENTUH KODE LAIN) ======
 
 function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extractAreaSimple, getDurationInHours, categories){
-    // === INSIGHT MAKSIMAL v2 - GABUNGAN 7 HARI + 21 HARI HARI SAMA + SEMUA DATA ===
     let targetWeekday = anchorDate.getDay();
     let targetWeekdayName = dayNames[targetWeekday];
-    
     let anchor = new Date(anchorDate);
     let cutoff7 = new Date(anchor); cutoff7.setDate(anchor.getDate()-7);
     let cutoff21 = new Date(anchor); cutoff21.setDate(anchor.getDate()-21);
-    
-    // Filter data
     let data7Hari = data.filter(item=>{
         if(!item.date || item.date===targetDateStr) return false;
         let d=new Date(item.date); d.setHours(0,0,0,0);
@@ -902,17 +874,14 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
     });
 
     if(data.length===0){
-        return `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:12px; padding:14px; font-size:12px; color:#8aa0c6;">Belum ada data sama sekali buat bikin strategi.</div>`;
+        return `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:12px; padding:14px; font-size:12px; color:#8aa0c6;">Belum ada data buat analisa. Input dulu beberapa order.</div>`;
     }
 
-    // Helper weighted stats
     function buildWeightedStats(){
-        let hourMap={}; for(let h=0;h<24;h++) hourMap[h]={income:0, hours:0, orders:0, score:0};
+        let hourMap={}; for(let h=0;h<24;h++) hourMap[h]={income:0, hours:0, orders:0};
         let areaMap={};
         let serviceMap={}; categories["Pendapatan"].forEach(c=>serviceMap[c]={income:0, hours:0, orders:0, km:0});
         let deadTrips={};
-        let byDateMap={};
-
         function addItem(item, weight){
             if(item.type!=='Pendapatan') return;
             let amt=Number(item.amount)||0;
@@ -922,23 +891,17 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
             if(dur===0) dur=0.25;
             if(dur<0||dur>5) dur=0.3;
             let h=parseInt((item.time||'00:00').split(':')[0])||0;
-            hourMap[h].income+=amt*weight; hourMap[h].hours+=dur*weight; hourMap[h].orders+=1*weight; hourMap[h].score+= (dur>0? (amt/dur)*weight : 0);
-            
+            hourMap[h].income+=amt*weight; hourMap[h].hours+=dur*weight; hourMap[h].orders+=1*weight;
             let area = (typeof extractAreaSimple==='function'? extractAreaSimple(item.pickup||'') : (item.pickup||'').substring(0,20)) || 'Unknown';
-            if(!areaMap[area]) areaMap[area]={income:0, hours:0, orders:0, score:0};
-            areaMap[area].income+=amt*weight; areaMap[area].hours+=dur*weight; areaMap[area].orders+=1*weight; areaMap[area].score+= (dur>0? (amt/dur)*weight : 0);
-            
+            if(!areaMap[area]) areaMap[area]={income:0, hours:0, orders:0};
+            areaMap[area].income+=amt*weight; areaMap[area].hours+=dur*weight; areaMap[area].orders+=1*weight;
             let cat=item.cat||'Goride';
             if(!serviceMap[cat]) serviceMap[cat]={income:0, hours:0, orders:0, km:0};
             serviceMap[cat].income+=amt*weight; serviceMap[cat].hours+=dur*weight; serviceMap[cat].orders+=1*weight; serviceMap[cat].km+=km*weight;
         }
-
-        // Bobot: 7 hari x3, SameDay 21 hari x2, SameDay all x1
-        data7Hari.forEach(it=>{ addItem(it, 3); let d=it.date; if(!byDateMap[d]) byDateMap[d]=[]; byDateMap[d].push(it); });
+        data7Hari.forEach(it=>{ addItem(it, 3); });
         dataSameDay21.forEach(it=>{ addItem(it, 2); });
         dataSameDayAll.forEach(it=>{ addItem(it, 1); });
-
-        // Dead trips dari 7 hari terakhir (paling relevan)
         let sortedByDate={};
         data7Hari.forEach(it=>{ if(!sortedByDate[it.date]) sortedByDate[it.date]=[]; sortedByDate[it.date].push(it); });
         Object.values(sortedByDate).forEach(dayOrders=>{
@@ -952,22 +915,17 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
                 }
             }
         });
-
-        return {hourMap, areaMap, serviceMap, deadTrips, byDateMap};
+        return {hourMap, areaMap, serviceMap, deadTrips};
     }
 
     let stats = buildWeightedStats();
-
     let hoursRanked = Object.entries(stats.hourMap).map(([h,s])=>({h:parseInt(h), ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
     let areasRanked = Object.entries(stats.areaMap).map(([area,s])=>({area, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).sort((a,b)=>b.rpPerJam-a.rpPerJam);
     let servicesRanked = Object.entries(stats.serviceMap).map(([cat,s])=>({cat, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
-
     let bestHour = hoursRanked[0];
     let worstHour = hoursRanked.length>0? hoursRanked[hoursRanked.length-1] : null;
     let bestArea = areasRanked[0];
     let worstArea = areasRanked.length>1? areasRanked[areasRanked.length-1] : null;
-
-    // Battlog muter info kalau ada
     let muterInfo='';
     try{
         let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
@@ -976,65 +934,65 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
             let battEntries = lake.maka && lake.maka.maka_log_v1 ? lake.maka.maka_log_v1 : [];
             if(battEntries.length>0){
                 let last3 = battEntries.slice(0,3);
-                let avgMuter = last3.reduce((a,b)=>{ 
-                    let s=(b.km_akhir||0)-(b.km_awal||0); 
-                    return a + (s>0? 0.4 : 0); 
-                },0)/Math.max(1,last3.length);
-                if(avgMuter>0.35) muterInfo = `⚡ Battlog 3 sesi terakhir muter ${Math.round(avgMuter*100)}%, usahakan jangan nongkrong kejauhan dari area rame.`;
+                let avgMuter = last3.reduce((a,b)=>{ let s=(b.km_akhir||0)-(b.km_awal||0); return a + (s>0? 0.4 : 0); },0)/Math.max(1,last3.length);
+                if(avgMuter>0.35) muterInfo = `Baterai: 3 sesi terakhir muter ${Math.round(avgMuter*100)}%, jadi usahakan jangan nongkrong kejauhan dari area rame biar nggak boros.`;
             }
         }
     }catch(e){}
 
-    let aiHtml = `<div style="background:linear-gradient(135deg,#111d35 0%,#0f1f36 100%); border:1px solid #1e2d4a; border-radius:12px; padding:14px;">`;
-    aiHtml+=`<div style="font-size:12px; font-weight:800; color:#7dffb7; margin-bottom:10px; letter-spacing:0.5px;">🎯 APA YANG HARUS SAYA LAKUKAN HARI INI - ${targetWeekdayName.toUpperCase()}<br><span style="font-size:10px; color:#8aa0c6; font-weight:600;">Maksimal semua data: 7 hari terakhir (${data7Hari.length} order) + 21 hari ${targetWeekdayName} (${dataSameDay21.length} order) + total ${targetWeekdayName} (${dataSameDayAll.length} order)</span></div>`;
+    // ANTI TEMPLATE NARRATIVE
+    let totalIncome7 = data7Hari.reduce((a,b)=>a+(Number(b.amount)||0),0);
+    let totalOrders7 = data7Hari.length;
+    let avgPerJam7 = hoursRanked.length? Math.round(hoursRanked.reduce((a,b)=>a+b.rpPerJam,0)/hoursRanked.length) : 0;
+
+    let aiHtml = `<div style="background:linear-gradient(135deg,#111d35 0%,#0f1f36 100%); border:1px solid #2b5a9a; border-radius:14px; padding:16px; line-height:1.7;">`;
+
+    aiHtml+=`<div style="font-size:12px; color:#8aa0c6; margin-bottom:10px;">Analisa ${targetWeekdayName} • ${data7Hari.length} order 7 hari terakhir + ${dataSameDay21.length} order ${targetWeekdayName} 21 hari terakhir</div>`;
+
+    aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#a78bfa; margin-bottom:6px;">📊 Cerita Performa 7 Hari Terakhir</div><div style="font-size:13px; color:#dbe8ff;">Dalam 7 hari terakhir kamu narik ${totalOrders7} order dengan total sekitar Rp ${Math.round(totalIncome7).toLocaleString('id-ID')}. Rata-rata per jam di kisaran Rp ${avgPerJam7.toLocaleString('id-ID')}. ${hoursRanked.length?`Jam paling cuan kemarin ada di jam ${String(hoursRanked[0].h).padStart(2,'0')}:00 dengan rata-rata Rp ${Math.round(hoursRanked[0].rpPerJam).toLocaleString('id-ID')} per jam, itu biasanya jam pulang kerja atau jam makan malam yang ordernya numpuk.`:'Data jam masih minim, coba isi jam kerja lebih lengkap biar polanya keliatan.'} ${muterInfo?`<br><br><span style='color:#ffcc66;'>${muterInfo}</span>`:''}</div></div>`;
 
     if(bestArea){
-        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#2b8cff; background:rgba(43,140,255,0.15); padding:3px 8px; border-radius:999px;">📍 TOP 3 NONGKRONG HARI INI</span><div style="margin-top:6px;">`;
+        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#40c4ff; margin-bottom:6px;">🗺️ Kenapa Area Ini Cuan Hari Ini</div><div style="font-size:13px; color:#dbe8ff;">`;
         areasRanked.slice(0,3).forEach((a,i)=>{
-            let medal=i===0?'🥇':i===1?'🥈':'🥉';
-            let jamEmas = hoursRanked.length>0? `${String(hoursRanked[0].h).padStart(2,'0')}:00` : '';
-            aiHtml+=`<div style="display:flex; justify-content:space-between; background:#0f1f36; border-radius:8px; padding:6px 10px; margin-top:4px; font-size:12px;"><span>${medal} ${a.area} - ${Math.round(a.orders)} order</span><span style="color:#7dffb7; font-weight:700;">Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')}/jam</span></div>`;
+            let alasan = i===0?`Area ${a.area} ini jadi yang paling cuan karena dalam seminggu terakhir ada ${Math.round(a.orders)} order masuk dengan rata-rata Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')} per jam. Biasanya area kayak gini rame pas jam pulang kantor atau dekat perumahan padat, jadi order Goride gampang nyantol.` : i===1?`Lalu ${a.area} juga lumayan stabil, ${Math.round(a.orders)} order, Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')} per jam. Cocok buat jadi area backup kalau ${areasRanked[0].area} lagi sepi.` : `Opsi ketiga ${a.area} dengan Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')} per jam, ${Math.round(a.orders)} order. Nggak se-cuan dua di atas tapi masih mending daripada nongkrong di area sepi.`;
+            aiHtml+=`<div style="background:#0f1f36; border-radius:8px; padding:10px; margin-bottom:8px;"><b style="color:#7dffb7;">${a.area}</b> — ${Math.round(a.orders)} order, Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')}/jam<br><span style="color:#8aa0c6; font-size:12px;">${alasan}</span> <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.area)}" target="_blank" style="color:#40c4ff; font-size:11px;">📍 Petakan</a></div>`;
         });
-        aiHtml+=`</div><div style="font-size:11px; color:#8aa0c6; margin-top:4px;">Fokus utama di <strong style="color:#7dffb7;">${bestArea.area}</strong>, hindari <strong style="color:#ff8a80;">${worstArea?worstArea.area:'area sepi'}</strong> (cuma Rp ${worstArea?Math.round(worstArea.rpPerJam).toLocaleString('id-ID'):''}/jam)</div></div>`;
-    }
-    if(bestHour){
-        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#ffcc66; background:rgba(255,204,102,0.15); padding:3px 8px; border-radius:999px;">⏰ JAM EMAS vs JAM ISTIRAHAT</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">`;
-        hoursRanked.slice(0,2).forEach(h=>{
-            aiHtml+=`✅ <strong>${String(h.h).padStart(2,'0')}:00-${String(h.h+1).padStart(2,'0')}:00</strong> = Rp ${Math.round(h.rpPerJam).toLocaleString('id-ID')}/jam (${Math.round(h.orders)} order) - <strong>WAJIB ON</strong><br>`;
-        });
-        if(worstHour){
-            aiHtml+=`❌ <strong>${String(worstHour.h).padStart(2,'0')}:00-${String(worstHour.h+1).padStart(2,'0')}:00</strong> = Rp ${Math.round(worstHour.rpPerJam).toLocaleString('id-ID')}/jam - <strong>ISTIRAHAT / CAS / SHOLAT</strong><br>`;
+        if(worstArea){
+            aiHtml+=`<div style="font-size:12px; color:#ff8a80; margin-top:8px;">Hindari dulu <b>${worstArea.area}</b> yang cuma Rp ${Math.round(worstArea.rpPerJam).toLocaleString('id-ID')}/jam, itu biasanya area yang ordernya jarang atau jarak antar ordernya jauh.</div>`;
         }
         aiHtml+=`</div></div>`;
     }
-    if(servicesRanked.length>0){
-        let bestServ=servicesRanked[0];
-        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#00e676; background:rgba(0,230,118,0.15); padding:3px 8px; border-radius:999px;">🏍️ FOKUS LAYANAN HARI INI</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px;">`;
-        aiHtml+=`Hari ini utamakan <strong style="color:#00e676;">${bestServ.cat}</strong> (Rp ${Math.round(bestServ.rpPerJam).toLocaleString('id-ID')}/jam, ${Math.round(bestServ.orders)} order).<br><span style="font-size:11px; color:#8aa0c6;">Urutan: ${servicesRanked.map(s=>`${s.cat} ${Math.round(s.rpPerJam).toLocaleString('id-ID')}`).join(' → ')}</span></div></div>`;
+
+    if(bestHour){
+        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#ffcc66; margin-bottom:6px;">⏰ Pola Jam: Kapan Harus On Terus</div><div style="font-size:13px; color:#dbe8ff;">`;
+        hoursRanked.slice(0,3).forEach(h=>{
+            aiHtml+=`<div style="margin-bottom:6px;">Jam <b>${String(h.h).padStart(2,'0')}:00-${String(h.h+1).padStart(2,'0')}:00</b> itu rata-rata Rp ${Math.round(h.rpPerJam).toLocaleString('id-ID')} per jam dari ${Math.round(h.orders)} order. ${h.h>=17 && h.h<=21?`Ini jam emas pulang kerja, orang banyak order Goride, jadi usahakan on terus di area rame.`:`Jam segini lumayan, bisa dimaksimalin kalau kamu lagi di area yang tepat.`}</div>`;
+        });
+        if(worstHour){
+            aiHtml+=`<div style="margin-top:8px; color:#8aa0c6; font-size:12px;">Jam <b>${String(worstHour.h).padStart(2,'0')}:00</b> itu paling boncos, cuma Rp ${Math.round(worstHour.rpPerJam).toLocaleString('id-ID')} per jam. Mending buat istirahat, cas HP, cas motor, atau sholat. Nggak usah dipaksain on di jam segitu kecuali lagi kepepet.</div>`;
+        }
+        aiHtml+=`</div></div>`;
     }
+
+    if(servicesRanked.length>0){
+        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#00e676; margin-bottom:6px;">🏍️ Layanan Mana yang Paling Cuan</div><div style="font-size:13px; color:#dbe8ff;">Hari ini <b>${servicesRanked[0].cat}</b> yang paling cuan dengan Rp ${Math.round(servicesRanked[0].rpPerJam).toLocaleString('id-ID')} per jam dari ${Math.round(servicesRanked[0].orders)} order. Urutannya ${servicesRanked.map(s=>`${s.cat} Rp ${Math.round(s.rpPerJam).toLocaleString('id-ID')}`).join(', ')}. ${servicesRanked[0].cat==='Goride'?`Goride memang lagi bagus karena banyak orang butuh antar jemput cepat, usahakan fokus Goride dulu.`:`Layanan ${servicesRanked[0].cat} lagi bagus, mungkin karena banyak order jarak dekat atau tipnya lumayan.`}</div></div>`;
+    }
+
     let deadEntries = Object.entries(stats.deadTrips).sort((a,b)=>b[1].count-a[1].count).slice(0,2);
     if(deadEntries.length>0){
-        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#ff8a80; background:rgba(255,138,128,0.15); padding:3px 8px; border-radius:999px;">🚫 JANGAN DIULANG (7 hari terakhir)</span><div style="font-size:12px; color:#eaf2ff; margin-top:6px;">`;
+        aiHtml+=`<div style="margin-bottom:12px; background:rgba(255,138,128,0.08); border:1px solid rgba(255,138,128,0.2); border-radius:8px; padding:10px;"><div style="font-size:11px; font-weight:700; color:#ff8a80; margin-bottom:4px;">⚠️ Pola Kosong yang Sering Kejadian</div><div style="font-size:12px; color:#dbe8ff;">`;
         deadEntries.forEach(([k,v])=>{
-            aiHtml+=`• Abis drop <strong>${k.split(' → ')[0]}</strong> kosong <strong>${Math.round(v.totalGap/v.count*60)} menit</strong> baru dapet di <strong>${k.split(' → ')[1]}</strong> (${v.count}x)<br>`;
+            aiHtml+=`• Abis drop di ${k.split(' → ')[0]} sering kosong ${Math.round(v.totalGap/v.count*60)} menit baru dapet lagi di ${k.split(' → ')[1]} (${v.count}x kejadian).<br>`;
         });
-        aiHtml+=`<span style="font-size:11px; color:#8aa0c6;">Solusi: langsung geser ke ${bestArea?bestArea.area:'area rame'} jangan nunggu.</span></div></div>`;
+        aiHtml+=`<span style="color:#8aa0c6; font-size:11px;">Solusinya jangan nunggu di situ, langsung geser ke ${bestArea?bestArea.area:'area rame terdekat'}.</span></div></div>`;
     }
-    if(muterInfo){
-        aiHtml+=`<div style="background:rgba(255,204,102,0.08); border:1px dashed #ffcc66; border-radius:8px; padding:8px; font-size:11px; color:#ffcc66; margin-bottom:12px;">${muterInfo}</div>`;
-    }
-    // Taktik final
-    let totalAvg = (data7Hari.reduce((a,b)=>a+(Number(b.amount)||0),0) / Math.max(1, data7Hari.reduce((a,b)=>{ let d=getDurationInHours(b.time||'', b.endTime||b.time||''); if(d===0) d=0.25; return a+d; },0)) );
-    aiHtml+=`<div style="margin-top:12px; padding-top:10px; border-top:1px dashed #1e2d4a; background:#0a1328; border-radius:8px; padding:10px;"><span style="font-size:11px; font-weight:800; color:#7dffb7;">💡 TAKTIK HARI INI (MAKSIMAL DATA):</span><div style="font-size:12.5px; color:#dbe8ff; margin-top:6px; line-height:1.8;">`;
-    aiHtml+=`Bos, hari ini <strong>${targetWeekdayName}</strong>. Gabungan data bilang:<br>`;
-    if(bestHour) aiHtml+=`1. <strong>Jam ${String(bestHour.h).padStart(2,'0')}:00 wajib ON</strong> di <strong>${bestArea?bestArea.area:'area top'}</strong><br>`;
-    if(servicesRanked[0]) aiHtml+=`2. <strong>Utamakan ${servicesRanked[0].cat}</strong>, matiin yang boncos dulu<br>`;
-    if(worstHour) aiHtml+=`3. <strong>Jam ${String(worstHour.h).padStart(2,'0')}:00 OFF</strong> - cas badan & baterai<br>`;
-    if(bestArea) aiHtml+=`4. Target hari ini: <strong>Rp ${Math.round(totalAvg).toLocaleString('id-ID')}/jam</strong> (avg 7 hari terakhir)<br>`;
-    aiHtml+=`</div></div>`;
+
+    aiHtml+=`<div style="background:#0a1328; border-radius:8px; padding:12px; border:1px dashed #1e2d4a;"><div style="font-size:11px; font-weight:800; color:#7dffb7; margin-bottom:6px;">💡 Rangkuman Strategi ${targetWeekdayName} Hari Ini</div><div style="font-size:12px; color:#dbe8ff; line-height:1.8;">Hari ini ${targetWeekdayName}, data gabungan bilang: fokus di area ${bestArea?bestArea.area:'area top'} pas jam ${bestHour?String(bestHour.h).padStart(2,'0')+':00':''} karena di jam itu historinya paling cuan. Utamakan ${servicesRanked[0]?servicesRanked[0].cat:'Goride'} dulu, matiin layanan yang boncos. Kalau jam ${worstHour?String(worstHour.h).padStart(2,'0')+':00':''} lagi sepi, mending rehat cas baterai biar sore-malam bisa gas lagi. Target realistis hari ini Rp ${avgPerJam7?Math.round(avgPerJam7).toLocaleString('id-ID'):''}/jam.</div></div>`;
+
     aiHtml+=`</div>`;
     return aiHtml;
 }
+
 
 function loadRekapData(){
     const period=document.getElementById('rekapPeriod').value;
@@ -2219,36 +2177,26 @@ function buildRingkasGemini(){
 }
 
 function buildPrompt(ringkas){
-    return `Kamu adalah senior data analyst Gojek, spesialis strategi driver. Kamu menggantikan AI Engine V5 lama yang bahasanya TEMPLATE dan KAKU.
+    return `Kamu adalah analis Gojek Jakarta, gaya santai storytelling, analitis mendalam.
 
-CONTOH BAHASA LAMA YANG JANGAN DITIRU (JANGAN PAKAI FORMAT INI!):
-"🎯 APA YANG HARUS SAYA LAKUKAN HARI INI - RABU"
-"TOP 3 NONGKRONG HARI INI"
-"🥇 e Jl. H. Rosyid No.2 - 3 order Rp 76.667/jam"
-"✅ 20:00-21:00 = Rp 50.182/jam (3 order) - WAJIB ON"
-Itu template robot, jangan pakai!
-
-BAHASA YANG GUE MAU (Analitis, dalam, tidak template):
-- Jelaskan KENAPA area itu bagus, bukan cuma sebut nama + angka
-- Korelasikan dengan hari, jam, layanan, baterai, pola
-- Pakai kalimat panjang analitis, bukan list kaku
-- Angka tetap ada tapi dibungkus narasi: "Di Jl. H. Rosyid, rata-rata Rp 76rb/jam karena..."
-- Boleh pakai analogi, sebab-akibat, prediksi
-- Setiap hari harus BEDA struktur kalimatnya, jangan copy-paste template
-
-DATA 14 HARI (hari ini ${ringkas.globalDate}):
+DATA:
+Hari ini: ${ringkas.globalDate}
+Ringkasan 14 hari:
 ${ringkas.ringkasanText}
-${ringkas.battInfo?'BATERAI: '+ringkas.battInfo:''}
+${ringkas.battInfo?'Info baterai: '+ringkas.battInfo:''}
 
-TUGAS: Buat analisa mendalam yang TIDAK TEMPLATE.
-Balas JSON:
+TUGAS: Tulis laporan harian dalam JSON dengan gaya baru natural paragraf panjang jelaskan sebab akibat.
+
+Format JSON:
 {
-  "insight_utama": "HTML analisa mendalam (bukan list kaku). Background #111d35. Isi: 1 paragraf pembuka cerita performa 7 hari, 1 paragraf analisa mendalam kenapa hari ini potensinya begini (pakai data hari sama sebelumnya), 1 paragraf strategi nongkrong dengan ALASAN (bukan cuma nama jalan), 1 paragraf manajemen jam & baterai. Pakai angka spesifik tapi dibungkus narasi. JANGAN pakai format TOP 3 - X order - Rp Y/jam yang kaku!",
-  "jam_gurih": "HTML analisa jam, tapi jelaskan KENAPA jam itu gurih/boncos, korelasi dengan data, bukan cuma list 20:00-21:00 = Rp... WAJIB ON",
-  "nongkrong": "HTML rekomendasi area dengan penjelasan mendalam per area (kenapa area ini, jam berapa bagusnya, layanan apa), plus link GMap: <a href='https://www.google.com/maps/search/?api=1&query=NAMA_AREA' target='_blank'>📍 Petakan</a>",
-  "layanan": "HTML analisa layanan dengan insight kenapa Goride/Gosend lebih cuan hari ini",
-  "tren": "HTML tren dengan storytelling, bukan cuma angka",
+  "insight_utama": "<div style='background:#111d35; border-radius:12px; padding:14px; color:#dbe8ff; line-height:1.7; font-size:13px'><p>Performa 7 hari terakhir cerita...</p><p>Analisa khusus hari ini...</p><p>Rekomendasi area dengan cerita mendalam kenapa area tersebut bagus...</p><p>Strategi jam dan baterai...</p></div>",
+  "jam_gurih": "<div style='color:#dbe8ff; font-size:13px'>Cerita analisa jam dengan narasi</div>",
+  "nongkrong": "<div style='color:#dbe8ff; font-size:13px'>Cerita 3 area terbaik dengan alasan dan link Petakan</div>",
+  "layanan": "<div style='color:#dbe8ff; font-size:13px'>Analisa layanan dengan narasi</div>",
+  "tren": "<div style='color:#dbe8ff; font-size:13px'>Tren harian storytelling</div>",
   "gmap_areas": ["Jl. H. Rosyid No.2", "Pagedangan", "Jl. Kunir V No.8"]
+}
+Tulis natural jangan template lama.`,
 }
 Ingat: ANTI TEMPLATE! Lebih dalam, lebih analitis, lebih human. Balas JSON saja.`;
 }
@@ -2528,6 +2476,53 @@ setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); },1500);
     setTimeout(attach, 1000);
     setTimeout(attach, 2000);
 })();
+</script>
+
+
+<!-- MODAL API KEY GEMINI V3.0 FINAL -->
+<div id="geminiModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; padding:15px;">
+  <div class="card" style="width:100%; max-width:400px; background:#111d35; border:1px solid #2b8cff; padding:20px; border-radius:12px;">
+    <div style="font-weight:bold; color:#a78bfa; margin-bottom:10px; font-size:15px;">Pengaturan Gemini API Key</div>
+    <div style="font-size:11px; color:#94a3b8; margin-bottom:12px;">Masukkan API Key dari Google AI Studio untuk analisa anti-template.</div>
+    <input type="password" id="geminiApiKeyInput" placeholder="Masukkan API Key (AIZA...)" style="width:100%; padding:10px; margin-bottom:15px; border-radius:6px; border:1px solid #3b82f6; background:#0f172a; color:#fff; font-size:12px;">
+    <div style="display:flex; gap:8px;">
+      <button onclick="saveGeminiKey()" style="flex:1; padding:10px; background:#2563eb; color:white; border:none; border-radius:6px; font-size:12px; font-weight:bold;">Simpan Key</button>
+      <button onclick="closeGeminiModal()" style="flex:1; padding:10px; background:#475569; color:white; border:none; border-radius:6px; font-size:12px;">Batal</button>
+    </div>
+    <div style="margin-top:10px; font-size:10px; color:#5a7096; background:#0f1f36; padding:8px; border-radius:6px;">Status: <span id="geminiStatusBadge">-</span></div>
+  </div>
+</div>
+
+<script>
+const GEMINI_API_KEY_STORAGE = 'lapkeu_gemini_api_key';
+const GEMINI_API_KEY_ALT = 'gemini_api_key';
+const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result_v3_final';
+const GEMINI_MODEL = 'gemini-1.5-flash';
+function getGeminiApiKey(){ try{ return localStorage.getItem(GEMINI_API_KEY_STORAGE) || localStorage.getItem(GEMINI_API_KEY_ALT) || ''; }catch(e){ return ''; } }
+function closeGeminiModal(){ const m=document.getElementById('geminiModal'); if(m) m.style.display='none'; }
+function openGeminiModal(){ const m=document.getElementById('geminiModal'); const i=document.getElementById('geminiApiKeyInput'); if(i) i.value=getGeminiApiKey(); if(m) m.style.display='flex'; }
+function saveGeminiKey(){ const v=document.getElementById('geminiApiKeyInput').value.trim(); if(!v){ alert('API Key tidak boleh kosong!'); return; } try{ localStorage.setItem(GEMINI_API_KEY_STORAGE,v); localStorage.setItem(GEMINI_API_KEY_ALT,v);}catch(e){} alert('API Key tersimpan!'); closeGeminiModal(); generateGeminiInsight(true); }
+function clearGeminiCacheOnly(){ try{ let ks=[]; for(let i=0;i<localStorage.length;i++){ let k=localStorage.key(i); if(k&&k.toLowerCase().includes('gemini')) ks.push(k);} ks.forEach(k=>{ try{ localStorage.removeItem(k);}catch(e){} }); let api=getGeminiApiKey(); if(api){ localStorage.setItem(GEMINI_API_KEY_STORAGE,api); localStorage.setItem(GEMINI_API_KEY_ALT,api);} const c=document.getElementById('rekapInsightContainer'); if(c) c.innerHTML='<div style="padding:12px; text-align:center; color:#8aa0c6; font-size:12px; background:#0f1f36; border-radius:8px;">Cache dibersihkan...</div>'; alert('Cache Gemini dibersihkan'); }catch(e){ alert('Gagal: '+e.message);} }
+function clearToday(){ try{ let de=document.getElementById('globalDate'); let date=de?de.value:new Date().toISOString().split('T')[0]; let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); let before=data.length; let filtered=data.filter(d=>d.date!==date); localStorage.setItem('lapkeuData', JSON.stringify(filtered)); let shift=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}'); delete shift[date]; localStorage.setItem('lapkeu_shift', JSON.stringify(shift)); if(typeof loadData==='function') loadData(); alert('Data '+date+' dihapus: '+(before-filtered.length)+' item'); if(typeof debugShowAll==='function') setTimeout(debugShowAll,300);}catch(e){ alert('Gagal: '+e.message);} }
+function clearAllDataFull(){ try{ let toDel=[]; for(let i=0;i<localStorage.length;i++){ let k=localStorage.key(i); if(k&&(k.startsWith('lapkeu_')||k.includes('gemini')||k==='UNIVERSAL_LAKE_V1'||k.startsWith('battlog_'))) toDel.push(k);} toDel.forEach(k=>{ try{ localStorage.removeItem(k);}catch(e){} }); alert('Semua data dihapus, reload...'); setTimeout(()=>location.reload(),600);}catch(e){ alert('Error: '+e.message);} }
+async function generateGeminiInsight(forceRefresh=false){
+  const apiKey=getGeminiApiKey(); const container=document.getElementById('rekapInsightContainer'); if(!container) return;
+  if(!apiKey){ container.innerHTML='<div style="padding:12px; font-size:12px; color:#ff8a80; background:#1a1212; border-radius:8px;">API Key belum diisi. Klik gear di pojok Tanggal.</div>'; return; }
+  if(!forceRefresh){ const cached=localStorage.getItem(GEMINI_LAST_RESULT); if(cached){ try{ let p=JSON.parse(cached); if(p.insight_utama && !p.insight_utama.includes('TOP 3 NONGKRONG') && !p.insight_utama.includes('APA YANG HARUS SAYA LAKUKAN')){ container.innerHTML=p.insight_utama; return; } else { localStorage.removeItem(GEMINI_LAST_RESULT);} }catch(e){ container.innerHTML='<div style="font-size:13px; color:#dbe8ff;">'+cached+'</div>'; return; } } }
+  container.innerHTML='<div style="padding:12px; text-align:center; color:#a78bfa;">Menghubungi Gemini AI anti-template...</div>';
+  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  if(data.length===0){ container.innerHTML='<div style="padding:12px; color:#8aa0c6;">Belum ada data.</div>'; return; }
+  let last30=data.slice(-30); let ringkas=last30.map(d=>`${d.date} ${d.time||''} ${d.cat||''} Rp${d.amount||0} ${d.pickup||''}->${d.destination||''}`).join('\n');
+  let prompt=`Kamu analis senior Gojek. Gaya storytelling analitis, JANGAN pakai template TOP 3 NONGKRONG, JAM EMAS, WAJIB ON, APA YANG HARUS SAYA LAKUKAN. Wajib paragraf panjang jelaskan KENAPA area itu cuan, kenapa jam itu bagus, pakai angka spesifik dibungkus narasi. DATA: ${ringkas} Balas JSON: {"insight_utama":"HTML 3-4 paragraf panjang analitis","nongkrong":"HTML cerita 3 area dengan alasan plus link GMap","jam_gurih":"HTML cerita jam","layanan":"HTML layanan","tren":"HTML tren","gmap_areas":["Area A","Area B","Area C"]}`;
+  try{ let url=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`; let body={contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.95, maxOutputTokens:8192, responseMimeType:"application/json"}}; let resp=await fetch(url,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); if(!resp.ok){ let t=await resp.text(); throw new Error(t.substring(0,300)); } let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; if(!txt) throw new Error('Response kosong'); let parsed; try{ parsed=JSON.parse(txt);}catch(e){ let m=txt.match(/\{[\s\S]*\}/); if(m) parsed=JSON.parse(m[0]); else throw e; } if(parsed.insight_utama && (parsed.insight_utama.includes('TOP 3 NONGKRONG')||parsed.insight_utama.includes('APA YANG HARUS SAYA LAKUKAN'))){ throw new Error('Masih template, coba lagi'); } container.innerHTML=parsed.insight_utama||txt; localStorage.setItem(GEMINI_LAST_RESULT, JSON.stringify(parsed)); }catch(err){ container.innerHTML='<div style="padding:12px; color:#ff8a80;">Gagal AI: '+err.message+'</div>'; }
+}
+document.addEventListener("DOMContentLoaded", ()=>{
+  const btnGear=document.getElementById('btnGeminiGear');
+  if(btnGear){ btnGear.addEventListener('click',(e)=>{ e.preventDefault(); openGeminiModal(); }, {passive:false}); btnGear.addEventListener('touchend',(e)=>{ e.preventDefault(); openGeminiModal(); }, {passive:false}); }
+  const modal=document.getElementById('geminiModal'); if(modal){ modal.addEventListener('click',(e)=>{ if(e.target===modal) closeGeminiModal(); }); }
+  try{ let olds=['lapkeu_gemini_last_result','lapkeu_gemini_last_result_v2','lapkeu_gemini_last_result_v3_real','lapkeu_gemini_last_result_v12_real','lapkeu_gemini_last_result_v13_force']; olds.forEach(k=>{ let v=localStorage.getItem(k); if(v&&(v.includes('TOP 3 NONGKRONG')||v.includes('APA YANG HARUS SAYA LAKUKAN'))){ localStorage.removeItem(k);} }); }catch(e){}
+  if(getGeminiApiKey()){ setTimeout(()=>generateGeminiInsight(),1000); }
+});
 </script>
 
 </body>
