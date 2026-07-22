@@ -163,7 +163,9 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">SiGan V5.0 <span style="color:#7dffb7">OCR FULL</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V1.3</span></div>
+
+
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
             <div id="sigan-sync-dot" style="width:8px; height:8px; border-radius:50%; background:#555;"></div>
             <span id="sigan-sync-text" style="color:#aaa;">SYNC STANDBY</span>
@@ -342,6 +344,12 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     </div>
 
     <div id="tabContentRekap" class="hidden">
+        <div class="card" style="border-left:5px solid #ff5252; background:#221818;">
+            <div style="font-size:13px; color:#ff8a80; margin-bottom:12px; font-weight:bold; text-transform:uppercase;">🤖 Insight Presisi V5</div>
+            <div id="rekapInsightContainer"></div>
+        </div>
+
+        
         <div class="filter-container">
             <select id="rekapPeriod" onchange="handleRekapPeriodChange()">
                 <option value="7">7 Hari Terakhir</option>
@@ -394,10 +402,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             <div style="font-size:13px; color:var(--muted); margin-top:10px;">Rata-rata Rp/Km</div><div style="font-size:16px; font-weight:bold; color:#40c4ff; margin:5px 0;" id="rekapEfficiency">Rp 0 /km</div>
         </div>
 
-        <div class="card" style="border-left:5px solid #ff5252; background:#221818;">
-            <div style="font-size:13px; color:#ff8a80; margin-bottom:12px; font-weight:bold; text-transform:uppercase;">🤖 Insight Presisi V5</div>
-            <div id="rekapInsightContainer"></div>
-        </div>
+        
     </div>
 
 <script>
