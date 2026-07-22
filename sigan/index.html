@@ -1,3 +1,4 @@
+<!-- Lapkeu v1.4 AUTO GEMINI - API di Setting Input - Auto analisa setiap input - 2026-07-22 -->
 <!-- Lapkeu v1.2 ACUAN FINAL LOCKED - 2026-07-21 - Rumus Goride Murni + Insight Strategi Hari Sama - SEMPURNA -->
 <!-- Lapkeu v1.2 - ACUAN BARU FIX TAB - Insight Strategi Hari Sama - Locked 2026-07-21 -->
 <!-- Lapkeu v1.1 - NAMA SELARAS - lapkeu_* & battlog_* - Migrasi otomatis dari v1.0 - Locked 2026-07-21 - SYNC FIX -->
@@ -212,6 +213,20 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
         </div>
 
         
+
+        <!-- SETTING GEMINI API KEY - DI INPUT, TIDAK NAMBAH CARD DI REKAP -->
+        <div class="card" style="border:1px dashed #4c1d95; background:linear-gradient(135deg,#1a1033 0%,#0f1f36 100%); padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:11px; font-weight:800; color:#a78bfa;">🔑 SETTING GEMINI API KEY</span>
+                <span id="geminiStatusBadge" style="font-size:9px; background:#1e1b4b; border:1px solid #4c1d95; padding:2px 8px; border-radius:999px; color:#8aa0c6;">-</span>
+            </div>
+            <div style="font-size:10px; color:#8aa0c6; margin-bottom:8px;">API Key gratis dari Google, dipakai otomatis setiap input masuk. Jika quota habis, antri & auto retry.</div>
+            <div style="display:flex; gap:8px;">
+                <input id="geminiApiKeyInput" type="password" placeholder="Paste AIza... disini" style="flex:1; font-size:12px; padding:10px; margin:0;">
+                <button onclick="saveGeminiKey()" style="background:linear-gradient(180deg,#8b5cf6,#6d28d9); padding:10px 14px; font-size:11px; font-weight:700;">SIMPAN</button>
+            </div>
+            <div style="font-size:9px; color:#5a7096; margin-top:6px;">Dapatkan gratis: <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#8b5cf6;">aistudio.google.com/app/apikey</a> → Create API Key</div>
+        </div>
 
         <!-- Summary -->
         <div class="summary-grid">
@@ -1995,6 +2010,300 @@ window.onload=function(){
   window.kirimSiGanKeEvLog=buildAndSendSiGan; window.bacaDataEvLog=bacaDataEvLog; window.getUniversalLake=window.getUniversalLake||function(){ try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; } }; console.log('SiGan V5 Receiver+Sender aktif: MERGE mode + OCR FULL');
 })();
 </script>
+
+
+
+<script id="gemini-auto-engine-v3">
+// === GEMINI AUTO ENGINE V3.1 - SETIAP INPUT + QUEUE JIKA QUOTA HABIS ===
+const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_API_KEY_STORAGE = 'lapkeu_gemini_api_key';
+const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result';
+const GEMINI_LAST_DATE = 'lapkeu_gemini_last_date';
+const GEMINI_QUEUE_KEY = 'lapkeu_gemini_queue';
+const GEMINI_RETRY_KEY = 'lapkeu_gemini_retry_info';
+
+function getGeminiApiKey(){ try{ return localStorage.getItem(GEMINI_API_KEY_STORAGE)||''; }catch(e){ return ''; } }
+function saveGeminiKey(){
+    let el = document.getElementById('geminiApiKeyInput');
+    let key = el.value.trim();
+    if(!key){
+        let saved = getGeminiApiKey();
+        if(saved){ showToast('API Key sudah tersimpan', 'info'); return; }
+        alert('Masukkan API Key dulu\nDapatkan gratis di aistudio.google.com/app/apikey');
+        return;
+    }
+    if(!key.startsWith('AIza') && key.length<20){
+        alert('API Key tidak valid. Harus mulai AIza...');
+        return;
+    }
+    localStorage.setItem(GEMINI_API_KEY_STORAGE, key);
+    el.value = key.substring(0,10)+'••••••••';
+    el.type='password';
+    updateGeminiStatus();
+    showToast('✅ API Key disimpan! Auto analisa tiap input aktif', 'success');
+    // langsung proses antrian jika ada
+    setTimeout(()=>processGeminiQueue(true), 1000);
+}
+
+function getQueue(){
+    try{ return JSON.parse(localStorage.getItem(GEMINI_QUEUE_KEY)||'[]'); }catch(e){ return []; }
+}
+function setQueue(q){ localStorage.setItem(GEMINI_QUEUE_KEY, JSON.stringify(q)); }
+function getRetryInfo(){
+    try{ return JSON.parse(localStorage.getItem(GEMINI_RETRY_KEY)||'null'); }catch(e){ return null; }
+}
+function setRetryInfo(info){ localStorage.setItem(GEMINI_RETRY_KEY, JSON.stringify(info)); }
+
+function updateGeminiStatus(){
+    let key = getGeminiApiKey();
+    let badge = document.getElementById('geminiStatusBadge');
+    let input = document.getElementById('geminiApiKeyInput');
+    if(!badge) return;
+    let queue = getQueue();
+    let retry = getRetryInfo();
+    
+    if(!key){
+        badge.textContent='Butuh API Key';
+        badge.style.color='#ff8a80';
+        return;
+    }
+    if(input && !input.value) input.value = key.substring(0,10)+'••••••••';
+    
+    if(retry && retry.nextRetryAt && Date.now() < retry.nextRetryAt){
+        let diff = Math.ceil((retry.nextRetryAt - Date.now())/60000);
+        badge.textContent = `⏳ Quota habis, retry ${diff}m (${queue.length} antri)`;
+        badge.style.color='#ffcc66';
+    } else if(queue.length>0){
+        badge.textContent = `📝 ${queue.length} antrian analisa`;
+        badge.style.color='#a78bfa';
+    } else {
+        let lastDate = localStorage.getItem(GEMINI_LAST_DATE);
+        badge.textContent = lastDate ? lastDate+' ✓ Auto' : 'OK ✓ Auto';
+        badge.style.color='#7dffb7';
+    }
+    // Load last result
+    try{
+        let last = localStorage.getItem(GEMINI_LAST_RESULT);
+        if(last){
+            let parsed = JSON.parse(last);
+            if(parsed && parsed.insightHtml){
+                let container = document.getElementById('rekapInsightContainer');
+                if(container && !container.innerHTML.includes('Gemini AI menganalisa')) container.innerHTML = parsed.insightHtml;
+            }
+        }
+    }catch(e){}
+}
+
+function buildRingkasGemini(){
+    try{
+        let data = JSON.parse(localStorage.getItem('lapkeuData')||'[]');
+        let shift = JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
+        let globalDate = document.getElementById('globalDate')?.value || new Date().toISOString().split('T')[0];
+        let anchor = new Date(globalDate);
+        let cutoff14 = new Date(anchor); cutoff14.setDate(anchor.getDate()-14);
+        let data14 = data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt>=cutoff14 && dt<=anchor; });
+        let perHari = {};
+        data14.forEach(o=>{
+            if(!perHari[o.date]) perHari[o.date]={orders:[], income:0, expense:0, hours:0};
+            if(o.type==='Pendapatan'){ perHari[o.date].orders.push(o); perHari[o.date].income+=Number(o.amount)||0; }
+            else perHari[o.date].expense+=Number(o.amount)||0;
+        });
+        for(let d in perHari){
+            let s = shift[d];
+            if(s && s.start && s.end){
+                try{
+                    let sh=parseInt(s.start.split(':')[0]), sm=parseInt(s.start.split(':')[1]||0);
+                    let eh=parseInt(s.end.split(':')[0]), em=parseInt(s.end.split(':')[1]||0);
+                    let dur=(eh+em/60)-(sh+sm/60); if(dur<0) dur+=24; perHari[d].hours=dur;
+                }catch(e){ perHari[d].hours=perHari[d].orders.length*0.35; }
+            } else perHari[d].hours=perHari[d].orders.length*0.35;
+        }
+        let battInfo='';
+        try{
+            let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+            if(lakeRaw){
+                let lake=JSON.parse(lakeRaw);
+                let batt=lake.maka?.maka_log_v1||[];
+                if(batt.length>0){ let last3=batt.slice(0,3).map(b=>`${b.tanggal}: ${b.km_awal}→${b.km_akhir}km`).join('; '); battInfo=`Battlog: ${last3}`; }
+            }
+        }catch(e){}
+        let ringkasan=[];
+        Object.keys(perHari).sort().forEach(date=>{
+            let h=perHari[date];
+            let net=h.income-h.expense;
+            let rpJam=h.hours>0?Math.round(net/h.hours):0;
+            let detail=h.orders.map(o=>`${o.time||'??:??'} ${o.cat||''} Rp${o.amount} ${o.dist||0}km ${o.pickup||''}→${o.destination||''}`).join(' | ');
+            ringkasan.push(`${date} (${new Date(date).toLocaleDateString('id-ID',{weekday:'long'})}): ${h.orders.length} order, Bruto Rp${h.income.toLocaleString('id-ID')}, Netto Rp${net.toLocaleString('id-ID')}, ${h.hours.toFixed(1)}h, Rp/jam ${rpJam.toLocaleString('id-ID')} | ${detail.substring(0,350)}`);
+        });
+        return {globalDate, ringkasanText:ringkasan.join('\n'), total14:data14.length, perHari, battInfo};
+    }catch(e){ return {error:e.message}; }
+}
+
+function buildPrompt(ringkas){
+    return `Kamu AI Engine V3 driver ojol Gojek Jakarta. Gantikan AI Engine V2 lama.
+
+DATA 14 HARI (hari ini ${ringkas.globalDate}):
+${ringkas.ringkasanText}
+${ringkas.battInfo?'INFO BATERAI: '+ringkas.battInfo:''}
+
+TUGAS: Balas JSON VALID:
+{
+  "insight_utama": "HTML insight utama dark theme #0f1f36 border #1e2d4a. Isi: 🎯 APA HARUS SAYA LAKUKAN BESOK, TOP 3 NONGKRONG, JAM EMAS vs ISTIRAHAT, FOKUS LAYANAN, JANGAN DIULANG, TAKTIK. Santai.",
+  "jam_gurih": "HTML 4 blok waktu",
+  "nongkrong": "HTML rekomendasi nongkrong",
+  "layanan": "HTML profit layanan",
+  "tren": "HTML tren harian"
+}
+Rp/jam=Netto/Jam, fokus hari sama, jangan ngarang, Indonesia santai. Balas JSON saja.`;
+}
+
+async function callGemini(prompt, key){
+    let url=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
+    let body={contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.8, maxOutputTokens:8192, responseMimeType:"application/json"}};
+    let resp=await fetch(url,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    if(!resp.ok){
+        let t=await resp.text();
+        let err = new Error(`API ${resp.status}: ${t.substring(0,600)}`);
+        err.status = resp.status;
+        err.body = t;
+        throw err;
+    }
+    let data=await resp.json();
+    if(!data.candidates?.[0]?.content) throw new Error('Response kosong');
+    return data.candidates[0].content.parts[0].text;
+}
+
+function enqueueGeminiJob(){
+    let q = getQueue();
+    let job = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        globalDate: document.getElementById('globalDate')?.value || new Date().toISOString().split('T')[0],
+        attempts: 0
+    };
+    q.push(job);
+    // batasi queue max 20 biar tidak numpuk
+    if(q.length>20) q = q.slice(-20);
+    setQueue(q);
+    updateGeminiStatus();
+    // langsung proses
+    processGeminiQueue();
+}
+
+async function processGeminiQueue(force=false){
+    let key=getGeminiApiKey();
+    if(!key) return;
+    if(!navigator.onLine) { updateGeminiStatus(); return; }
+    
+    let retry = getRetryInfo();
+    if(!force && retry && retry.nextRetryAt && Date.now() < retry.nextRetryAt){
+        // masih tunggu quota
+        updateGeminiStatus();
+        return;
+    }
+    
+    let q = getQueue();
+    if(q.length===0) { updateGeminiStatus(); return; }
+    
+    // ambil job terakhir saja (paling baru) - karena analisa selalu pakai data terbaru
+    let job = q[q.length-1];
+    job.attempts = (job.attempts||0)+1;
+    
+    let container=document.getElementById('rekapInsightContainer');
+    try{
+        if(container){
+            container.innerHTML=`<div style="background:#0f1f36; border:1px solid #4c1d95; border-radius:12px; padding:14px; text-align:center;"><div style="font-size:12px; color:#a78bfa; margin-bottom:8px;">🔮 Gemini AI menganalisa ${q.length} input...</div><div class="progress-container" style="height:6px;"><div class="progress-bar" style="width:70%; background:linear-gradient(90deg,#8b5cf6,#7dffb7); animation: gemPulse 1s infinite;"></div></div><div style="font-size:10px; color:#5a7096; margin-top:6px;">Setiap input dianalisa, antri ${q.length} - menggantikan AI Engine V2</div></div><style>@keyframes gemPulse{0%{opacity:0.6}50%{opacity:1}100%{opacity:0.6}}</style>`;
+        }
+        let ringkas=buildRingkasGemini();
+        if(ringkas.error) throw new Error(ringkas.error);
+        if(ringkas.total14===0) throw new Error('Belum ada data');
+        let prompt=buildPrompt(ringkas);
+        let resultText=await callGemini(prompt, key);
+        let clean=resultText.trim().replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'');
+        let json;
+        try{ json=JSON.parse(clean); }catch(e){ let m=clean.match(/\{[\s\S]*\}/); if(m) json=JSON.parse(m[0]); else throw e; }
+        
+        if(json.insight_utama && container) container.innerHTML=json.insight_utama;
+        let jamContainer=document.getElementById('rekapHourlyContainer');
+        if(jamContainer && json.jam_gurih) jamContainer.innerHTML=json.jam_gurih;
+        let tiersContainer=document.getElementById('rekapTiersContainer');
+        if(tiersContainer && json.nongkrong) tiersContainer.innerHTML=json.nongkrong;
+        let ratesContainer=document.getElementById('rekapRatesContainer');
+        if(ratesContainer && json.layanan) ratesContainer.innerHTML=json.layanan;
+        let daysContainer=document.getElementById('rekapDaysContainer');
+        if(daysContainer && json.tren) daysContainer.innerHTML=json.tren;
+        
+        // sukses - kosongkan queue
+        setQueue([]);
+        localStorage.setItem(GEMINI_LAST_RESULT, JSON.stringify({insightHtml: json.insight_utama, ts: Date.now()}));
+        localStorage.setItem(GEMINI_LAST_DATE, new Date().toLocaleDateString('id-ID'));
+        setRetryInfo(null);
+        updateGeminiStatus();
+        showToast(`🔮 Selesai! ${q.length} input dianalisa Gemini`, 'success');
+    }catch(err){
+        console.error('Gemini queue error', err);
+        let status = err.status||0;
+        let isQuota = status===429 || (err.body && (err.body.includes('quota')||err.body.includes('RESOURCE_EXHAUSTED')||err.body.includes('429')));
+        
+        if(isQuota){
+            // hitung retry - kalau 429 per menit, retry 70 detik. Kalau daily quota, retry 1 jam
+            let isDaily = err.body && err.body.includes('per day') ? true : false;
+            let delayMs = isDaily ? 60*60*1000 : 70*1000; // 70 detik atau 1 jam
+            // exponential backoff kalau sudah beberapa kali gagal
+            if(job.attempts>2) delayMs = Math.min(delayMs * job.attempts, 4*60*60*1000);
+            
+            let nextRetry = Date.now() + delayMs;
+            setRetryInfo({nextRetryAt: nextRetry, lastError: err.message, attempts: job.attempts, isDaily});
+            // update job attempts
+            q[q.length-1]=job;
+            setQueue(q);
+            
+            if(container){
+                let menit = Math.ceil(delayMs/60000);
+                container.innerHTML=`<div style="background:rgba(255,204,102,0.08); border:1px solid #ffcc66; border-radius:12px; padding:12px;"><div style="font-size:12px; color:#ffcc66; font-weight:700;">⏳ Quota Gemini habis, masuk antrian</div><div style="font-size:11px; color:#dbe8ff; margin-top:6px;">${q.length} input menunggu. Auto retry ${isDaily?'1 jam':'menit'} lagi (${menit} menit) jam ${new Date(nextRetry).toLocaleTimeString('id-ID')}.<br>Tidak perlu klik apa-apa, nanti otomatis jalan pas quota ada lagi.</div><div class="progress-container" style="height:6px; margin-top:8px;"><div class="progress-bar" style="width:100%; background:#ffcc66;"></div></div></div>`;
+            }
+            updateGeminiStatus();
+            showToast(`⏳ Quota habis, ${q.length} input antri, auto retry ${Math.ceil(delayMs/60000)} menit lagi`, 'warning');
+            // schedule retry
+            setTimeout(()=>processGeminiQueue(true), delayMs+2000);
+        } else {
+            // error lain - jangan hapus queue, coba lagi nanti
+            if(container){
+                container.innerHTML=`<div style="background:rgba(255,77,77,0.08); border:1px solid #5a2a3a; border-radius:8px; padding:8px; font-size:11px; color:#ff8a80;">⚠️ Gagal analisa: ${err.message}<br><span style="font-size:10px; color:#8aa0c6;">Akan auto retry. ${q.length} antrian tetap disimpan.</span></div>`+ (container.innerHTML||'');
+            }
+            // retry 2 menit lagi
+            setRetryInfo({nextRetryAt: Date.now()+120000, lastError: err.message});
+            setTimeout(()=>processGeminiQueue(true), 125000);
+        }
+    }
+}
+
+// Auto trigger SETIAP saveData
+(function(){
+    if(window.saveData && !window.saveData.__geminiAutoHooked){
+        let orig=window.saveData;
+        window.saveData=function(){
+            let res=orig.apply(this, arguments);
+            setTimeout(()=>{
+                let key=getGeminiApiKey();
+                if(key){
+                    enqueueGeminiJob();
+                    showToast('📝 Input masuk antrian Gemini AI...', 'info');
+                }
+            }, 500);
+            return res;
+        };
+        window.saveData.__geminiAutoHooked=true;
+    }
+})();
+
+// Cek antrian tiap 1 menit + saat online kembali
+setInterval(()=>processGeminiQueue(), 60000);
+window.addEventListener('online', ()=>{ setTimeout(()=>processGeminiQueue(true), 2000); });
+
+setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); }, 1500);
+</script>
+
 
 <script id="sync-lamp-script">
 (function(){
