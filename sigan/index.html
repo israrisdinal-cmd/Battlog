@@ -83,28 +83,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 
 <!-- GEMINI KEY ICON DI POJOK KANAN ATAS - CUMA SEKALI INPUT TRUS LUPAKAN -->
 <!-- MODAL API KEY -->
-<div id="geminiModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10000; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px);">
-    <div style="background:#111d35; border:1px solid #4c1d95; border-radius:18px; padding:20px; width:100%; max-width:360px; box-shadow:0 20px 40px rgba(0,0,0,0.5);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <span style="font-size:13px; font-weight:800; color:#a78bfa;">🔑 Gemini API Key</span>
-            <button onclick="closeGeminiModal()" style="background:#1e1b4b; border:1px solid #4c1d95; width:28px; height:28px; border-radius:50%; font-size:14px; color:#8aa0c6;">✕</button>
-        </div>
-        <div style="font-size:11px; color:#8aa0c6; margin-bottom:12px; line-height:1.4;">Cuma sekali input, abis itu dilupain. Auto analisa tiap input masuk + konek GMap. Gratis dari Google.</div>
-        <div style="position:relative; margin-bottom:10px;">
-            <input id="geminiApiKeyInput" type="password" placeholder="Paste AIza... disini" style="width:100%; padding:12px 40px 12px 12px; font-size:13px; background:#0f1f36; border:1px solid #4c1d95; border-radius:12px; color:#eaf2ff;">
-            <button onclick="toggleKeyVisibility()" type="button" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); background:transparent; border:0; font-size:16px; cursor:pointer; padding:6px;">👁️</button>
-        </div>
-        <div style="display:flex; gap:8px; margin-bottom:12px;">
-            <button onclick="saveGeminiKey()" style="flex:1; background:linear-gradient(180deg,#8b5cf6,#6d28d9); padding:12px; font-size:12px; font-weight:700; border-radius:12px;">SIMPAN & AKTIFKAN</button>
-            <button onclick="clearGeminiKey()" style="background:#1e1b4b; border:1px solid #4c1d95; padding:12px; font-size:11px; border-radius:12px; color:#8aa0c6;">Hapus</button>
-        </div>
-        <div style="font-size:10px; color:#5a7096; padding:8px; background:#0f1f36; border-radius:8px; margin-bottom:8px;">
-            <div style="margin-bottom:4px;">📊 Status: <span id="geminiStatusBadge">-</span></div>
-            <div id="geminiQueueInfo" style="margin-top:4px;"></div>
-        </div>
-        <div style="font-size:9px; color:#5a7096;">Dapatkan gratis: <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#8b5cf6;">aistudio.google.com/app/apikey</a> → Create API Key → Paste di atas</div>
-    </div>
-</div>
+
 
 <script>
 // === MIGRASI OTOMATIS v1.0 -> v1.1 - BATTLOG & LAPKEU STANDARD ===
@@ -209,9 +188,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     <div id="tabContentInput">
         <!-- Global Date & Shift -->
         <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <div style="font-size:12px; font-weight:800; color:#7dffb7;">📅 Tanggal Operasional & Jam Online</div>
-                <button id="btnGeminiGear" onclick="openGeminiModal()" title="Setting Gemini & GMap" style="width:32px; height:32px; border-radius:8px; background:#0f1f36; border:1px solid #1e2d4a; color:#8aa0c6; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;">⚙️</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><div style="font-size:12px; font-weight:800; color:#7dffb7;">📅 Tanggal Operasional & Jam Online</div><button id="btnGeminiGear" type="button" style="width:36px; height:36px; border-radius:10px; background:#0f1f36; border:1px solid #2b5a9a; color:#8ab4f8; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent;">⚙️</button>
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                 <div>
@@ -2042,16 +2019,33 @@ const GMAP_CACHE_KEY = 'lapkeu_gmap_cache';
 
 // Modal functions
 function openGeminiModal(){
-    document.getElementById('geminiModal').style.display='flex';
-    let key = getGeminiApiKey();
-    let input = document.getElementById('geminiApiKeyInput');
-    if(key && input){
-        input.value = key;
-        input.type='password';
-    }
-    updateGeminiStatus();
+    try{
+        let modal = document.getElementById('geminiModal');
+        if(!modal){ alert('Modal tidak ditemukan, coba refresh'); return; }
+        modal.style.display='flex';
+        // Force reflow for mobile
+        modal.offsetHeight;
+        let key = getGeminiApiKey();
+        let input = document.getElementById('geminiApiKeyInput');
+        if(key && input){
+            input.value = key;
+            input.type='password';
+        }
+        updateGeminiStatus();
+        // Prevent background scroll
+        document.body.style.overflow='hidden';
+    }catch(e){ console.error('openModal error', e); alert('Gagal buka setting: '+e.message); }
 }
+function closeGeminiModalSafe(e){
+    if(e && e.target && e.target.id !== 'geminiModal' && !e.target.closest('button')) return;
+    closeGeminiModal();
+}
+
 function closeGeminiModal(){
+    try{ document.body.style.overflow=''; }catch(e){}
+    let modal=document.getElementById('geminiModal'); if(modal) modal.style.display='none';
+}
+function closeGeminiModalOld(){
     document.getElementById('geminiModal').style.display='none';
 }
 function toggleKeyVisibility(){
@@ -2201,29 +2195,39 @@ function buildRingkasGemini(){
 }
 
 function buildPrompt(ringkas){
-    return `Kamu adalah AI Engine V5.1 Analis Ojol Profesional Gojek Jakarta. Gantikan Insight Gemini AI lama dengan analisa lebih akurat + koneksi GMap.
+    return `Kamu adalah senior data analyst Gojek, spesialis strategi driver. Kamu menggantikan AI Engine V5 lama yang bahasanya TEMPLATE dan KAKU.
+
+CONTOH BAHASA LAMA YANG JANGAN DITIRU (JANGAN PAKAI FORMAT INI!):
+"🎯 APA YANG HARUS SAYA LAKUKAN HARI INI - RABU"
+"TOP 3 NONGKRONG HARI INI"
+"🥇 e Jl. H. Rosyid No.2 - 3 order Rp 76.667/jam"
+"✅ 20:00-21:00 = Rp 50.182/jam (3 order) - WAJIB ON"
+Itu template robot, jangan pakai!
+
+BAHASA YANG GUE MAU (Analitis, dalam, tidak template):
+- Jelaskan KENAPA area itu bagus, bukan cuma sebut nama + angka
+- Korelasikan dengan hari, jam, layanan, baterai, pola
+- Pakai kalimat panjang analitis, bukan list kaku
+- Angka tetap ada tapi dibungkus narasi: "Di Jl. H. Rosyid, rata-rata Rp 76rb/jam karena..."
+- Boleh pakai analogi, sebab-akibat, prediksi
+- Setiap hari harus BEDA struktur kalimatnya, jangan copy-paste template
 
 DATA 14 HARI (hari ini ${ringkas.globalDate}):
 ${ringkas.ringkasanText}
 ${ringkas.battInfo?'BATERAI: '+ringkas.battInfo:''}
 
-TUGAS: Analisa mendalam untuk strategi BESOK. Fokus:
-- Pola hari sama
-- Area Rp/jam tertinggi
-- Jam emas vs boncos
-- Layanan cuan
-- Pantangan
-
+TUGAS: Buat analisa mendalam yang TIDAK TEMPLATE.
 Balas JSON:
 {
-  "insight_utama": "HTML analisa utama dark theme #111d35, bahasa profesional jelas: 🎯 STRATEGI BESOK - [HARI], 📊 RINGKASAN, TOP 3 NONGKRONG Rp/jam, JAM EMAS vs ISTIRAHAT, FOKUS LAYANAN, JANGAN DIULANG, TAKTIK. Data asli.",
-  "jam_gurih": "HTML 4 blok waktu dengan Rp/jam + area + link GMap: <a href='https://www.google.com/maps/search/?api=1&query=AREA' target='_blank' style='color:#2b8cff;'>📍 GMap</a>",
-  "nongkrong": "HTML list TOP area dengan Rp/jam + link GMap",
-  "layanan": "HTML profit layanan",
-  "tren": "HTML tren",
+  "insight_utama": "HTML analisa mendalam (bukan list kaku). Background #111d35. Isi: 1 paragraf pembuka cerita performa 7 hari, 1 paragraf analisa mendalam kenapa hari ini potensinya begini (pakai data hari sama sebelumnya), 1 paragraf strategi nongkrong dengan ALASAN (bukan cuma nama jalan), 1 paragraf manajemen jam & baterai. Pakai angka spesifik tapi dibungkus narasi. JANGAN pakai format TOP 3 - X order - Rp Y/jam yang kaku!",
+  "jam_gurih": "HTML analisa jam, tapi jelaskan KENAPA jam itu gurih/boncos, korelasi dengan data, bukan cuma list 20:00-21:00 = Rp... WAJIB ON",
+  "nongkrong": "HTML rekomendasi area dengan penjelasan mendalam per area (kenapa area ini, jam berapa bagusnya, layanan apa), plus link GMap: <a href='https://www.google.com/maps/search/?api=1&query=NAMA_AREA' target='_blank'>📍 Petakan</a>",
+  "layanan": "HTML analisa layanan dengan insight kenapa Goride/Gosend lebih cuan hari ini",
+  "tren": "HTML tren dengan storytelling, bukan cuma angka",
   "gmap_areas": ["Jl. H. Rosyid No.2", "Pagedangan", "Jl. Kunir V No.8"]
 }
-gmap_areas = 3-5 area asli Rp/jam tertinggi. Balas JSON saja.`;
+Ingat: ANTI TEMPLATE! Lebih dalam, lebih analitis, lebih human. Balas JSON saja.`;
+}
 }
 
 async function callGemini(prompt, key){
@@ -2409,6 +2413,96 @@ setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); },1500);
   }
   setInterval(cek,3000); setTimeout(cek,800);
   window.addEventListener('storage', function(e){ if(e.key==='lapkeu_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1'){ var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); if(dot){ dot.style.background='#00e676'; txt.textContent='BERTUKAR DATA...'; setTimeout(cek,1300); } } });
+})();
+</script>
+
+
+<!-- MODAL SETTING GEMINI - SIMPLE FREEZE-PROOF -->
+<div id="geminiModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); z-index:99999; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:#111d35; border:1px solid #2b5a9a; border-radius:16px; padding:18px; width:100%; max-width:340px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <b style="color:#a78bfa; font-size:13px;">⚙️ Setting Gemini</b>
+            <button id="btnCloseModal" type="button" style="width:30px; height:30px; border-radius:8px; background:#1e1b4b; border:1px solid #4c1d95; color:#8aa0c6;">✕</button>
+        </div>
+        <div style="font-size:11px; color:#8aa0c6; margin-bottom:10px;">Input sekali, auto analisa + GMap. Gratis di aistudio.google.com/app/apikey</div>
+        <input id="geminiApiKeyInput" type="text" placeholder="Paste AIza... disini" style="width:100%; padding:12px; background:#0f1f36; border:1px solid #4c1d95; border-radius:10px; color:#eaf2ff; font-size:13px; margin-bottom:10px;">
+        <div style="display:flex; gap:8px;">
+            <button id="btnSaveKey" type="button" style="flex:1; background:#2b8cff; padding:12px; border-radius:10px; font-weight:700; font-size:12px;">SIMPAN</button>
+            <button id="btnClearKey" type="button" style="background:#1e1b4b; border:1px solid #4c1d95; padding:12px; border-radius:10px; color:#8aa0c6; font-size:11px;">Hapus</button>
+        </div>
+        <div style="font-size:10px; color:#5a7096; margin-top:10px; padding:8px; background:#0f1f36; border-radius:8px;">
+            Status: <span id="geminiStatusBadge">-</span><br>
+            <span id="geminiQueueInfo"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+// SIMPLE GEAR HANDLER - FREEZE PROOF, DEFINED EARLY
+(function(){
+    function safeOpen(){
+        try{
+            let m = document.getElementById('geminiModal');
+            if(!m){ alert('Modal belum siap, refresh dulu'); return; }
+            m.style.display = 'flex';
+            let key = '';
+            try{ key = localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+            let input = document.getElementById('geminiApiKeyInput');
+            if(input && key) input.value = key;
+            try{ if(typeof updateGeminiStatus==='function') updateGeminiStatus(); }catch(e){}
+        }catch(e){ alert('Gagal buka: '+e.message); }
+    }
+    function safeClose(){
+        try{
+            let m = document.getElementById('geminiModal');
+            if(m) m.style.display = 'none';
+        }catch(e){}
+    }
+    // Expose globally
+    window.openGeminiModal = safeOpen;
+    window.closeGeminiModal = safeClose;
+    
+    // Attach events after DOM ready
+    function attach(){
+        let gear = document.getElementById('btnGeminiGear');
+        let closeBtn = document.getElementById('btnCloseModal');
+        let saveBtn = document.getElementById('btnSaveKey');
+        let clearBtn = document.getElementById('btnClearKey');
+        let modal = document.getElementById('geminiModal');
+        
+        if(gear){
+            gear.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); safeOpen(); }, {passive:false});
+            gear.addEventListener('touchend', function(e){ e.preventDefault(); safeOpen(); }, {passive:false});
+        }
+        if(closeBtn){
+            closeBtn.addEventListener('click', safeClose);
+            closeBtn.addEventListener('touchend', function(e){ e.preventDefault(); safeClose(); }, {passive:false});
+        }
+        if(modal){
+            modal.addEventListener('click', function(e){ if(e.target===modal) safeClose(); });
+        }
+        if(saveBtn){
+            saveBtn.addEventListener('click', function(){ 
+                try{ if(typeof saveGeminiKey==='function') saveGeminiKey(); else { 
+                    let v=document.getElementById('geminiApiKeyInput').value.trim();
+                    if(v){ localStorage.setItem('lapkeu_gemini_api_key', v); alert('Tersimpan!'); safeClose(); }
+                } }catch(e){ alert(e.message); }
+            });
+        }
+        if(clearBtn){
+            clearBtn.addEventListener('click', function(){
+                try{ if(typeof clearGeminiKey==='function') clearGeminiKey(); else { localStorage.removeItem('lapkeu_gemini_api_key'); alert('Dihapus'); } }catch(e){}
+            });
+        }
+    }
+    if(document.readyState==='loading'){
+        document.addEventListener('DOMContentLoaded', attach);
+    } else {
+        setTimeout(attach, 500);
+    }
+    // Also try after 1s and 2s (for slow load)
+    setTimeout(attach, 1000);
+    setTimeout(attach, 2000);
 })();
 </script>
 
