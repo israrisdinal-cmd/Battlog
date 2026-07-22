@@ -1,4 +1,3 @@
-<!-- Lapkeu v1.4 AUTO GEMINI - API di Setting Input - Auto analisa setiap input - 2026-07-22 -->
 <!-- Lapkeu v1.2 ACUAN FINAL LOCKED - 2026-07-21 - Rumus Goride Murni + Insight Strategi Hari Sama - SEMPURNA -->
 <!-- Lapkeu v1.2 - ACUAN BARU FIX TAB - Insight Strategi Hari Sama - Locked 2026-07-21 -->
 <!-- Lapkeu v1.1 - NAMA SELARAS - lapkeu_* & battlog_* - Migrasi otomatis dari v1.0 - Locked 2026-07-21 - SYNC FIX -->
@@ -37,6 +36,8 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     <title>SiGan V5.22 FIX_JAM_AWAL</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <style>
         :root{--bg:#0a1328;--card:#111d35;--line:#1e2d4a;--blue:#2b8cff;--green:#7dffb7;--text:#dbe8ff;--muted:#8aa0c6}
@@ -79,6 +80,32 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     </style>
 </head>
 <body>
+
+<!-- GEMINI KEY ICON DI POJOK KANAN ATAS - CUMA SEKALI INPUT TRUS LUPAKAN -->
+<!-- MODAL API KEY -->
+<div id="geminiModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10000; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px);">
+    <div style="background:#111d35; border:1px solid #4c1d95; border-radius:18px; padding:20px; width:100%; max-width:360px; box-shadow:0 20px 40px rgba(0,0,0,0.5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <span style="font-size:13px; font-weight:800; color:#a78bfa;">🔑 Gemini API Key</span>
+            <button onclick="closeGeminiModal()" style="background:#1e1b4b; border:1px solid #4c1d95; width:28px; height:28px; border-radius:50%; font-size:14px; color:#8aa0c6;">✕</button>
+        </div>
+        <div style="font-size:11px; color:#8aa0c6; margin-bottom:12px; line-height:1.4;">Cuma sekali input, abis itu dilupain. Auto analisa tiap input masuk + konek GMap. Gratis dari Google.</div>
+        <div style="position:relative; margin-bottom:10px;">
+            <input id="geminiApiKeyInput" type="password" placeholder="Paste AIza... disini" style="width:100%; padding:12px 40px 12px 12px; font-size:13px; background:#0f1f36; border:1px solid #4c1d95; border-radius:12px; color:#eaf2ff;">
+            <button onclick="toggleKeyVisibility()" type="button" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); background:transparent; border:0; font-size:16px; cursor:pointer; padding:6px;">👁️</button>
+        </div>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <button onclick="saveGeminiKey()" style="flex:1; background:linear-gradient(180deg,#8b5cf6,#6d28d9); padding:12px; font-size:12px; font-weight:700; border-radius:12px;">SIMPAN & AKTIFKAN</button>
+            <button onclick="clearGeminiKey()" style="background:#1e1b4b; border:1px solid #4c1d95; padding:12px; font-size:11px; border-radius:12px; color:#8aa0c6;">Hapus</button>
+        </div>
+        <div style="font-size:10px; color:#5a7096; padding:8px; background:#0f1f36; border-radius:8px; margin-bottom:8px;">
+            <div style="margin-bottom:4px;">📊 Status: <span id="geminiStatusBadge">-</span></div>
+            <div id="geminiQueueInfo" style="margin-top:4px;"></div>
+        </div>
+        <div style="font-size:9px; color:#5a7096;">Dapatkan gratis: <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#8b5cf6;">aistudio.google.com/app/apikey</a> → Create API Key → Paste di atas</div>
+    </div>
+</div>
+
 <script>
 // === MIGRASI OTOMATIS v1.0 -> v1.1 - BATTLOG & LAPKEU STANDARD ===
 (function(){
@@ -164,9 +191,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V1.3</span></div>
-
-
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">SiGan V5.0 <span style="color:#7dffb7">OCR FULL</span></div>
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
             <div id="sigan-sync-dot" style="width:8px; height:8px; border-radius:50%; background:#555;"></div>
             <span id="sigan-sync-text" style="color:#aaa;">SYNC STANDBY</span>
@@ -184,7 +209,10 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     <div id="tabContentInput">
         <!-- Global Date & Shift -->
         <div class="card">
-            <div style="font-size:12px; font-weight:800; margin-bottom:8px; color:#7dffb7;">📅 Tanggal Operasional & Jam Online</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="font-size:12px; font-weight:800; color:#7dffb7;">📅 Tanggal Operasional & Jam Online</div>
+                <button id="btnGeminiGear" onclick="openGeminiModal()" title="Setting Gemini & GMap" style="width:32px; height:32px; border-radius:8px; background:#0f1f36; border:1px solid #1e2d4a; color:#8aa0c6; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;">⚙️</button>
+            </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                 <div>
                     <label style="font-size:10px; color:var(--muted)">Tanggal</label>
@@ -213,20 +241,6 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
         </div>
 
         
-
-        <!-- SETTING GEMINI API KEY - DI INPUT, TIDAK NAMBAH CARD DI REKAP -->
-        <div class="card" style="border:1px dashed #4c1d95; background:linear-gradient(135deg,#1a1033 0%,#0f1f36 100%); padding:12px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <span style="font-size:11px; font-weight:800; color:#a78bfa;">🔑 SETTING GEMINI API KEY</span>
-                <span id="geminiStatusBadge" style="font-size:9px; background:#1e1b4b; border:1px solid #4c1d95; padding:2px 8px; border-radius:999px; color:#8aa0c6;">-</span>
-            </div>
-            <div style="font-size:10px; color:#8aa0c6; margin-bottom:8px;">API Key gratis dari Google, dipakai otomatis setiap input masuk. Jika quota habis, antri & auto retry.</div>
-            <div style="display:flex; gap:8px;">
-                <input id="geminiApiKeyInput" type="password" placeholder="Paste AIza... disini" style="flex:1; font-size:12px; padding:10px; margin:0;">
-                <button onclick="saveGeminiKey()" style="background:linear-gradient(180deg,#8b5cf6,#6d28d9); padding:10px 14px; font-size:11px; font-weight:700;">SIMPAN</button>
-            </div>
-            <div style="font-size:9px; color:#5a7096; margin-top:6px;">Dapatkan gratis: <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#8b5cf6;">aistudio.google.com/app/apikey</a> → Create API Key</div>
-        </div>
 
         <!-- Summary -->
         <div class="summary-grid">
@@ -359,12 +373,6 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     </div>
 
     <div id="tabContentRekap" class="hidden">
-        <div class="card" style="border-left:5px solid #ff5252; background:#221818;">
-            <div style="font-size:13px; color:#ff8a80; margin-bottom:12px; font-weight:bold; text-transform:uppercase;">🤖 Insight Presisi V5</div>
-            <div id="rekapInsightContainer"></div>
-        </div>
-
-        
         <div class="filter-container">
             <select id="rekapPeriod" onchange="handleRekapPeriodChange()">
                 <option value="7">7 Hari Terakhir</option>
@@ -373,6 +381,14 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             </select>
         </div>
         
+        <div class="card" style="border-left:5px solid #a78bfa; background:linear-gradient(135deg,#1a1033 0%,#111d35 100%);">
+            <div style="font-size:13px; color:#a78bfa; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+                <span>🤖 Insight Gemini AI</span>
+                <span style="font-size:9px; background:#1e1b4b; border:1px solid #4c1d95; padding:2px 6px; border-radius:999px; color:#a78bfa;">Auto + GMap</span>
+            </div>
+            <div id="rekapInsightContainer"></div>
+        </div>
+
         <div class="card" style="border-left:5px solid #e040fb;">
             <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Analisis Efisiensi Waktu (Presisi OCR First-Last)</div>
             <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:var(--muted)">Total Waktu Online (First-Last Order):</span><span style="font-size:14px; font-weight:bold; color:#fff;" id="rekapTotalHours">0 jam</span></div>
@@ -2012,15 +2028,44 @@ window.onload=function(){
 </script>
 
 
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script id="gemini-auto-engine-v3">
-// === GEMINI AUTO ENGINE V3.1 - SETIAP INPUT + QUEUE JIKA QUOTA HABIS ===
+// === GEMINI AUTO ENGINE V3.2 - KEY ICON POJOK + GMAP MAPPING ===
 const GEMINI_MODEL = 'gemini-1.5-flash';
 const GEMINI_API_KEY_STORAGE = 'lapkeu_gemini_api_key';
 const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result';
 const GEMINI_LAST_DATE = 'lapkeu_gemini_last_date';
 const GEMINI_QUEUE_KEY = 'lapkeu_gemini_queue';
 const GEMINI_RETRY_KEY = 'lapkeu_gemini_retry_info';
+const GMAP_CACHE_KEY = 'lapkeu_gmap_cache';
+
+// Modal functions
+function openGeminiModal(){
+    document.getElementById('geminiModal').style.display='flex';
+    let key = getGeminiApiKey();
+    let input = document.getElementById('geminiApiKeyInput');
+    if(key && input){
+        input.value = key;
+        input.type='password';
+    }
+    updateGeminiStatus();
+}
+function closeGeminiModal(){
+    document.getElementById('geminiModal').style.display='none';
+}
+function toggleKeyVisibility(){
+    let input = document.getElementById('geminiApiKeyInput');
+    input.type = input.type==='password'?'text':'password';
+}
+function clearGeminiKey(){
+    if(confirm('Hapus API Key Gemini?')){
+        localStorage.removeItem(GEMINI_API_KEY_STORAGE);
+        document.getElementById('geminiApiKeyInput').value='';
+        updateGeminiStatus();
+        showToast('API Key dihapus', 'info');
+    }
+}
 
 function getGeminiApiKey(){ try{ return localStorage.getItem(GEMINI_API_KEY_STORAGE)||''; }catch(e){ return ''; } }
 function saveGeminiKey(){
@@ -2028,59 +2073,75 @@ function saveGeminiKey(){
     let key = el.value.trim();
     if(!key){
         let saved = getGeminiApiKey();
-        if(saved){ showToast('API Key sudah tersimpan', 'info'); return; }
-        alert('Masukkan API Key dulu\nDapatkan gratis di aistudio.google.com/app/apikey');
+        if(saved){ showToast('API Key sudah tersimpan', 'info'); closeGeminiModal(); return; }
+        alert('Masukkan API Key dulu\nGratis di aistudio.google.com/app/apikey');
         return;
     }
     if(!key.startsWith('AIza') && key.length<20){
-        alert('API Key tidak valid. Harus mulai AIza...');
+        alert('API Key tidak valid, harus mulai AIza...');
         return;
     }
     localStorage.setItem(GEMINI_API_KEY_STORAGE, key);
-    el.value = key.substring(0,10)+'••••••••';
-    el.type='password';
     updateGeminiStatus();
-    showToast('✅ API Key disimpan! Auto analisa tiap input aktif', 'success');
-    // langsung proses antrian jika ada
+    showToast('✅ API Key disimpan! Icon pojok jadi hijau. Auto analisa + GMap aktif', 'success');
+    closeGeminiModal();
     setTimeout(()=>processGeminiQueue(true), 1000);
 }
 
-function getQueue(){
-    try{ return JSON.parse(localStorage.getItem(GEMINI_QUEUE_KEY)||'[]'); }catch(e){ return []; }
-}
+function getQueue(){ try{ return JSON.parse(localStorage.getItem(GEMINI_QUEUE_KEY)||'[]'); }catch(e){ return []; } }
 function setQueue(q){ localStorage.setItem(GEMINI_QUEUE_KEY, JSON.stringify(q)); }
-function getRetryInfo(){
-    try{ return JSON.parse(localStorage.getItem(GEMINI_RETRY_KEY)||'null'); }catch(e){ return null; }
-}
+function getRetryInfo(){ try{ return JSON.parse(localStorage.getItem(GEMINI_RETRY_KEY)||'null'); }catch(e){ return null; } }
 function setRetryInfo(info){ localStorage.setItem(GEMINI_RETRY_KEY, JSON.stringify(info)); }
+function getGmapCache(){ try{ return JSON.parse(localStorage.getItem(GMAP_CACHE_KEY)||'{}'); }catch(e){ return {}; } }
+function setGmapCache(c){ localStorage.setItem(GMAP_CACHE_KEY, JSON.stringify(c)); }
 
 function updateGeminiStatus(){
     let key = getGeminiApiKey();
     let badge = document.getElementById('geminiStatusBadge');
-    let input = document.getElementById('geminiApiKeyInput');
-    if(!badge) return;
+    let gearBtn = document.getElementById('btnGeminiGear');
+    let cornerBtn = gearBtn;
+    let cornerStatus = document.getElementById('geminiCornerStatus') || {style:{}, textContent:'' };
+    let queueInfo = document.getElementById('geminiQueueInfo');
     let queue = getQueue();
     let retry = getRetryInfo();
     
+    if(!badge) return;
+    
     if(!key){
-        badge.textContent='Butuh API Key';
+        badge.textContent='Belum ada API Key';
         badge.style.color='#ff8a80';
+        if(cornerBtn){ cornerBtn.style.borderColor='#4c1d95'; cornerBtn.style.background='linear-gradient(135deg,#1a1033,#111d35)'; cornerBtn.textContent='🔑'; }
+        if(cornerStatus){ cornerStatus.style.display='none'; }
+        if(queueInfo) queueInfo.textContent='';
         return;
     }
-    if(input && !input.value) input.value = key.substring(0,10)+'••••••••';
+    
+    // Ada key
+    if(cornerBtn){
+        cornerBtn.style.borderColor='#7dffb7';
+        cornerBtn.style.background='linear-gradient(135deg,#0f2a1a,#111d35)';
+        cornerBtn.textContent='✅';
+    }
     
     if(retry && retry.nextRetryAt && Date.now() < retry.nextRetryAt){
         let diff = Math.ceil((retry.nextRetryAt - Date.now())/60000);
-        badge.textContent = `⏳ Quota habis, retry ${diff}m (${queue.length} antri)`;
+        badge.textContent = `⏳ Quota habis, retry ${diff} menit`;
         badge.style.color='#ffcc66';
+        if(cornerStatus){ cornerStatus.textContent=`⏳ ${diff}m - ${queue.length} antri`; cornerStatus.style.display='block'; cornerStatus.style.color='#ffcc66'; }
+        if(queueInfo) queueInfo.textContent=`${queue.length} input antri, auto retry jam ${new Date(retry.nextRetryAt).toLocaleTimeString('id-ID')}`;
     } else if(queue.length>0){
-        badge.textContent = `📝 ${queue.length} antrian analisa`;
+        badge.textContent = `📝 ${queue.length} antrian`;
         badge.style.color='#a78bfa';
+        if(cornerStatus){ cornerStatus.textContent=`📝 ${queue.length} antri`; cornerStatus.style.display='block'; cornerStatus.style.color='#a78bfa'; }
+        if(queueInfo) queueInfo.textContent=`${queue.length} input menunggu analisa`;
     } else {
         let lastDate = localStorage.getItem(GEMINI_LAST_DATE);
-        badge.textContent = lastDate ? lastDate+' ✓ Auto' : 'OK ✓ Auto';
+        badge.textContent = lastDate ? `Aktif ✓ - ${lastDate}` : 'Aktif ✓ Auto + GMap';
         badge.style.color='#7dffb7';
+        if(cornerStatus){ cornerStatus.textContent='✅ Aktif'; cornerStatus.style.display='block'; cornerStatus.style.color='#7dffb7'; setTimeout(()=>{ if(cornerStatus) cornerStatus.style.display='none'; }, 3000); }
+        if(queueInfo) queueInfo.textContent='Siap analisa tiap input + petakan GMap';
     }
+    
     // Load last result
     try{
         let last = localStorage.getItem(GEMINI_LAST_RESULT);
@@ -2088,7 +2149,7 @@ function updateGeminiStatus(){
             let parsed = JSON.parse(last);
             if(parsed && parsed.insightHtml){
                 let container = document.getElementById('rekapInsightContainer');
-                if(container && !container.innerHTML.includes('Gemini AI menganalisa')) container.innerHTML = parsed.insightHtml;
+                if(container && container.innerHTML.includes('INSIGHT GEMINI AI')){ /* jangan overwrite jika masih V5? biarin */ }
             }
         }
     }catch(e){}
@@ -2140,89 +2201,141 @@ function buildRingkasGemini(){
 }
 
 function buildPrompt(ringkas){
-    return `Kamu AI Engine V3 driver ojol Gojek Jakarta. Gantikan AI Engine V2 lama.
+    return `Kamu adalah AI Engine V5.1 Analis Ojol Profesional Gojek Jakarta. Gantikan Insight Gemini AI lama dengan analisa lebih akurat + koneksi GMap.
 
 DATA 14 HARI (hari ini ${ringkas.globalDate}):
 ${ringkas.ringkasanText}
-${ringkas.battInfo?'INFO BATERAI: '+ringkas.battInfo:''}
+${ringkas.battInfo?'BATERAI: '+ringkas.battInfo:''}
 
-TUGAS: Balas JSON VALID:
+TUGAS: Analisa mendalam untuk strategi BESOK. Fokus:
+- Pola hari sama
+- Area Rp/jam tertinggi
+- Jam emas vs boncos
+- Layanan cuan
+- Pantangan
+
+Balas JSON:
 {
-  "insight_utama": "HTML insight utama dark theme #0f1f36 border #1e2d4a. Isi: 🎯 APA HARUS SAYA LAKUKAN BESOK, TOP 3 NONGKRONG, JAM EMAS vs ISTIRAHAT, FOKUS LAYANAN, JANGAN DIULANG, TAKTIK. Santai.",
-  "jam_gurih": "HTML 4 blok waktu",
-  "nongkrong": "HTML rekomendasi nongkrong",
+  "insight_utama": "HTML analisa utama dark theme #111d35, bahasa profesional jelas: 🎯 STRATEGI BESOK - [HARI], 📊 RINGKASAN, TOP 3 NONGKRONG Rp/jam, JAM EMAS vs ISTIRAHAT, FOKUS LAYANAN, JANGAN DIULANG, TAKTIK. Data asli.",
+  "jam_gurih": "HTML 4 blok waktu dengan Rp/jam + area + link GMap: <a href='https://www.google.com/maps/search/?api=1&query=AREA' target='_blank' style='color:#2b8cff;'>📍 GMap</a>",
+  "nongkrong": "HTML list TOP area dengan Rp/jam + link GMap",
   "layanan": "HTML profit layanan",
-  "tren": "HTML tren harian"
+  "tren": "HTML tren",
+  "gmap_areas": ["Jl. H. Rosyid No.2", "Pagedangan", "Jl. Kunir V No.8"]
 }
-Rp/jam=Netto/Jam, fokus hari sama, jangan ngarang, Indonesia santai. Balas JSON saja.`;
+gmap_areas = 3-5 area asli Rp/jam tertinggi. Balas JSON saja.`;
 }
 
 async function callGemini(prompt, key){
     let url=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-    let body={contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.8, maxOutputTokens:8192, responseMimeType:"application/json"}};
+    let body={contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.7, maxOutputTokens:8192, responseMimeType:"application/json"}};
     let resp=await fetch(url,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    if(!resp.ok){
-        let t=await resp.text();
-        let err = new Error(`API ${resp.status}: ${t.substring(0,600)}`);
-        err.status = resp.status;
-        err.body = t;
-        throw err;
-    }
+    if(!resp.ok){ let t=await resp.text(); let err=new Error(`API ${resp.status}: ${t.substring(0,600)}`); err.status=resp.status; err.body=t; throw err; }
     let data=await resp.json();
     if(!data.candidates?.[0]?.content) throw new Error('Response kosong');
     return data.candidates[0].content.parts[0].text;
 }
 
+function createGmapLink(area){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(area + ' Jakarta')}`; }
+async function geocodeArea(areaName){
+    let cache=getGmapCache();
+    if(cache[areaName]) return cache[areaName];
+    try{
+        let q=encodeURIComponent(areaName + ', Jakarta, Indonesia');
+        let url=`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`;
+        let resp=await fetch(url, {headers:{'Accept-Language':'id'}});
+        if(!resp.ok) throw new Error('geocode fail');
+        let data=await resp.json();
+        if(data && data[0]){
+            let result={lat:parseFloat(data[0].lat), lon:parseFloat(data[0].lon), display:data[0].display_name};
+            cache[areaName]=result; setGmapCache(cache); return result;
+        }
+    }catch(e){ console.log('Geocode error', areaName, e.message); }
+    return {lat:-6.2088, lon:106.8456, display:areaName};
+}
+async function renderGmapAreas(areas){
+    let insightContainer=document.getElementById('rekapInsightContainer');
+    if(!insightContainer) return;
+    let existing=document.getElementById('gmapCard');
+    if(existing) existing.remove();
+    let mapCard=document.createElement('div');
+    mapCard.id='gmapCard';
+    mapCard.className='card';
+    mapCard.style.borderLeft='5px solid #2b8cff';
+    mapCard.innerHTML=`
+        <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+            <span>🗺️ Peta Nongkrong GMap - Top Area</span>
+            <button onclick="openAllGmapAreas()" style="font-size:10px; padding:4px 8px; background:#1e2d4a; border:1px solid #2b5a9a; border-radius:6px;">📍 Buka Semua</button>
+        </div>
+        <div id="mapGojek" style="height:320px; border-radius:12px; background:#0f1f36; border:1px solid #1e2d4a;"></div>
+        <div id="gmapAreaList" style="margin-top:10px;"></div>
+        <div style="font-size:10px; color:#5a7096; margin-top:8px;">Klik marker untuk buka di Google Maps. Geocoding OSM gratis.</div>
+    `;
+    insightContainer.parentNode.insertBefore(mapCard, insightContainer.nextSibling);
+    let mapDiv=document.getElementById('mapGojek');
+    let listDiv=document.getElementById('gmapAreaList');
+    if(!mapDiv) return;
+    let map=L.map('mapGojek').setView([-6.2088,106.8456],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);
+    let bounds=[];
+    for(let i=0;i<areas.length;i++){
+        let area=areas[i];
+        let gmapLink=createGmapLink(area);
+        let item=document.createElement('div');
+        item.style.cssText='display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:#0f1f36; border:1px solid #1e2d4a; border-radius:8px; margin-bottom:6px;';
+        item.innerHTML=`<div><div style="font-size:12px; font-weight:700; color:#dbe8ff;">${i+1}. ${area}</div><div style="font-size:10px; color:#8aa0c6;">Top area</div></div><a href="${gmapLink}" target="_blank" style="font-size:11px; background:linear-gradient(180deg,#2b8cff,#1a6fd8); color:#fff; padding:6px 10px; border-radius:8px; text-decoration:none; font-weight:700;">📍 GMap</a>`;
+        listDiv.appendChild(item);
+        try{
+            let geo=await geocodeArea(area);
+            if(geo){
+                let marker=L.marker([geo.lat,geo.lon]).addTo(map);
+                marker.bindPopup(`<b>${area}</b><br><a href="${gmapLink}" target="_blank">Buka di Google Maps</a>`);
+                bounds.push([geo.lat,geo.lon]);
+            }
+        }catch(e){}
+        await new Promise(r=>setTimeout(r,500));
+    }
+    if(bounds.length>0) map.fitBounds(bounds,{padding:[30,30]});
+    window._currentGmapAreas=areas;
+}
+function openAllGmapAreas(){
+    let areas=window._currentGmapAreas||[];
+    if(areas.length===0){ showToast('Belum ada area','warning'); return; }
+    window.open(createGmapLink(areas[0]),'_blank');
+    showToast(`Buka ${areas.length} area, link pertama dibuka`,'info');
+}
 function enqueueGeminiJob(){
-    let q = getQueue();
-    let job = {
-        id: Date.now(),
-        date: new Date().toISOString(),
-        globalDate: document.getElementById('globalDate')?.value || new Date().toISOString().split('T')[0],
-        attempts: 0
-    };
+    let q=getQueue();
+    let job={id:Date.now(), date:new Date().toISOString(), globalDate:document.getElementById('globalDate')?.value||new Date().toISOString().split('T')[0], attempts:0};
     q.push(job);
-    // batasi queue max 20 biar tidak numpuk
-    if(q.length>20) q = q.slice(-20);
+    if(q.length>20) q=q.slice(-20);
     setQueue(q);
     updateGeminiStatus();
-    // langsung proses
     processGeminiQueue();
 }
-
 async function processGeminiQueue(force=false){
     let key=getGeminiApiKey();
     if(!key) return;
-    if(!navigator.onLine) { updateGeminiStatus(); return; }
-    
-    let retry = getRetryInfo();
-    if(!force && retry && retry.nextRetryAt && Date.now() < retry.nextRetryAt){
-        // masih tunggu quota
-        updateGeminiStatus();
-        return;
-    }
-    
-    let q = getQueue();
-    if(q.length===0) { updateGeminiStatus(); return; }
-    
-    // ambil job terakhir saja (paling baru) - karena analisa selalu pakai data terbaru
-    let job = q[q.length-1];
-    job.attempts = (job.attempts||0)+1;
-    
+    if(!navigator.onLine){ updateGeminiStatus(); return; }
+    let retry=getRetryInfo();
+    if(!force && retry && retry.nextRetryAt && Date.now()<retry.nextRetryAt){ updateGeminiStatus(); return; }
+    let q=getQueue();
+    if(q.length===0){ updateGeminiStatus(); return; }
+    let job=q[q.length-1];
+    job.attempts=(job.attempts||0)+1;
     let container=document.getElementById('rekapInsightContainer');
     try{
         if(container){
-            container.innerHTML=`<div style="background:#0f1f36; border:1px solid #4c1d95; border-radius:12px; padding:14px; text-align:center;"><div style="font-size:12px; color:#a78bfa; margin-bottom:8px;">🔮 Gemini AI menganalisa ${q.length} input...</div><div class="progress-container" style="height:6px;"><div class="progress-bar" style="width:70%; background:linear-gradient(90deg,#8b5cf6,#7dffb7); animation: gemPulse 1s infinite;"></div></div><div style="font-size:10px; color:#5a7096; margin-top:6px;">Setiap input dianalisa, antri ${q.length} - menggantikan AI Engine V2</div></div><style>@keyframes gemPulse{0%{opacity:0.6}50%{opacity:1}100%{opacity:0.6}}</style>`;
+            container.innerHTML=`<div style="background:#0f1f36; border:1px solid #4c1d95; border-radius:12px; padding:14px; text-align:center;"><div style="font-size:12px; color:#a78bfa; margin-bottom:8px;">🔮 Gemini AI menganalisa ${q.length} input + petakan GMap...</div><div class="progress-container" style="height:6px;"><div class="progress-bar" style="width:70%; background:linear-gradient(90deg,#8b5cf6,#7dffb7); animation: gemPulse 1s infinite;"></div></div><div style="font-size:10px; color:#5a7096; margin-top:6px;">Auto tiap input, konek GMap</div></div><style>@keyframes gemPulse{0%{opacity:0.6}50%{opacity:1}100%{opacity:0.6}}</style>`;
         }
         let ringkas=buildRingkasGemini();
         if(ringkas.error) throw new Error(ringkas.error);
         if(ringkas.total14===0) throw new Error('Belum ada data');
         let prompt=buildPrompt(ringkas);
-        let resultText=await callGemini(prompt, key);
+        let resultText=await callGemini(prompt,key);
         let clean=resultText.trim().replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'');
         let json;
         try{ json=JSON.parse(clean); }catch(e){ let m=clean.match(/\{[\s\S]*\}/); if(m) json=JSON.parse(m[0]); else throw e; }
-        
         if(json.insight_utama && container) container.innerHTML=json.insight_utama;
         let jamContainer=document.getElementById('rekapHourlyContainer');
         if(jamContainer && json.jam_gurih) jamContainer.innerHTML=json.jam_gurih;
@@ -2232,78 +2345,57 @@ async function processGeminiQueue(force=false){
         if(ratesContainer && json.layanan) ratesContainer.innerHTML=json.layanan;
         let daysContainer=document.getElementById('rekapDaysContainer');
         if(daysContainer && json.tren) daysContainer.innerHTML=json.tren;
-        
-        // sukses - kosongkan queue
         setQueue([]);
-        localStorage.setItem(GEMINI_LAST_RESULT, JSON.stringify({insightHtml: json.insight_utama, ts: Date.now()}));
+        localStorage.setItem(GEMINI_LAST_RESULT, JSON.stringify({insightHtml:json.insight_utama, ts:Date.now(), fullRaw:json, gmapAreas:json.gmap_areas||[]}));
         localStorage.setItem(GEMINI_LAST_DATE, new Date().toLocaleDateString('id-ID'));
         setRetryInfo(null);
         updateGeminiStatus();
-        showToast(`🔮 Selesai! ${q.length} input dianalisa Gemini`, 'success');
+        if(json.gmap_areas && Array.isArray(json.gmap_areas) && json.gmap_areas.length>0){
+            setTimeout(()=>renderGmapAreas(json.gmap_areas),1000);
+        }
+        showToast(`🔮 Selesai! ${q.length} input + GMap dipetakan`,'success');
     }catch(err){
-        console.error('Gemini queue error', err);
-        let status = err.status||0;
-        let isQuota = status===429 || (err.body && (err.body.includes('quota')||err.body.includes('RESOURCE_EXHAUSTED')||err.body.includes('429')));
-        
+        console.error('Gemini queue error',err);
+        let status=err.status||0;
+        let isQuota=status===429 || (err.body && (err.body.includes('quota')||err.body.includes('RESOURCE_EXHAUSTED')||err.body.includes('429')));
         if(isQuota){
-            // hitung retry - kalau 429 per menit, retry 70 detik. Kalau daily quota, retry 1 jam
-            let isDaily = err.body && err.body.includes('per day') ? true : false;
-            let delayMs = isDaily ? 60*60*1000 : 70*1000; // 70 detik atau 1 jam
-            // exponential backoff kalau sudah beberapa kali gagal
-            if(job.attempts>2) delayMs = Math.min(delayMs * job.attempts, 4*60*60*1000);
-            
-            let nextRetry = Date.now() + delayMs;
-            setRetryInfo({nextRetryAt: nextRetry, lastError: err.message, attempts: job.attempts, isDaily});
-            // update job attempts
-            q[q.length-1]=job;
-            setQueue(q);
-            
+            let isDaily=err.body && err.body.includes('per day')?true:false;
+            let delayMs=isDaily?60*60*1000:70*1000;
+            if(job.attempts>2) delayMs=Math.min(delayMs*job.attempts,4*60*60*1000);
+            let nextRetry=Date.now()+delayMs;
+            setRetryInfo({nextRetryAt:nextRetry, lastError:err.message, attempts:job.attempts, isDaily});
+            q[q.length-1]=job; setQueue(q);
             if(container){
-                let menit = Math.ceil(delayMs/60000);
-                container.innerHTML=`<div style="background:rgba(255,204,102,0.08); border:1px solid #ffcc66; border-radius:12px; padding:12px;"><div style="font-size:12px; color:#ffcc66; font-weight:700;">⏳ Quota Gemini habis, masuk antrian</div><div style="font-size:11px; color:#dbe8ff; margin-top:6px;">${q.length} input menunggu. Auto retry ${isDaily?'1 jam':'menit'} lagi (${menit} menit) jam ${new Date(nextRetry).toLocaleTimeString('id-ID')}.<br>Tidak perlu klik apa-apa, nanti otomatis jalan pas quota ada lagi.</div><div class="progress-container" style="height:6px; margin-top:8px;"><div class="progress-bar" style="width:100%; background:#ffcc66;"></div></div></div>`;
+                let menit=Math.ceil(delayMs/60000);
+                container.innerHTML=`<div style="background:rgba(255,204,102,0.08); border:1px solid #ffcc66; border-radius:12px; padding:12px;"><div style="font-size:12px; color:#ffcc66; font-weight:700;">⏳ Quota habis, masuk antrian</div><div style="font-size:11px; color:#dbe8ff; margin-top:6px;">${q.length} input menunggu. Auto retry ${menit} menit lagi jam ${new Date(nextRetry).toLocaleTimeString('id-ID')}.</div></div>`;
             }
             updateGeminiStatus();
-            showToast(`⏳ Quota habis, ${q.length} input antri, auto retry ${Math.ceil(delayMs/60000)} menit lagi`, 'warning');
-            // schedule retry
-            setTimeout(()=>processGeminiQueue(true), delayMs+2000);
+            setTimeout(()=>processGeminiQueue(true),delayMs+2000);
         } else {
-            // error lain - jangan hapus queue, coba lagi nanti
-            if(container){
-                container.innerHTML=`<div style="background:rgba(255,77,77,0.08); border:1px solid #5a2a3a; border-radius:8px; padding:8px; font-size:11px; color:#ff8a80;">⚠️ Gagal analisa: ${err.message}<br><span style="font-size:10px; color:#8aa0c6;">Akan auto retry. ${q.length} antrian tetap disimpan.</span></div>`+ (container.innerHTML||'');
-            }
-            // retry 2 menit lagi
-            setRetryInfo({nextRetryAt: Date.now()+120000, lastError: err.message});
-            setTimeout(()=>processGeminiQueue(true), 125000);
+            if(container) container.innerHTML=`<div style="background:rgba(255,77,77,0.08); border:1px solid #5a2a3a; border-radius:8px; padding:8px; font-size:11px; color:#ff8a80;">⚠️ Gagal: ${err.message}<br><span style="font-size:10px; color:#8aa0c6;">Auto retry. ${q.length} antrian tetap.</span></div>`+(container.innerHTML||'');
+            setRetryInfo({nextRetryAt:Date.now()+120000, lastError:err.message});
+            setTimeout(()=>processGeminiQueue(true),125000);
         }
     }
 }
-
-// Auto trigger SETIAP saveData
 (function(){
     if(window.saveData && !window.saveData.__geminiAutoHooked){
         let orig=window.saveData;
         window.saveData=function(){
-            let res=orig.apply(this, arguments);
+            let res=orig.apply(this,arguments);
             setTimeout(()=>{
                 let key=getGeminiApiKey();
-                if(key){
-                    enqueueGeminiJob();
-                    showToast('📝 Input masuk antrian Gemini AI...', 'info');
-                }
-            }, 500);
+                if(key){ enqueueGeminiJob(); showToast('📝 Input masuk antrian Gemini + GMap...','info'); }
+            },500);
             return res;
         };
         window.saveData.__geminiAutoHooked=true;
     }
 })();
-
-// Cek antrian tiap 1 menit + saat online kembali
-setInterval(()=>processGeminiQueue(), 60000);
-window.addEventListener('online', ()=>{ setTimeout(()=>processGeminiQueue(true), 2000); });
-
-setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); }, 1500);
+setInterval(()=>processGeminiQueue(),60000);
+window.addEventListener('online',()=>{ setTimeout(()=>processGeminiQueue(true),2000); });
+setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); },1500);
 </script>
-
 
 <script id="sync-lamp-script">
 (function(){
