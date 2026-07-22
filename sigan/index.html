@@ -250,7 +250,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             <div style="font-weight:800;color:#7dffb7">📷 Scan Screenshot Gojek</div>
             <div style="font-size:10px;color:#8aa0c6">V5.0 FULL • ID Anti Duplikat • Alamat Lengkap</div>
           </div>
-          <label for="ocrFileInput" style="display:block;border:2px dashed #2b8cff;padding:24px;text-align:center;cursor:pointer;border-radius:12px;background:#0f1f36;color:#8ab4f8;font-weight:700">
+          <div style="margin-bottom:8px;"><button type="button" id="btnOcrSuperGemini" onclick="toggleGeminiOcrMode()" style="background:linear-gradient(135deg,#1a1033 0%,#2a1a4a 100%); border:1px solid #a78bfa; color:#a78bfa; padding:8px; border-radius:8px; font-size:11px; font-weight:700; width:100%;">🤖 OCR Super Gemini (Bisa Baca Tips)</button><div style="font-size:9px; color:#5a7096; margin-top:4px;">Mode Super bisa baca tips Gofood/Gosend, lebih akurat tapi pakai kuota</div></div><label for="ocrFileInput" style="display:block;border:2px dashed #2b8cff;padding:24px;text-align:center;cursor:pointer;border-radius:12px;background:#0f1f36;color:#8ab4f8;font-weight:700">
             📷 Tap pilih screenshot (bisa banyak)<br><span style="font-size:11px;color:#5a7096">Otomatis ambil: harga, jam awal-akhir, ID, km, alamat jemput & tujuan, tanggal</span>
           </label>
           <input type="file" id="ocrFileInput" accept="image/*" multiple style="display:none">
@@ -315,30 +315,32 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
             }catch(e){ alert('Error '+e.message); }
         }
         function clearToday(){
-            let date=document.getElementById('globalDate').value;
-            if(!date) return alert('Pilih tanggal dulu');
-            if(!confirm(`Hapus semua data tanggal ${date}?`)) return;
-            let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
-            let filtered=data.filter(d=>d.date!==date);
-            localStorage.setItem('lapkeuData', JSON.stringify(filtered));
-            let shift=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
-            delete shift[date];
-            localStorage.setItem('lapkeu_shift', JSON.stringify(shift));
-            loadData();
-            alert('Data '+date+' dihapus');
+            try{
+              let dateEl=document.getElementById('globalDate');
+              let date=dateEl?dateEl.value:new Date().toISOString().split('T')[0];
+              let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
+              let before=data.length;
+              let filtered=data.filter(d=>d.date!==date);
+              localStorage.setItem('lapkeuData', JSON.stringify(filtered));
+              let shift=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
+              delete shift[date];
+              localStorage.setItem('lapkeu_shift', JSON.stringify(shift));
+              if(typeof loadData==='function') loadData();
+              alert('Data '+date+' dihapus: '+(before-filtered.length)+' item');
+              if(typeof debugShowAll==='function') setTimeout(debugShowAll,300);
+            }catch(e){ alert('Gagal: '+e.message); }
         }
         function clearAllDataFull(){
-            if(!confirm('HAPUS SEMUA DATA SIGAN? Ketik OK untuk lanjut')) return;
-            let c=prompt('Ketik HAPUS untuk konfirmasi');
-            if(c!=='HAPUS') return;
-            localStorage.removeItem('lapkeuData');
-            localStorage.removeItem('lapkeu_shift');
-            localStorage.removeItem('lapkeu_global_target');
-            localStorage.removeItem('UNIVERSAL_LAKE_V1');
-            localStorage.removeItem('lapkeu_cross_income');
-            localStorage.removeItem('lapkeu_cross_km');
-            alert('Semua data dihapus, reload...');
-            location.reload();
+            try{
+              let toDel=[];
+              for(let i=0;i<localStorage.length;i++){
+                let k=localStorage.key(i);
+                if(k&&(k.startsWith('lapkeu_')||k.includes('gemini')||k==='UNIVERSAL_LAKE_V1'||k.startsWith('battlog_'))) toDel.push(k);
+              }
+              toDel.forEach(k=>{ try{ localStorage.removeItem(k);}catch(e){} });
+              alert('Semua data dihapus, reload...');
+              setTimeout(()=>location.reload(),600);
+            }catch(e){ alert('Error: '+e.message); }
         }
         </script>
 
@@ -364,6 +366,33 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
                 <span style="font-size:9px; background:#1e1b4b; border:1px solid #4c1d95; padding:2px 6px; border-radius:999px; color:#a78bfa;">Auto + GMap</span>
             </div>
             <div id="rekapInsightContainer"></div>
+        </div>
+
+        <div class="card" style="border-left:5px solid #00e676; background:linear-gradient(135deg,#0a1a14 0%,#111d35 100%);">
+            <div style="font-size:13px; color:#00e676; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+                <span>🔮 Prediksi Besok</span>
+                <button onclick="generateForecastBesok(true)" style="font-size:10px; padding:4px 8px; border-radius:999px; background:#1a2e1a; border:1px solid #00e676; color:#00e676;">Prediksi Ulang</button>
+            </div>
+            <div id="forecastBesokContainer" style="font-size:12px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Prediksi Ulang untuk forecast besok...</div>
+        </div>
+
+        <div class="card" style="border-left:5px solid #ffcc66; background:linear-gradient(135deg,#1a160a 0%,#111d35 100%);">
+            <div style="font-size:13px; color:#ffcc66; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+                <span>🔋 x 🏍️ Baterai vs Order</span>
+                <button onclick="generateBattlogAnalisa(true)" style="font-size:10px; padding:4px 8px; border-radius:999px; background:#2a2210; border:1px solid #ffcc66; color:#ffcc66;">Analisa</button>
+            </div>
+            <div id="battlogAnalisaContainer" style="font-size:12px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Analisa...</div>
+        </div>
+
+        <div class="card" style="border-left:5px solid #40c4ff; background:linear-gradient(135deg,#0a1420 0%,#111d35 100%);">
+            <div style="font-size:13px; color:#40c4ff; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+                <span>📅 Laporan Mingguan</span>
+                <div style="display:flex; gap:4px;">
+                    <button onclick="generateWeeklyReport(true)" style="font-size:10px; padding:4px 8px; border-radius:999px; background:#102030; border:1px solid #40c4ff; color:#40c4ff;">Buat Laporan</button>
+                    <button onclick="shareWeeklyReport()" style="font-size:10px; padding:4px 8px; border-radius:999px; background:#0f1f36; border:1px solid #5a7096; color:#8aa0c6;">Share</button>
+                </div>
+            </div>
+            <div id="weeklyReportContainer" style="font-size:12px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Buat Laporan...</div>
         </div>
 
         <div class="card" style="border-left:5px solid #e040fb;">
@@ -2479,50 +2508,172 @@ setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); },1500);
 </script>
 
 
-<!-- MODAL API KEY GEMINI V3.0 FINAL -->
-<div id="geminiModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; padding:15px;">
-  <div class="card" style="width:100%; max-width:400px; background:#111d35; border:1px solid #2b8cff; padding:20px; border-radius:12px;">
-    <div style="font-weight:bold; color:#a78bfa; margin-bottom:10px; font-size:15px;">Pengaturan Gemini API Key</div>
-    <div style="font-size:11px; color:#94a3b8; margin-bottom:12px;">Masukkan API Key dari Google AI Studio untuk analisa anti-template.</div>
-    <input type="password" id="geminiApiKeyInput" placeholder="Masukkan API Key (AIZA...)" style="width:100%; padding:10px; margin-bottom:15px; border-radius:6px; border:1px solid #3b82f6; background:#0f172a; color:#fff; font-size:12px;">
-    <div style="display:flex; gap:8px;">
-      <button onclick="saveGeminiKey()" style="flex:1; padding:10px; background:#2563eb; color:white; border:none; border-radius:6px; font-size:12px; font-weight:bold;">Simpan Key</button>
-      <button onclick="closeGeminiModal()" style="flex:1; padding:10px; background:#475569; color:white; border:none; border-radius:6px; font-size:12px;">Batal</button>
-    </div>
-    <div style="margin-top:10px; font-size:10px; color:#5a7096; background:#0f1f36; padding:8px; border-radius:6px;">Status: <span id="geminiStatusBadge">-</span></div>
-  </div>
-</div>
-
 <script>
-const GEMINI_API_KEY_STORAGE = 'lapkeu_gemini_api_key';
-const GEMINI_API_KEY_ALT = 'gemini_api_key';
-const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result_v3_final';
-const GEMINI_MODEL = 'gemini-1.5-flash';
-function getGeminiApiKey(){ try{ return localStorage.getItem(GEMINI_API_KEY_STORAGE) || localStorage.getItem(GEMINI_API_KEY_ALT) || ''; }catch(e){ return ''; } }
-function closeGeminiModal(){ const m=document.getElementById('geminiModal'); if(m) m.style.display='none'; }
-function openGeminiModal(){ const m=document.getElementById('geminiModal'); const i=document.getElementById('geminiApiKeyInput'); if(i) i.value=getGeminiApiKey(); if(m) m.style.display='flex'; }
-function saveGeminiKey(){ const v=document.getElementById('geminiApiKeyInput').value.trim(); if(!v){ alert('API Key tidak boleh kosong!'); return; } try{ localStorage.setItem(GEMINI_API_KEY_STORAGE,v); localStorage.setItem(GEMINI_API_KEY_ALT,v);}catch(e){} alert('API Key tersimpan!'); closeGeminiModal(); generateGeminiInsight(true); }
-function clearGeminiCacheOnly(){ try{ let ks=[]; for(let i=0;i<localStorage.length;i++){ let k=localStorage.key(i); if(k&&k.toLowerCase().includes('gemini')) ks.push(k);} ks.forEach(k=>{ try{ localStorage.removeItem(k);}catch(e){} }); let api=getGeminiApiKey(); if(api){ localStorage.setItem(GEMINI_API_KEY_STORAGE,api); localStorage.setItem(GEMINI_API_KEY_ALT,api);} const c=document.getElementById('rekapInsightContainer'); if(c) c.innerHTML='<div style="padding:12px; text-align:center; color:#8aa0c6; font-size:12px; background:#0f1f36; border-radius:8px;">Cache dibersihkan...</div>'; alert('Cache Gemini dibersihkan'); }catch(e){ alert('Gagal: '+e.message);} }
-function clearToday(){ try{ let de=document.getElementById('globalDate'); let date=de?de.value:new Date().toISOString().split('T')[0]; let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); let before=data.length; let filtered=data.filter(d=>d.date!==date); localStorage.setItem('lapkeuData', JSON.stringify(filtered)); let shift=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}'); delete shift[date]; localStorage.setItem('lapkeu_shift', JSON.stringify(shift)); if(typeof loadData==='function') loadData(); alert('Data '+date+' dihapus: '+(before-filtered.length)+' item'); if(typeof debugShowAll==='function') setTimeout(debugShowAll,300);}catch(e){ alert('Gagal: '+e.message);} }
-function clearAllDataFull(){ try{ let toDel=[]; for(let i=0;i<localStorage.length;i++){ let k=localStorage.key(i); if(k&&(k.startsWith('lapkeu_')||k.includes('gemini')||k==='UNIVERSAL_LAKE_V1'||k.startsWith('battlog_'))) toDel.push(k);} toDel.forEach(k=>{ try{ localStorage.removeItem(k);}catch(e){} }); alert('Semua data dihapus, reload...'); setTimeout(()=>location.reload(),600);}catch(e){ alert('Error: '+e.message);} }
-async function generateGeminiInsight(forceRefresh=false){
-  const apiKey=getGeminiApiKey(); const container=document.getElementById('rekapInsightContainer'); if(!container) return;
-  if(!apiKey){ container.innerHTML='<div style="padding:12px; font-size:12px; color:#ff8a80; background:#1a1212; border-radius:8px;">API Key belum diisi. Klik gear di pojok Tanggal.</div>'; return; }
-  if(!forceRefresh){ const cached=localStorage.getItem(GEMINI_LAST_RESULT); if(cached){ try{ let p=JSON.parse(cached); if(p.insight_utama && !p.insight_utama.includes('TOP 3 NONGKRONG') && !p.insight_utama.includes('APA YANG HARUS SAYA LAKUKAN')){ container.innerHTML=p.insight_utama; return; } else { localStorage.removeItem(GEMINI_LAST_RESULT);} }catch(e){ container.innerHTML='<div style="font-size:13px; color:#dbe8ff;">'+cached+'</div>'; return; } } }
-  container.innerHTML='<div style="padding:12px; text-align:center; color:#a78bfa;">Menghubungi Gemini AI anti-template...</div>';
-  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
-  if(data.length===0){ container.innerHTML='<div style="padding:12px; color:#8aa0c6;">Belum ada data.</div>'; return; }
-  let last30=data.slice(-30); let ringkas=last30.map(d=>`${d.date} ${d.time||''} ${d.cat||''} Rp${d.amount||0} ${d.pickup||''}->${d.destination||''}`).join('\n');
-  let prompt=`Kamu analis senior Gojek. Gaya storytelling analitis, JANGAN pakai template TOP 3 NONGKRONG, JAM EMAS, WAJIB ON, APA YANG HARUS SAYA LAKUKAN. Wajib paragraf panjang jelaskan KENAPA area itu cuan, kenapa jam itu bagus, pakai angka spesifik dibungkus narasi. DATA: ${ringkas} Balas JSON: {"insight_utama":"HTML 3-4 paragraf panjang analitis","nongkrong":"HTML cerita 3 area dengan alasan plus link GMap","jam_gurih":"HTML cerita jam","layanan":"HTML layanan","tren":"HTML tren","gmap_areas":["Area A","Area B","Area C"]}`;
-  try{ let url=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`; let body={contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.95, maxOutputTokens:8192, responseMimeType:"application/json"}}; let resp=await fetch(url,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); if(!resp.ok){ let t=await resp.text(); throw new Error(t.substring(0,300)); } let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; if(!txt) throw new Error('Response kosong'); let parsed; try{ parsed=JSON.parse(txt);}catch(e){ let m=txt.match(/\{[\s\S]*\}/); if(m) parsed=JSON.parse(m[0]); else throw e; } if(parsed.insight_utama && (parsed.insight_utama.includes('TOP 3 NONGKRONG')||parsed.insight_utama.includes('APA YANG HARUS SAYA LAKUKAN'))){ throw new Error('Masih template, coba lagi'); } container.innerHTML=parsed.insight_utama||txt; localStorage.setItem(GEMINI_LAST_RESULT, JSON.stringify(parsed)); }catch(err){ container.innerHTML='<div style="padding:12px; color:#ff8a80;">Gagal AI: '+err.message+'</div>'; }
+// V4.2 FIX BLANK + GEMINI MAX 2,3,4,5 - NO OVERRIDE BREAK
+let geminiOcrSuperMode = false;
+let weeklyReportLastHtml = '';
+
+function toggleGeminiOcrMode(){
+  geminiOcrSuperMode = !geminiOcrSuperMode;
+  let btn=document.getElementById('btnOcrSuperGemini');
+  if(btn){
+    if(geminiOcrSuperMode){
+      btn.style.background='linear-gradient(135deg,#2b8cff 0%,#a78bfa 100%)';
+      btn.style.color='#fff';
+      btn.innerHTML='✅ Mode Super AKTIF - Tap untuk Nonaktif';
+    } else {
+      btn.style.background='linear-gradient(135deg,#1a1033 0%,#2a1a4a 100%)';
+      btn.style.color='#a78bfa';
+      btn.innerHTML='🤖 OCR Super Gemini (Bisa Baca Tips)';
+    }
+  }
 }
-document.addEventListener("DOMContentLoaded", ()=>{
-  const btnGear=document.getElementById('btnGeminiGear');
-  if(btnGear){ btnGear.addEventListener('click',(e)=>{ e.preventDefault(); openGeminiModal(); }, {passive:false}); btnGear.addEventListener('touchend',(e)=>{ e.preventDefault(); openGeminiModal(); }, {passive:false}); }
-  const modal=document.getElementById('geminiModal'); if(modal){ modal.addEventListener('click',(e)=>{ if(e.target===modal) closeGeminiModal(); }); }
-  try{ let olds=['lapkeu_gemini_last_result','lapkeu_gemini_last_result_v2','lapkeu_gemini_last_result_v3_real','lapkeu_gemini_last_result_v12_real','lapkeu_gemini_last_result_v13_force']; olds.forEach(k=>{ let v=localStorage.getItem(k); if(v&&(v.includes('TOP 3 NONGKRONG')||v.includes('APA YANG HARUS SAYA LAKUKAN'))){ localStorage.removeItem(k);} }); }catch(e){}
-  if(getGeminiApiKey()){ setTimeout(()=>generateGeminiInsight(),1000); }
-});
+
+function fileToBase64(file){
+  return new Promise((res,rej)=>{
+    let r=new FileReader();
+    r.onload=()=>{ let b64=r.result.split(',')[1]; res(b64); };
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+}
+
+async function parseWithGeminiVision(file){
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||localStorage.getItem('gemini_api_key')||''; }catch(e){}
+  if(!apiKey) throw new Error('API Key Gemini belum diisi di gear ⚙️');
+  let b64=await fileToBase64(file);
+  let prompt=`Kamu parser screenshot Gojek. Ekstrak SEMUA order. Kalau ada "Termasuk tip Rp X" atau "Tip Rp X", itu TIP terpisah wajib ekstrak. OUTPUT JSON: {"orders":[{"idTrans":"RB-...","amount":11500,"tips":0,"totalWithTips":11500,"dist":2.82,"time":"11:56","endTime":"12:05","pickup":"...","destination":"...","cat":"Goride","hasTips":false}],"detectedDate":"2026-07-16"} Jika ada tips, totalWithTips=amount+tips. Balas JSON saja.`;
+  let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  let body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:file.type||'image/jpeg',data:b64}}]}],generationConfig:{temperature:0.2,maxOutputTokens:8192,responseMimeType:"application/json"}};
+  let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!resp.ok){ let t=await resp.text(); throw new Error('Vision '+resp.status+': '+t.substring(0,300)); }
+  let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; if(!txt) throw new Error('Response kosong');
+  let parsed; try{ parsed=JSON.parse(txt);}catch(e){ let m=txt.match(/\{[\s\S]*\}/); if(m) parsed=JSON.parse(m[0]); else throw e; }
+  return parsed;
+}
+
+(function(){
+  let _origProcessFile = null;
+  let tries=0;
+  function hookOCR(){
+    if(typeof window.processFile==='function' && !_origProcessFile){
+      _origProcessFile = window.processFile;
+      window.processFile = async function(file, fallbackDate){
+        let statusEl=document.getElementById('ocrStatus');
+        let previewEl=document.getElementById('ocrPreview');
+        if(geminiOcrSuperMode){
+          try{
+            if(statusEl) statusEl.innerHTML='🤖 OCR Super Gemini (bisa baca tips)...';
+            if(previewEl){ previewEl.style.display='block'; previewEl.innerHTML='Kirim ke Gemini...'; }
+            let result=await parseWithGeminiVision(file);
+            let orders=result.orders||[];
+            let ocrDate=result.detectedDate||fallbackDate||new Date().toISOString().split('T')[0];
+            if(!orders.length){ if(statusEl) statusEl.innerHTML='⚠️ Tidak ada order terdeteksi'; return []; }
+            let converted=orders.map(o=>{ let cat=o.cat|| (o.idTrans?.startsWith('RB')?'Goride':o.idTrans?.startsWith('F')?'Gofood':'Goride'); let finalAmount=o.totalWithTips||o.amount||0; return {idTrans:o.idTrans||('GEN-'+Date.now()),amount:finalAmount,rawAmount:o.amount||0,tips:o.tips||0,hasTips:!!o.hasTips,totalWithTips:finalAmount,dist:o.dist||0,time:o.time||'00:00',endTime:o.endTime||'00:00',pickup:o.pickup||'',destination:o.destination||'',date:ocrDate,cat:cat,note:(o.hasTips?`Tips Rp${(o.tips||0).toLocaleString('id-ID')} `:``)+(o.pickup||'')+' -> '+(o.destination||''),fromGeminiVision:true}; });
+            if(statusEl) statusEl.innerHTML=`✅ ${converted.length} trip (Vision, tips) | ${ocrDate} | ${converted.map(c=>c.idTrans+(c.hasTips?' 💰'+c.tips:'')).join(', ')}`;
+            let existing=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
+            let newEntries=converted.map(c=>({id:Date.now().toString()+Math.random().toString(36).substring(2,6),date:c.date,time:c.time,endTime:c.endTime,predictedEndTime:c.endTime,amount:c.amount,rawAmount:c.rawAmount,tips:c.tips,hasTips:c.hasTips,totalWithTips:c.totalWithTips,dist:c.dist,pickup:c.pickup,destination:c.destination,cat:c.cat,type:'Pendapatan',note:c.note,idTrans:c.idTrans}));
+            let existingIds=new Set(existing.map(e=>e.idTrans||'')); let filteredNew=newEntries.filter(e=>!existingIds.has(e.idTrans));
+            localStorage.setItem('lapkeuData', JSON.stringify([...filteredNew,...existing]));
+            if(typeof loadData==='function') loadData();
+            return converted;
+          }catch(err){
+            if(statusEl) statusEl.innerHTML='❌ Vision gagal: '+err.message+' fallback biasa...';
+            if(_origProcessFile) return await _origProcessFile(file, fallbackDate);
+            return [];
+          }
+        } else {
+          return await _origProcessFile(file, fallbackDate);
+        }
+      };
+      console.log('OCR hook OK');
+    } else if(tries<30){
+      tries++; setTimeout(hookOCR,500);
+    }
+  }
+  hookOCR();
+})();
+
+async function generateForecastBesok(force=false){
+  let container=document.getElementById('forecastBesokContainer'); if(!container) return;
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){ container.innerHTML='<div style="color:#ff8a80;">API Key belum diisi</div>'; return; }
+  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  if(data.length<3){ container.innerHTML='<div style="color:#8aa0c6;">Butuh min 3 order</div>'; return; }
+  let tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  let tomorrowName=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][tomorrow.getDay()];
+  let tomorrowStr=tomorrow.toISOString().split('T')[0];
+  if(!force){ let cached=localStorage.getItem('lapkeu_forecast_'+tomorrowStr); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<21600000){ container.innerHTML=p.html; return; } }catch(e){} } }
+  container.innerHTML='<div style="color:#00e676; text-align:center;">🔮 Memprediksi besok '+tomorrowName+'...</div>';
+  let sameDay=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt.getDay()===tomorrow.getDay(); });
+  let avgSame=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):0;
+  let prompt=`Prediksi besok ${tomorrowName}. Histori ${tomorrowName}: ${sameDay.length} order avg Rp ${avgSame}. Data 30 hari: ${data.slice(-30).length} order. Buat 4 paragraf storytelling anti-template: 1) prediksi pendapatan range, 2) jam on, 3) area cuan, 4) strategi layanan. Balas HTML.`;
+  try{ let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`; let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.9,maxOutputTokens:4096}}; let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">${txt}</div>`; localStorage.setItem('lapkeu_forecast_'+tomorrowStr, JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=`<div style="color:#ff8a80;">Gagal: ${err.message}</div>`; }
+}
+
+async function generateBattlogAnalisa(force=false){
+  let container=document.getElementById('battlogAnalisaContainer'); if(!container) return;
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){ container.innerHTML='<div style="color:#ff8a80;">API Key belum diisi</div>'; return; }
+  let lapkeu=[]; try{ lapkeu=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  let batt=[]; try{ let raw=localStorage.getItem('UNIVERSAL_LAKE_V1'); if(raw){ let lake=JSON.parse(raw); batt=lake.maka&&lake.maka.maka_log_v1?lake.maka.maka_log_v1:[]; } }catch(e){}
+  if(!batt.length){ container.innerHTML='<div style="color:#8aa0c6;">Belum ada Battlog</div>'; return; }
+  if(!force){ let cached=localStorage.getItem('lapkeu_battlog_analisa'); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<10800000){ container.innerHTML=p.html; return; } }catch(e){} } }
+  container.innerHTML='<div style="color:#ffcc66; text-align:center;">🔋 x 🏍️ Menganalisa...</div>';
+  let lastBatt=batt.slice(0,5).map(b=>`${b.tanggal||''} ${b.km_awal||0}->${b.km_akhir||0} batt ${b.batt_awal||0}->${b.batt_akhir||0}%`).join('\n');
+  let lastOrders=lapkeu.slice(0,10).map(o=>`${o.date||''} ${o.cat||''} ${o.dist||0}km`).join('\n');
+  let prompt=`Analisa baterai vs order. BATTLOG: ${lastBatt}. ORDERS: ${lastOrders}. Buat 4 paragraf: 1) Wh/km vs jarak, 2) layanan boros, 3) jam boros, 4) rekomendasi. Balas HTML.`;
+  try{ let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`; let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.85,maxOutputTokens:4096}}; let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px;">${txt}</div>`; localStorage.setItem('lapkeu_battlog_analisa', JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=`<div style="color:#ff8a80;">Gagal: ${err.message}</div>`; }
+}
+
+async function generateWeeklyReport(force=false){
+  let container=document.getElementById('weeklyReportContainer'); if(!container) return;
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){ container.innerHTML='<div style="color:#ff8a80;">API Key belum diisi</div>'; return; }
+  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  if(data.length<3){ container.innerHTML='<div style="color:#8aa0c6;">Butuh min 3 order</div>'; return; }
+  let now=new Date(); let startThis=new Date(now); startThis.setDate(now.getDate()-now.getDay()); let startLast=new Date(startThis); startLast.setDate(startThis.getDate()-7);
+  let thisWeek=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt>=startThis; });
+  let lastWeek=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt>=startLast && dt<startThis; });
+  let incomeThis=thisWeek.reduce((a,b)=>a+(Number(b.amount)||0),0); let incomeLast=lastWeek.reduce((a,b)=>a+(Number(b.amount)||0),0);
+  if(!force){ let cached=localStorage.getItem('lapkeu_weekly_report'); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<43200000){ container.innerHTML=p.html; weeklyReportLastHtml=p.html; return; } }catch(e){} } }
+  container.innerHTML='<div style="color:#40c4ff; text-align:center;">📅 Membuat laporan mingguan...</div>';
+  let prompt=`Laporan mingguan. Minggu ini: ${thisWeek.length} order Rp ${incomeThis}. Minggu lalu: ${lastWeek.length} order Rp ${incomeLast}. Buat 4 paragraf storytelling: ringkasan, hari/jam cuan, yang bikin boncos, rekomendasi. Balas HTML.`;
+  try{ let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`; let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.9,maxOutputTokens:4096}}; let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; container.innerHTML=`<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:13px; line-height:1.7;">${txt}</div>`; weeklyReportLastHtml=container.innerHTML; localStorage.setItem('lapkeu_weekly_report', JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=`<div style="color:#ff8a80;">Gagal: ${err.message}</div>`; }
+}
+
+function shareWeeklyReport(){
+  let html=weeklyReportLastHtml||document.getElementById('weeklyReportContainer')?.innerHTML||'';
+  if(!html || html.includes('Tap Buat')){ alert('Buat laporan dulu'); return; }
+  let text=html.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').substring(0,2000);
+  if(navigator.share){ navigator.share({title:'Laporan Mingguan',text:text}).catch(()=>{}); } else { navigator.clipboard.writeText(text).then(()=>alert('Disalin')).catch(()=>alert(text)); }
+}
+
+(function(){
+  let tries=0;
+  function hookSwitch(){
+    if(typeof window.switchTab==='function' && !window.switchTab.__hooked_v42){
+      let orig=window.switchTab;
+      window.switchTab=function(tabName){
+        orig(tabName);
+        if(tabName==='rekap'){
+          setTimeout(()=>{
+            try{
+              let fc=document.getElementById('forecastBesokContainer');
+              if(fc && fc.innerHTML.includes('Tap Prediksi')) generateForecastBesok(false);
+              let bc=document.getElementById('battlogAnalisaContainer');
+              if(bc && bc.innerHTML.includes('Tap Analisa')) generateBattlogAnalisa(false);
+            }catch(e){}
+          },800);
+        }
+      };
+      window.switchTab.__hooked_v42=true;
+    } else if(tries<30){
+      tries++; setTimeout(hookSwitch,500);
+    }
+  }
+  hookSwitch();
+})();
 </script>
 
 </body>
