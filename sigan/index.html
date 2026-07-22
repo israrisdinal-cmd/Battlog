@@ -2596,51 +2596,207 @@ async function parseWithGeminiVision(file){
 
 async function generateForecastBesok(force=false){
   let container=document.getElementById('forecastBesokContainer'); if(!container) return;
-  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
-  if(!apiKey){ container.innerHTML='<div style="color:#ff8a80;">API Key belum diisi</div>'; return; }
   let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
-  if(data.length<3){ container.innerHTML='<div style="color:#8aa0c6;">Butuh min 3 order</div>'; return; }
+  if(data.length<3){ container.innerHTML='<div style="padding:10px; color:#8aa0c6; background:#0a1328; border-radius:8px;">Data masih sedikit (butuh min 3 order) untuk prediksi besok. Input dulu beberapa hari.</div>'; return; }
   let tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   let tomorrowName=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][tomorrow.getDay()];
   let tomorrowStr=tomorrow.toISOString().split('T')[0];
-  if(!force){ let cached=localStorage.getItem('lapkeu_forecast_'+tomorrowStr); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<21600000){ container.innerHTML=p.html; return; } }catch(e){} } }
-  container.innerHTML='<div style="color:#00e676; text-align:center;">🔮 Memprediksi besok '+tomorrowName+'...</div>';
-  let sameDay=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt.getDay()===tomorrow.getDay(); });
+  let tomorrowDay=tomorrow.getDay();
+  
+  // Local fallback calculation
+  function buildLocalFallback(){
+    let sameDay=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt.getDay()===tomorrowDay; });
+    let totalIncomeSame = sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0);
+    let avgPerOrderSame = sameDay.length? Math.round(totalIncomeSame/sameDay.length):0;
+    let totalOrdersSame = sameDay.length;
+    // Best hours
+    let hourMap={}; sameDay.forEach(d=>{ let h=parseInt((d.time||'00:00').split(':')[0])||0; if(!hourMap[h]) hourMap[h]={income:0,count:0}; hourMap[h].income+=Number(d.amount)||0; hourMap[h].count++; });
+    let bestHours=Object.entries(hourMap).map(([h,s])=>({h:parseInt(h), avg:s.count?s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg).slice(0,3);
+    // Best areas
+    let areaMap={}; sameDay.forEach(d=>{ let area=(d.pickup||d.destination||'').substring(0,25)||'Area'; if(!areaMap[area]) areaMap[area]={income:0,count:0}; areaMap[area].income+=Number(d.amount)||0; areaMap[area].count++; });
+    let bestAreas=Object.entries(areaMap).map(([a,s])=>({a, avg:s.count?s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg).slice(0,3);
+    
+    let predMin = Math.round(avgPerOrderSame*2);
+    let predMax = Math.round(avgPerOrderSame*5);
+    if(predMin<50000) predMin=80000; if(predMax<150000) predMax=250000;
+    
+    return `<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">
+      <div style="color:#00e676; font-weight:700; margin-bottom:8px;">🔮 Prediksi Besok ${tomorrowName} (${tomorrowStr}) - Local Data</div>
+      <p>Besok ${tomorrowName}, historis ${tomorrowName} kamu ada <b>${totalOrdersSame} order</b> dengan rata-rata per order <b>Rp ${avgPerOrderSame.toLocaleString('id-ID')}</b>. Dari pola ini, prediksi pendapatan realistis besok kalau on normal itu di kisaran <b style="color:#00e676;">Rp ${predMin.toLocaleString('id-ID')} - Rp ${predMax.toLocaleString('id-ID')}</b>. Ini bukan angka ngarang, tapi dari rata-rata ${tomorrowName} sebelumnya.</p>
+      <p>${bestHours.length?`Jam yang historisnya paling cuan di hari ${tomorrowName} itu jam <b>${bestHours.map(h=>h.h+':00 (Rp '+Math.round(h.avg).toLocaleString('id-ID')+'/order, '+h.count+'x)').join(', ')}</b>. Usahakan on di jam-jam itu, jangan off. Kalau jam sepi historisnya di bawah Rp 20rb/jam, mending istirahat cas.`:`Belum ada pola jam yang kuat untuk hari ${tomorrowName}, coba on jam sore 17-20 yang biasanya rame.`}</p>
+      <p>${bestAreas.length?`Area yang sering cuan di ${tomorrowName}: <b>${bestAreas.map(a=>a.a+' ('+a.count+'x, avg Rp '+Math.round(a.avg).toLocaleString('id-ID')+')').join(', ')}</b>. Ini area langganan kamu, usahakan mangkal dekat situ besok.`:`Belum ada area dominan untuk ${tomorrowName}, coba fokus di Pagedangan / BSD yang historisnya rame.`}</p>
+      <div style="font-size:10px; color:#5a7096; margin-top:8px;">Local fallback tanpa Gemini. Tap Prediksi Ulang jika sudah isi API Key untuk analisa AI mendalam.</div>
+    </div>`;
+  }
+  
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_forecast_'+tomorrowStr);
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<21600000){ container.innerHTML=p.html; return; } }catch(e){} }
+  }
+  
+  container.innerHTML='<div style="color:#00e676; text-align:center; padding:10px;">🔮 Memprediksi besok '+tomorrowName+'...</div>';
+  
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){
+    container.innerHTML=buildLocalFallback();
+    return;
+  }
+  
+  let sameDay=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt.getDay()===tomorrowDay; });
   let avgSame=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):0;
-  let prompt=`Prediksi besok ${tomorrowName}. Histori ${tomorrowName}: ${sameDay.length} order avg Rp ${avgSame}. Data 30 hari: ${data.slice(-30).length} order. Buat 4 paragraf storytelling anti-template: 1) prediksi pendapatan range, 2) jam on, 3) area cuan, 4) strategi layanan. Balas HTML.`;
-  try{ let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`; let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.9,maxOutputTokens:4096}}; let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">${txt}</div>`; localStorage.setItem('lapkeu_forecast_'+tomorrowStr, JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=`<div style="color:#ff8a80;">Gagal: ${err.message}</div>`; }
+  let prompt=`Prediksi besok ${tomorrowName}. Histori ${tomorrowName}: ${sameDay.length} order avg Rp ${avgSame}. Data 30 hari: ${data.slice(-30).length} order. Buat 4 paragraf storytelling anti-template: 1) prediksi pendapatan range, 2) jam on, 3) area cuan, 4) strategi layanan. Balas HTML background #0a1a14.`;
+  try{
+    let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.9,maxOutputTokens:4096}};
+    let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!resp.ok) throw new Error('API error');
+    let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    if(!txt) throw new Error('Kosong');
+    container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">${txt}</div>`;
+    localStorage.setItem('lapkeu_forecast_'+tomorrowStr, JSON.stringify({html:container.innerHTML,ts:Date.now()}));
+  }catch(err){
+    container.innerHTML=buildLocalFallback() + `<div style="font-size:10px; color:#ff8a80; margin-top:6px;">Gemini gagal: ${err.message}, tampilkan local fallback</div>`;
+  }
 }
+
 
 async function generateBattlogAnalisa(force=false){
   let container=document.getElementById('battlogAnalisaContainer'); if(!container) return;
-  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
-  if(!apiKey){ container.innerHTML='<div style="color:#ff8a80;">API Key belum diisi</div>'; return; }
   let lapkeu=[]; try{ lapkeu=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
-  let batt=[]; try{ let raw=localStorage.getItem('UNIVERSAL_LAKE_V1'); if(raw){ let lake=JSON.parse(raw); batt=lake.maka&&lake.maka.maka_log_v1?lake.maka.maka_log_v1:[]; } }catch(e){}
-  if(!batt.length){ container.innerHTML='<div style="color:#8aa0c6;">Belum ada Battlog</div>'; return; }
-  if(!force){ let cached=localStorage.getItem('lapkeu_battlog_analisa'); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<10800000){ container.innerHTML=p.html; return; } }catch(e){} } }
-  container.innerHTML='<div style="color:#ffcc66; text-align:center;">🔋 x 🏍️ Menganalisa...</div>';
-  let lastBatt=batt.slice(0,5).map(b=>`${b.tanggal||''} ${b.km_awal||0}->${b.km_akhir||0} batt ${b.batt_awal||0}->${b.batt_akhir||0}%`).join('\n');
-  let lastOrders=lapkeu.slice(0,10).map(o=>`${o.date||''} ${o.cat||''} ${o.dist||0}km`).join('\n');
-  let prompt=`Analisa baterai vs order. BATTLOG: ${lastBatt}. ORDERS: ${lastOrders}. Buat 4 paragraf: 1) Wh/km vs jarak, 2) layanan boros, 3) jam boros, 4) rekomendasi. Balas HTML.`;
-  try{ let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`; let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.85,maxOutputTokens:4096}}; let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px;">${txt}</div>`; localStorage.setItem('lapkeu_battlog_analisa', JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=`<div style="color:#ff8a80;">Gagal: ${err.message}</div>`; }
+  
+  function getBattData(){
+    let batt=[];
+    try{
+      let keys=['battlog_log_v1','maka_log_v1','battlog_maka_log_v1'];
+      for(let k of keys){
+        let raw=localStorage.getItem(k);
+        if(raw){ let arr=JSON.parse(raw); if(Array.isArray(arr) && arr.length){ batt=arr; break; } }
+      }
+      if(!batt.length){
+        let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+        if(lakeRaw){
+          let lake=JSON.parse(lakeRaw);
+          if(lake.maka && lake.maka.maka_log_v1 && lake.maka.maka_log_v1.length) batt=lake.maka.maka_log_v1;
+          else if(lake.battlog && lake.battlog.battlog_log_v1 && lake.battlog.battlog_log_v1.length) batt=lake.battlog.battlog_log_v1;
+          else if(lake.maka_log_v1 && lake.maka_log_v1.length) batt=lake.maka_log_v1;
+        }
+      }
+      if(!batt.length){
+        let lakeRaw2=localStorage.getItem('sigan_riwayat_harian');
+        if(lakeRaw2){ let arr=JSON.parse(lakeRaw2); if(arr.length) batt=arr.map(r=>({tanggal:r.date||r.tanggal, km_awal:r.km_awal, km_akhir:r.km_akhir, batt_awal:100, batt_akhir:70, lokasi:r.note||''})); }
+      }
+    }catch(e){}
+    return batt;
+  }
+  
+  let batt=getBattData();
+  
+  function buildLocalBattFallback(){
+    if(!batt.length){
+      return `<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">
+        <div style="color:#ffcc66; font-weight:700; margin-bottom:8px;">🔋 Belum ada data Battlog terdeteksi</div>
+        <p>Untuk pakai fitur ini, kamu harus punya data Battlog. Cara sinkron:</p>
+        <p>1. Buka app Battlog V1.4, input minimal 1 log baterai (km awal-akhir + % baterai)</p>
+        <p>2. Pastikan kedua app dibuka di browser yang sama biar localStorage UNIVERSAL_LAKE_V1 kebaca</p>
+        <p>3. Balik ke Lapkeu, tap Analisa lagi</p>
+        <p style="font-size:12px; color:#8aa0c6;">Sementara, dari data Lapkeu saja: kamu punya ${lapkeu.length} order. Rata-rata jarak ${lapkeu.length? (lapkeu.reduce((a,b)=>a+(Number(b.dist)||0),0)/lapkeu.length).toFixed(1):0} km per order. Gofood jarak jauh di atas 5km biasanya bikin baterai lebih boros 20-30% vs Goride pendek 2-3km.</p>
+      </div>`;
+    }
+    let avgDist = lapkeu.length? (lapkeu.reduce((a,b)=>a+(Number(b.dist)||0),0)/lapkeu.length):0;
+    let lastBatt=batt.slice(0,3).map(b=>`${b.tanggal||b.date||''} ${b.km_awal||0}->${b.km_akhir||0}km ${b.batt_awal||0}%->${b.batt_akhir||0}%`).join(', ');
+    return `<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">
+      <div style="color:#ffcc66; font-weight:700; margin-bottom:8px;">🔋 x 🏍️ Analisa Baterai vs Order (Local)</div>
+      <p>Data Battlog terdeteksi ${batt.length} sesi. 3 sesi terakhir: ${lastBatt}. Dari gabungan dengan ${lapkeu.length} order Lapkeu, rata-rata jarak order kamu ${avgDist.toFixed(1)} km.</p>
+      <p>Pola umum: order di atas 5km dengan baterai di bawah 40% bikin Wh/km naik. Usahakan Gofood jarak jauh diambil pas baterai di atas 70% biar nggak boros. Goride pendek 2-3km paling irit.</p>
+      <p style="font-size:10px; color:#5a7096;">Local fallback. Isi API Key dan tap Analisa lagi untuk analisa AI mendalam.</p>
+    </div>`;
+  }
+  
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_battlog_analisa');
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<10800000){ container.innerHTML=p.html; return; } }catch(e){} }
+  }
+  
+  if(!batt.length){
+    container.innerHTML=buildLocalBattFallback();
+    return;
+  }
+  
+  container.innerHTML='<div style="color:#ffcc66; text-align:center; padding:10px;">🔋 x 🏍️ Menganalisa baterai vs order...</div>';
+  
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){
+    container.innerHTML=buildLocalBattFallback();
+    return;
+  }
+  
+  let lastBatt=batt.slice(0,5).map(b=>`${b.tanggal||b.date||''} ${b.km_awal||0}->${b.km_akhir||0} batt ${b.batt_awal||0}->${b.batt_akhir||0}% ${b.lokasi||''}`).join('\n');
+  let lastOrders=lapkeu.slice(0,10).map(o=>`${o.date||''} ${o.cat||''} ${o.dist||0}km Rp${o.amount||0}`).join('\n');
+  let prompt=`Analisa baterai vs order. BATTLOG: ${lastBatt}. ORDERS: ${lastOrders}. Buat 4 paragraf storytelling: Wh/km vs jarak, layanan boros, jam boros, rekomendasi. Balas HTML.`;
+  try{
+    let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.85,maxOutputTokens:4096}};
+    let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    if(!txt) throw new Error('kosong');
+    container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">${txt}</div>`;
+    localStorage.setItem('lapkeu_battlog_analisa', JSON.stringify({html:container.innerHTML,ts:Date.now()}));
+  }catch(err){
+    container.innerHTML=buildLocalBattFallback() + `<div style="font-size:10px; color:#ff8a80;">Gemini gagal: ${err.message}</div>`;
+  }
 }
+
 
 async function generateWeeklyReport(force=false){
   let container=document.getElementById('weeklyReportContainer'); if(!container) return;
-  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
-  if(!apiKey){ container.innerHTML='<div style="color:#ff8a80;">API Key belum diisi</div>'; return; }
   let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
-  if(data.length<3){ container.innerHTML='<div style="color:#8aa0c6;">Butuh min 3 order</div>'; return; }
+  if(data.length<3){ container.innerHTML='<div style="padding:10px; color:#8aa0c6; background:#0a1328; border-radius:8px;">Butuh min 3 order untuk laporan mingguan</div>'; return; }
   let now=new Date(); let startThis=new Date(now); startThis.setDate(now.getDate()-now.getDay()); let startLast=new Date(startThis); startLast.setDate(startThis.getDate()-7);
   let thisWeek=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt>=startThis; });
   let lastWeek=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt>=startLast && dt<startThis; });
   let incomeThis=thisWeek.reduce((a,b)=>a+(Number(b.amount)||0),0); let incomeLast=lastWeek.reduce((a,b)=>a+(Number(b.amount)||0),0);
-  if(!force){ let cached=localStorage.getItem('lapkeu_weekly_report'); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<43200000){ container.innerHTML=p.html; weeklyReportLastHtml=p.html; return; } }catch(e){} } }
-  container.innerHTML='<div style="color:#40c4ff; text-align:center;">📅 Membuat laporan mingguan...</div>';
-  let prompt=`Laporan mingguan. Minggu ini: ${thisWeek.length} order Rp ${incomeThis}. Minggu lalu: ${lastWeek.length} order Rp ${incomeLast}. Buat 4 paragraf storytelling: ringkasan, hari/jam cuan, yang bikin boncos, rekomendasi. Balas HTML.`;
-  try{ let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`; let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.9,maxOutputTokens:4096}}; let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||''; container.innerHTML=`<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:13px; line-height:1.7;">${txt}</div>`; weeklyReportLastHtml=container.innerHTML; localStorage.setItem('lapkeu_weekly_report', JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=`<div style="color:#ff8a80;">Gagal: ${err.message}</div>`; }
+  let diff=incomeThis-incomeLast; let diffPct=incomeLast? Math.round(diff/incomeLast*100):0;
+  
+  function buildLocalWeekly(){
+    let bestDayMap={}; thisWeek.forEach(d=>{ let day=d.date; if(!bestDayMap[day]) bestDayMap[day]={income:0,count:0}; bestDayMap[day].income+=Number(d.amount)||0; bestDayMap[day].count++; });
+    let bestDay=Object.entries(bestDayMap).map(([day,s])=>({day,income:s.income,count:s.count})).sort((a,b)=>b.income-a.income)[0];
+    return `<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:13px; line-height:1.7;">
+      <div style="color:#40c4ff; font-weight:700; margin-bottom:8px;">📅 Laporan Mingguan (Local) ${startThis.toLocaleDateString('id-ID')} - ${now.toLocaleDateString('id-ID')}</div>
+      <p>Minggu ini kamu narik <b>${thisWeek.length} order</b> total <b style="color:#40c4ff;">Rp ${incomeThis.toLocaleString('id-ID')}</b>, minggu lalu ${lastWeek.length} order Rp ${incomeLast.toLocaleString('id-ID')}. Selisih <b style="color:${diff>=0?'#00e676':'#ff5252'};">${diff>=0?'+':''}Rp ${diff.toLocaleString('id-ID')} (${diffPct>=0?'+':''}${diffPct}%)</b> ${diff>=0?'naik':'turun'}.</p>
+      <p>${bestDay?`Hari paling cuan minggu ini <b>${bestDay.day}</b> dengan Rp ${bestDay.income.toLocaleString('id-ID')} dari ${bestDay.count} order. Coba ulangi pola jam di hari itu minggu depan.`:`Belum ada hari dominan, coba on lebih konsisten jam 17-21.`}</p>
+      <p>Rata-rata per hari minggu ini Rp ${thisWeek.length? Math.round(incomeThis/7).toLocaleString('id-ID'):'0'}, per order Rp ${thisWeek.length? Math.round(incomeThis/thisWeek.length).toLocaleString('id-ID'):'0'}. Kalau mau naik, fokus kurangi jam sepi dan dead trip.</p>
+      <div style="font-size:10px; color:#5a7096; margin-top:8px;">Local fallback. Tap Buat Laporan dengan API Key untuk cerita AI mendalam.</div>
+    </div>`;
+  }
+  
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_weekly_report');
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<43200000){ container.innerHTML=p.html; weeklyReportLastHtml=p.html; return; } }catch(e){} }
+  }
+  
+  container.innerHTML='<div style="color:#40c4ff; text-align:center; padding:10px;">📅 Membuat laporan mingguan...</div>';
+  
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){
+    container.innerHTML=buildLocalWeekly();
+    return;
+  }
+  
+  let prompt=`Laporan mingguan. Minggu ini: ${thisWeek.length} order Rp ${incomeThis}. Minggu lalu: ${lastWeek.length} order Rp ${incomeLast}. Buat 4 paragraf storytelling: ringkasan, hari/jam cuan, yang bikin boncos, rekomendasi. Balas HTML background #0a1420.`;
+  try{
+    let url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.9,maxOutputTokens:4096}};
+    let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    if(!txt) throw new Error('kosong');
+    container.innerHTML=`<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:13px; line-height:1.7;">${txt}</div>`;
+    weeklyReportLastHtml=container.innerHTML;
+    localStorage.setItem('lapkeu_weekly_report', JSON.stringify({html:container.innerHTML,ts:Date.now()}));
+  }catch(err){
+    container.innerHTML=buildLocalWeekly() + `<div style="font-size:10px; color:#ff8a80;">Gemini gagal: ${err.message}</div>`;
+  }
 }
+
 
 function shareWeeklyReport(){
   let html=weeklyReportLastHtml||document.getElementById('weeklyReportContainer')?.innerHTML||'';
