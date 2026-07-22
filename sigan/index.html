@@ -42,37 +42,37 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     <style>
         :root{--bg:#0a1328;--card:#111d35;--line:#1e2d4a;--blue:#2b8cff;--green:#7dffb7;--text:#dbe8ff;--muted:#8aa0c6}
         *{font-family:'Inter',system-ui,sans-serif;box-sizing:border-box}
-        body { padding:15px; background:var(--bg); color:var(--text); margin:0; padding-bottom:80px; }
+        body { padding:15px; background:var(--bg); color:var(--text); margin:0; padding-bottom:80px; font-size:15px; line-height:1.6; }
         .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
         .card { background:var(--card); border:1px solid var(--line); padding:15px; border-radius:18px; box-shadow:0 4px 15px rgba(0,0,0,0.2); margin-bottom:10px; }
-        .stat-label { font-size:0.65em; color:var(--muted); text-transform:uppercase; display:block; text-align:center; letter-spacing:0.5px; font-weight:600 }
-        .stat-val { font-size:1em; font-weight:800; background:linear-gradient(180deg, #eaf2ff 0%, #8ab4f8 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; display:block; text-align:center; margin-top:5px; }
+        .stat-label { font-size:0.78em; color:var(--muted); text-transform:uppercase; display:block; text-align:center; letter-spacing:0.5px; font-weight:600 }
+        .stat-val { font-size:1.15em; font-weight:800; background:linear-gradient(180deg, #eaf2ff 0%, #8ab4f8 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; display:block; text-align:center; margin-top:5px; }
         .btn-grid-on { grid-column:span 2; background:linear-gradient(180deg,#2b8cff,#1a6fd8); color:#fff; border:none; border-radius:14px; font-weight:700; cursor:pointer; font-size:13px; display:flex; justify-content:center; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(43,140,255,0.25); padding:12px; margin:5px 0 0 0; transition:all 0.2s; }
         .btn-grid-on:active { background:#1a6fd8; transform:scale(0.98) }
         .progress-container { background:#0f1f36; border:1px solid var(--line); border-radius:8px; height:12px; width:100%; margin-top:6px; overflow:hidden; }
         .progress-bar { background:linear-gradient(90deg, var(--green), #2b8cff); height:100%; width:0%; transition:width 0.3s ease; }
         .target-input { width:85px; padding:4px 8px; margin:0; display:inline-block; font-size:11px; border:1px solid var(--line); background:#0f1f36; color:#eaf2ff; border-radius:8px; text-align:right; font-weight:bold; }
         .tab-bar { display:flex; background:rgba(17,29,53,0.9); border:1px solid var(--line); border-radius:12px; margin-bottom:15px; overflow:hidden; box-shadow:0 4px 10px rgba(0,0,0,0.2); padding:3px; backdrop-filter:blur(8px); }
-        .tab-btn { flex:1; padding:12px; border:none; background:transparent; font-weight:700; color:#6b7fa2; cursor:pointer; font-size:12px; text-align:center; transition:all 0.2s; border-radius:8px; }
+        .tab-btn { flex:1; padding:12px; border:none; background:transparent; font-weight:700; color:#6b7fa2; cursor:pointer; font-size:14px; text-align:center; transition:all 0.2s; border-radius:8px; }
         .tab-btn.active { background:rgba(43,140,255,0.15); color:#6fb2ff; border:1px solid #2b5a9a; }
         .tab-btn#btnTabInput.active { background:linear-gradient(180deg,#2b8cff,#1a6fd8); color:#ffffff; border:none }
         .tab-btn#btnTabHistory.active { background:#13223d; color:#8ab4f8; border:1px solid var(--line) }
         .tab-btn#btnTabRekap.active { background:linear-gradient(180deg, #1a2a4a, #111d35); color:var(--green); border:1px solid rgba(125,255,183,0.2) }
-        input, select { width:100%; padding:12px 14px; margin:5px 0; border:1px solid var(--line); background:#0f1f36; color:#eaf2ff; border-radius:12px; box-sizing:border-box; font-size:14px; transition:border-color 0.2s; }
+        input, select { width:100%; padding:12px 14px; margin:5px 0; border:1px solid var(--line); background:#0f1f36; color:#eaf2ff; border-radius:12px; box-sizing:border-box; font-size:15px; transition:border-color 0.2s; }
         input:focus, select:focus { outline:none; border-color:var(--blue); }
         input::placeholder { color:#5a7096; }
-        button { background:linear-gradient(180deg,#2b8cff,#1a6fd8); color:white; border:none; font-weight:700; cursor:pointer; transition:all 0.2s; border-radius:14px; padding:12px; font-size:14px }
+        button { background:linear-gradient(180deg,#2b8cff,#1a6fd8); color:white; border:none; font-weight:700; cursor:pointer; transition:all 0.2s; border-radius:14px; padding:12px; font-size:15px }
         button:active { transform:scale(0.98) }
         .hidden { display:none !important; }
         .cat-wrapper { background:#0f1f36; border:1px solid var(--line); border-radius:12px; margin-bottom:8px; overflow:hidden; }
-        .cat-header { display:flex; justify-content:space-between; padding:10px 12px; background:#111d35; font-weight:700; font-size:13px; cursor:pointer; }
+        .cat-header { display:flex; justify-content:space-between; padding:10px 12px; background:#111d35; font-weight:700; font-size:15px; cursor:pointer; }
         .sub-row { padding:10px 12px; border-top:1px solid #1e2d4a; background:#0a1328; }
         .row-main { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
-        .row-note { font-size:11px; color:#8aa0c6; margin-top:6px; line-height:1.4; word-break:break-word; }
+        .row-note { font-size:13px; color:#8aa0c6; margin-top:6px; line-height:1.4; word-break:break-word; }
         .btn-edit { background:#13223d; color:#8ab4f8; border:1px solid #2b5a9a; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:700 }
         .btn-del { background:#2a1323; color:#ff8a80; border:1px solid #5a2a3a; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:700 }
         .breakdown-row { margin-bottom:10px; }
-        .breakdown-label { display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; }
+        .breakdown-label { display:flex; justify-content:space-between; font-size:14px; margin-bottom:4px; }
         .breakdown-bg { background:#0f1f36; border-radius:6px; height:8px; overflow:hidden; }
         .breakdown-fill { height:100%; background:linear-gradient(90deg, #2b8cff, #7dffb7); }
         .filter-container { margin-bottom:12px; }
@@ -361,38 +361,38 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
         </div>
         
         <div class="card" style="border-left:5px solid #a78bfa; background:linear-gradient(135deg,#1a1033 0%,#111d35 100%);">
-            <div style="font-size:13px; color:#a78bfa; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:15px; color:#a78bfa; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
                 <span>🤖 Insight Gemini AI</span>
                 <span style="font-size:9px; background:#1e1b4b; border:1px solid #4c1d95; padding:2px 6px; border-radius:999px; color:#a78bfa;">Auto + GMap</span>
             </div>
-            <div id="rekapInsightContainer"></div>
+            <div id="rekapInsightContainer" style="font-size:15px;"></div>
         </div>
 
         <div class="card" style="border-left:5px solid #00e676; background:linear-gradient(135deg,#0a1a14 0%,#111d35 100%);">
-            <div style="font-size:13px; color:#00e676; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:15px; color:#00e676; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
                 <span>🔮 Prediksi Besok</span>
-                <button onclick="generateForecastBesok(true)" style="font-size:10px; padding:4px 8px; border-radius:999px; background:#1a2e1a; border:1px solid #00e676; color:#00e676;">Prediksi Ulang</button>
+                <button onclick="generateForecastBesok(true)" style="font-size:12px; padding:6px 10px; border-radius:999px; background:#1a2e1a; border:1px solid #00e676; color:#00e676;">Prediksi Ulang</button>
             </div>
-            <div id="forecastBesokContainer" style="font-size:12px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Prediksi Ulang untuk forecast besok...</div>
+            <div id="forecastBesokContainer" style="font-size:15px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Prediksi Ulang untuk forecast besok...</div>
         </div>
 
         <div class="card" style="border-left:5px solid #ffcc66; background:linear-gradient(135deg,#1a160a 0%,#111d35 100%);">
-            <div style="font-size:13px; color:#ffcc66; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:15px; color:#ffcc66; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
                 <span>🔋 x 🏍️ Baterai vs Order</span>
-                <button onclick="generateBattlogAnalisa(true)" style="font-size:10px; padding:4px 8px; border-radius:999px; background:#2a2210; border:1px solid #ffcc66; color:#ffcc66;">Analisa</button>
+                <button onclick="generateBattlogAnalisa(true)" style="font-size:12px; padding:6px 10px; border-radius:999px; background:#2a2210; border:1px solid #ffcc66; color:#ffcc66;">Analisa</button>
             </div>
-            <div id="battlogAnalisaContainer" style="font-size:12px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Analisa...</div>
+            <div id="battlogAnalisaContainer" style="font-size:15px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Analisa...</div>
         </div>
 
         <div class="card" style="border-left:5px solid #40c4ff; background:linear-gradient(135deg,#0a1420 0%,#111d35 100%);">
-            <div style="font-size:13px; color:#40c4ff; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:15px; color:#40c4ff; margin-bottom:12px; font-weight:bold; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
                 <span>📅 Laporan Mingguan</span>
                 <div style="display:flex; gap:4px;">
-                    <button onclick="generateWeeklyReport(true)" style="font-size:10px; padding:4px 8px; border-radius:999px; background:#102030; border:1px solid #40c4ff; color:#40c4ff;">Buat Laporan</button>
-                    <button onclick="shareWeeklyReport()" style="font-size:10px; padding:4px 8px; border-radius:999px; background:#0f1f36; border:1px solid #5a7096; color:#8aa0c6;">Share</button>
+                    <button onclick="generateWeeklyReport(true)" style="font-size:12px; padding:6px 10px; border-radius:999px; background:#102030; border:1px solid #40c4ff; color:#40c4ff;">Buat Laporan</button>
+                    <button onclick="shareWeeklyReport()" style="font-size:12px; padding:6px 10px; border-radius:999px; background:#0f1f36; border:1px solid #5a7096; color:#8aa0c6;">Share</button>
                 </div>
             </div>
-            <div id="weeklyReportContainer" style="font-size:12px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Buat Laporan...</div>
+            <div id="weeklyReportContainer" style="font-size:15px; color:#8aa0c6; padding:8px; background:#0a1328; border-radius:8px;">Tap Buat Laporan...</div>
         </div>
 
         <div class="card" style="border-left:5px solid #e040fb;">
@@ -978,10 +978,10 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
 
     aiHtml+=`<div style="font-size:12px; color:#8aa0c6; margin-bottom:10px;">Analisa ${targetWeekdayName} • ${data7Hari.length} order 7 hari terakhir + ${dataSameDay21.length} order ${targetWeekdayName} 21 hari terakhir</div>`;
 
-    aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#a78bfa; margin-bottom:6px;">📊 Cerita Performa 7 Hari Terakhir</div><div style="font-size:13px; color:#dbe8ff;">Dalam 7 hari terakhir kamu narik ${totalOrders7} order dengan total sekitar Rp ${Math.round(totalIncome7).toLocaleString('id-ID')}. Rata-rata per jam di kisaran Rp ${avgPerJam7.toLocaleString('id-ID')}. ${hoursRanked.length?`Jam paling cuan kemarin ada di jam ${String(hoursRanked[0].h).padStart(2,'0')}:00 dengan rata-rata Rp ${Math.round(hoursRanked[0].rpPerJam).toLocaleString('id-ID')} per jam, itu biasanya jam pulang kerja atau jam makan malam yang ordernya numpuk.`:'Data jam masih minim, coba isi jam kerja lebih lengkap biar polanya keliatan.'} ${muterInfo?`<br><br><span style='color:#ffcc66;'>${muterInfo}</span>`:''}</div></div>`;
+    aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#a78bfa; margin-bottom:6px;">📊 Cerita Performa 7 Hari Terakhir</div><div style="font-size:15px; color:#dbe8ff;">Dalam 7 hari terakhir kamu narik ${totalOrders7} order dengan total sekitar Rp ${Math.round(totalIncome7).toLocaleString('id-ID')}. Rata-rata per jam di kisaran Rp ${avgPerJam7.toLocaleString('id-ID')}. ${hoursRanked.length?`Jam paling cuan kemarin ada di jam ${String(hoursRanked[0].h).padStart(2,'0')}:00 dengan rata-rata Rp ${Math.round(hoursRanked[0].rpPerJam).toLocaleString('id-ID')} per jam, itu biasanya jam pulang kerja atau jam makan malam yang ordernya numpuk.`:'Data jam masih minim, coba isi jam kerja lebih lengkap biar polanya keliatan.'} ${muterInfo?`<br><br><span style='color:#ffcc66;'>${muterInfo}</span>`:''}</div></div>`;
 
     if(bestArea){
-        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#40c4ff; margin-bottom:6px;">🗺️ Kenapa Area Ini Cuan Hari Ini</div><div style="font-size:13px; color:#dbe8ff;">`;
+        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#40c4ff; margin-bottom:6px;">🗺️ Kenapa Area Ini Cuan Hari Ini</div><div style="font-size:15px; color:#dbe8ff;">`;
         areasRanked.slice(0,3).forEach((a,i)=>{
             let alasan = i===0?`Area ${a.area} ini jadi yang paling cuan karena dalam seminggu terakhir ada ${Math.round(a.orders)} order masuk dengan rata-rata Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')} per jam. Biasanya area kayak gini rame pas jam pulang kantor atau dekat perumahan padat, jadi order Goride gampang nyantol.` : i===1?`Lalu ${a.area} juga lumayan stabil, ${Math.round(a.orders)} order, Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')} per jam. Cocok buat jadi area backup kalau ${areasRanked[0].area} lagi sepi.` : `Opsi ketiga ${a.area} dengan Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')} per jam, ${Math.round(a.orders)} order. Nggak se-cuan dua di atas tapi masih mending daripada nongkrong di area sepi.`;
             aiHtml+=`<div style="background:#0f1f36; border-radius:8px; padding:10px; margin-bottom:8px;"><b style="color:#7dffb7;">${a.area}</b> — ${Math.round(a.orders)} order, Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')}/jam<br><span style="color:#8aa0c6; font-size:12px;">${alasan}</span> <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.area)}" target="_blank" style="color:#40c4ff; font-size:11px;">📍 Petakan</a></div>`;
@@ -993,7 +993,7 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
     }
 
     if(bestHour){
-        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#ffcc66; margin-bottom:6px;">⏰ Pola Jam: Kapan Harus On Terus</div><div style="font-size:13px; color:#dbe8ff;">`;
+        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#ffcc66; margin-bottom:6px;">⏰ Pola Jam: Kapan Harus On Terus</div><div style="font-size:15px; color:#dbe8ff;">`;
         hoursRanked.slice(0,3).forEach(h=>{
             aiHtml+=`<div style="margin-bottom:6px;">Jam <b>${String(h.h).padStart(2,'0')}:00-${String(h.h+1).padStart(2,'0')}:00</b> itu rata-rata Rp ${Math.round(h.rpPerJam).toLocaleString('id-ID')} per jam dari ${Math.round(h.orders)} order. ${h.h>=17 && h.h<=21?`Ini jam emas pulang kerja, orang banyak order Goride, jadi usahakan on terus di area rame.`:`Jam segini lumayan, bisa dimaksimalin kalau kamu lagi di area yang tepat.`}</div>`;
         });
@@ -1004,7 +1004,7 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
     }
 
     if(servicesRanked.length>0){
-        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#00e676; margin-bottom:6px;">🏍️ Layanan Mana yang Paling Cuan</div><div style="font-size:13px; color:#dbe8ff;">Hari ini <b>${servicesRanked[0].cat}</b> yang paling cuan dengan Rp ${Math.round(servicesRanked[0].rpPerJam).toLocaleString('id-ID')} per jam dari ${Math.round(servicesRanked[0].orders)} order. Urutannya ${servicesRanked.map(s=>`${s.cat} Rp ${Math.round(s.rpPerJam).toLocaleString('id-ID')}`).join(', ')}. ${servicesRanked[0].cat==='Goride'?`Goride memang lagi bagus karena banyak orang butuh antar jemput cepat, usahakan fokus Goride dulu.`:`Layanan ${servicesRanked[0].cat} lagi bagus, mungkin karena banyak order jarak dekat atau tipnya lumayan.`}</div></div>`;
+        aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:12px; font-weight:800; color:#00e676; margin-bottom:6px;">🏍️ Layanan Mana yang Paling Cuan</div><div style="font-size:15px; color:#dbe8ff;">Hari ini <b>${servicesRanked[0].cat}</b> yang paling cuan dengan Rp ${Math.round(servicesRanked[0].rpPerJam).toLocaleString('id-ID')} per jam dari ${Math.round(servicesRanked[0].orders)} order. Urutannya ${servicesRanked.map(s=>`${s.cat} Rp ${Math.round(s.rpPerJam).toLocaleString('id-ID')}`).join(', ')}. ${servicesRanked[0].cat==='Goride'?`Goride memang lagi bagus karena banyak orang butuh antar jemput cepat, usahakan fokus Goride dulu.`:`Layanan ${servicesRanked[0].cat} lagi bagus, mungkin karena banyak order jarak dekat atau tipnya lumayan.`}</div></div>`;
     }
 
     let deadEntries = Object.entries(stats.deadTrips).sort((a,b)=>b[1].count-a[1].count).slice(0,2);
@@ -2620,7 +2620,7 @@ async function generateForecastBesok(force=false){
     let predMax = Math.round(avgPerOrderSame*5);
     if(predMin<50000) predMin=80000; if(predMax<150000) predMax=250000;
     
-    return `<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">
+    return `<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">
       <div style="color:#00e676; font-weight:700; margin-bottom:8px;">🔮 Prediksi Besok ${tomorrowName} (${tomorrowStr}) - Local Data</div>
       <p>Besok ${tomorrowName}, historis ${tomorrowName} kamu ada <b>${totalOrdersSame} order</b> dengan rata-rata per order <b>Rp ${avgPerOrderSame.toLocaleString('id-ID')}</b>. Dari pola ini, prediksi pendapatan realistis besok kalau on normal itu di kisaran <b style="color:#00e676;">Rp ${predMin.toLocaleString('id-ID')} - Rp ${predMax.toLocaleString('id-ID')}</b>. Ini bukan angka ngarang, tapi dari rata-rata ${tomorrowName} sebelumnya.</p>
       <p>${bestHours.length?`Jam yang historisnya paling cuan di hari ${tomorrowName} itu jam <b>${bestHours.map(h=>h.h+':00 (Rp '+Math.round(h.avg).toLocaleString('id-ID')+'/order, '+h.count+'x)').join(', ')}</b>. Usahakan on di jam-jam itu, jangan off. Kalau jam sepi historisnya di bawah Rp 20rb/jam, mending istirahat cas.`:`Belum ada pola jam yang kuat untuk hari ${tomorrowName}, coba on jam sore 17-20 yang biasanya rame.`}</p>
@@ -2652,7 +2652,7 @@ async function generateForecastBesok(force=false){
     if(!resp.ok) throw new Error('API error');
     let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
     if(!txt) throw new Error('Kosong');
-    container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">${txt}</div>`;
+    container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">${txt}</div>`;
     localStorage.setItem('lapkeu_forecast_'+tomorrowStr, JSON.stringify({html:container.innerHTML,ts:Date.now()}));
   }catch(err){
     container.innerHTML=buildLocalFallback() + `<div style="font-size:10px; color:#ff8a80; margin-top:6px;">Gemini gagal: ${err.message}, tampilkan local fallback</div>`;
@@ -2693,7 +2693,7 @@ async function generateBattlogAnalisa(force=false){
   
   function buildLocalBattFallback(){
     if(!batt.length){
-      return `<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">
+      return `<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">
         <div style="color:#ffcc66; font-weight:700; margin-bottom:8px;">🔋 Belum ada data Battlog terdeteksi</div>
         <p>Untuk pakai fitur ini, kamu harus punya data Battlog. Cara sinkron:</p>
         <p>1. Buka app Battlog V1.4, input minimal 1 log baterai (km awal-akhir + % baterai)</p>
@@ -2704,7 +2704,7 @@ async function generateBattlogAnalisa(force=false){
     }
     let avgDist = lapkeu.length? (lapkeu.reduce((a,b)=>a+(Number(b.dist)||0),0)/lapkeu.length):0;
     let lastBatt=batt.slice(0,3).map(b=>`${b.tanggal||b.date||''} ${b.km_awal||0}->${b.km_akhir||0}km ${b.batt_awal||0}%->${b.batt_akhir||0}%`).join(', ');
-    return `<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">
+    return `<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">
       <div style="color:#ffcc66; font-weight:700; margin-bottom:8px;">🔋 x 🏍️ Analisa Baterai vs Order (Local)</div>
       <p>Data Battlog terdeteksi ${batt.length} sesi. 3 sesi terakhir: ${lastBatt}. Dari gabungan dengan ${lapkeu.length} order Lapkeu, rata-rata jarak order kamu ${avgDist.toFixed(1)} km.</p>
       <p>Pola umum: order di atas 5km dengan baterai di bawah 40% bikin Wh/km naik. Usahakan Gofood jarak jauh diambil pas baterai di atas 70% biar nggak boros. Goride pendek 2-3km paling irit.</p>
@@ -2739,7 +2739,7 @@ async function generateBattlogAnalisa(force=false){
     let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
     if(!txt) throw new Error('kosong');
-    container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:13px; line-height:1.6;">${txt}</div>`;
+    container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">${txt}</div>`;
     localStorage.setItem('lapkeu_battlog_analisa', JSON.stringify({html:container.innerHTML,ts:Date.now()}));
   }catch(err){
     container.innerHTML=buildLocalBattFallback() + `<div style="font-size:10px; color:#ff8a80;">Gemini gagal: ${err.message}</div>`;
@@ -2760,7 +2760,7 @@ async function generateWeeklyReport(force=false){
   function buildLocalWeekly(){
     let bestDayMap={}; thisWeek.forEach(d=>{ let day=d.date; if(!bestDayMap[day]) bestDayMap[day]={income:0,count:0}; bestDayMap[day].income+=Number(d.amount)||0; bestDayMap[day].count++; });
     let bestDay=Object.entries(bestDayMap).map(([day,s])=>({day,income:s.income,count:s.count})).sort((a,b)=>b.income-a.income)[0];
-    return `<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:13px; line-height:1.7;">
+    return `<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">
       <div style="color:#40c4ff; font-weight:700; margin-bottom:8px;">📅 Laporan Mingguan (Local) ${startThis.toLocaleDateString('id-ID')} - ${now.toLocaleDateString('id-ID')}</div>
       <p>Minggu ini kamu narik <b>${thisWeek.length} order</b> total <b style="color:#40c4ff;">Rp ${incomeThis.toLocaleString('id-ID')}</b>, minggu lalu ${lastWeek.length} order Rp ${incomeLast.toLocaleString('id-ID')}. Selisih <b style="color:${diff>=0?'#00e676':'#ff5252'};">${diff>=0?'+':''}Rp ${diff.toLocaleString('id-ID')} (${diffPct>=0?'+':''}${diffPct}%)</b> ${diff>=0?'naik':'turun'}.</p>
       <p>${bestDay?`Hari paling cuan minggu ini <b>${bestDay.day}</b> dengan Rp ${bestDay.income.toLocaleString('id-ID')} dari ${bestDay.count} order. Coba ulangi pola jam di hari itu minggu depan.`:`Belum ada hari dominan, coba on lebih konsisten jam 17-21.`}</p>
@@ -2789,7 +2789,7 @@ async function generateWeeklyReport(force=false){
     let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
     if(!txt) throw new Error('kosong');
-    container.innerHTML=`<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:13px; line-height:1.7;">${txt}</div>`;
+    container.innerHTML=`<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">${txt}</div>`;
     weeklyReportLastHtml=container.innerHTML;
     localStorage.setItem('lapkeu_weekly_report', JSON.stringify({html:container.innerHTML,ts:Date.now()}));
   }catch(err){
