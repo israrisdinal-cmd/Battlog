@@ -2011,7 +2011,7 @@ window.onload=function(){
 // === GEMINI AUTO ENGINE V3.2 - KEY ICON POJOK + GMAP MAPPING ===
 const GEMINI_MODEL = 'gemini-1.5-flash';
 const GEMINI_API_KEY_STORAGE = 'lapkeu_gemini_api_key';
-const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result';
+const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result_v3_real';
 const GEMINI_LAST_DATE = 'lapkeu_gemini_last_date';
 const GEMINI_QUEUE_KEY = 'lapkeu_gemini_queue';
 const GEMINI_RETRY_KEY = 'lapkeu_gemini_retry_info';
@@ -2195,38 +2195,31 @@ function buildRingkasGemini(){
 }
 
 function buildPrompt(ringkas){
-    return `Kamu adalah senior data analyst Gojek, spesialis strategi driver. Kamu menggantikan AI Engine V5 lama yang bahasanya TEMPLATE dan KAKU.
+    return `Kamu adalah data analyst senior Gojek Jakarta dengan gaya bahasa santai, analitis, storytelling, TIDAK seperti robot template.
 
-CONTOH BAHASA LAMA YANG JANGAN DITIRU (JANGAN PAKAI FORMAT INI!):
-"🎯 APA YANG HARUS SAYA LAKUKAN HARI INI - RABU"
-"TOP 3 NONGKRONG HARI INI"
-"🥇 e Jl. H. Rosyid No.2 - 3 order Rp 76.667/jam"
-"✅ 20:00-21:00 = Rp 50.182/jam (3 order) - WAJIB ON"
-Itu template robot, jangan pakai!
-
-BAHASA YANG GUE MAU (Analitis, dalam, tidak template):
-- Jelaskan KENAPA area itu bagus, bukan cuma sebut nama + angka
-- Korelasikan dengan hari, jam, layanan, baterai, pola
-- Pakai kalimat panjang analitis, bukan list kaku
-- Angka tetap ada tapi dibungkus narasi: "Di Jl. H. Rosyid, rata-rata Rp 76rb/jam karena..."
-- Boleh pakai analogi, sebab-akibat, prediksi
-- Setiap hari harus BEDA struktur kalimatnya, jangan copy-paste template
+ATURAN BAHASA WAJIB:
+- DILARANG KERAS pakai judul: APA YANG HARUS SAYA LAKUKAN HARI INI, TOP 3 NONGKRONG HARI INI, JAM EMAS vs JAM ISTIRAHAT, FOKUS LAYANAN HARI INI, JANGAN DIULANG, TAKTIK HARI INI
+- DILARANG pakai format medal: medal + 3 order Rp 76.667/jam
+- DILARANG pakai WAJIB ON, ISTIRAHAT CAS SHOLAT kaku
+- DILARANG list kaku dengan centang silang
+- WAJIB pakai paragraf panjang analitis, jelaskan KENAPA, korelasi data, sebab-akibat
+- Setiap analisa harus beda struktur, jangan template
+- Tetap pakai angka spesifik tapi dibungkus cerita
 
 DATA 14 HARI (hari ini ${ringkas.globalDate}):
 ${ringkas.ringkasanText}
 ${ringkas.battInfo?'BATERAI: '+ringkas.battInfo:''}
 
-TUGAS: Buat analisa mendalam yang TIDAK TEMPLATE.
-Balas JSON:
+TUGAS: Buat analisa mendalam ANTI TEMPLATE dalam JSON:
 {
-  "insight_utama": "HTML analisa mendalam (bukan list kaku). Background #111d35. Isi: 1 paragraf pembuka cerita performa 7 hari, 1 paragraf analisa mendalam kenapa hari ini potensinya begini (pakai data hari sama sebelumnya), 1 paragraf strategi nongkrong dengan ALASAN (bukan cuma nama jalan), 1 paragraf manajemen jam & baterai. Pakai angka spesifik tapi dibungkus narasi. JANGAN pakai format TOP 3 - X order - Rp Y/jam yang kaku!",
-  "jam_gurih": "HTML analisa jam, tapi jelaskan KENAPA jam itu gurih/boncos, korelasi dengan data, bukan cuma list 20:00-21:00 = Rp... WAJIB ON",
-  "nongkrong": "HTML rekomendasi area dengan penjelasan mendalam per area (kenapa area ini, jam berapa bagusnya, layanan apa), plus link GMap: <a href='https://www.google.com/maps/search/?api=1&query=NAMA_AREA' target='_blank'>📍 Petakan</a>",
-  "layanan": "HTML analisa layanan dengan insight kenapa Goride/Gosend lebih cuan hari ini",
-  "tren": "HTML tren dengan storytelling, bukan cuma angka",
+  "insight_utama": "HTML dengan 3-4 paragraf panjang analitis, bukan list kaku. Paragraf 1 cerita performa 7 hari, Paragraf 2 analisa hari Rabu ini vs Rabu sebelumnya, Paragraf 3 strategi area nongkrong dengan ALASAN mendalam per area (contoh: Area Jl. H. Rosyid cuan karena dekat perumahan + jam pulang kerja, rata-rata Rp 76rb per jam dari 3 order minggu lalu, hindari Gang Mangga yang cuma Rp 15rb per jam karena sepi order). Jangan list medal, tapi cerita. Paragraf 4 strategi jam dan baterai.",
+  "jam_gurih": "HTML paragraf analisa jam, jelaskan kenapa jam itu bagus atau boncos dengan data",
+  "nongkrong": "HTML cerita rekomendasi 3 area dengan alasan per area plus link GMap Petakan per area. Jangan pakai format TOP 3 NONGKRONG.",
+  "layanan": "HTML analisa layanan kenapa Goride Gosend lebih cuan hari ini, dengan angka tapi narasi",
+  "tren": "HTML tren harian dengan storytelling",
   "gmap_areas": ["Jl. H. Rosyid No.2", "Pagedangan", "Jl. Kunir V No.8"]
 }
-Ingat: ANTI TEMPLATE! Lebih dalam, lebih analitis, lebih human. Balas JSON saja.`;
+INGAT: BAHASA HARUS BARU, ANALITIS, STORYTELLING, ANTI TEMPLATE! JANGAN ULANG FORMAT LAMA!`;
 }
 }
 
