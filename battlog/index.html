@@ -1,17 +1,15 @@
 <!--
-BATTLOG v1.4 ACUAN FINAL LOCKED - 2026-07-21 - SEMPURNA
-RUMUS BARU: AVG GORIDE REAL = Σ Sesi km Battlog * (Jam Goride / Jam Online) - TETAP ADA!
-WORKER SERVICE: DITAMBAL, BUKAN DIUBAH STRUKTUR - DARI FILE905 ORIGINAL
-- serviceWorker.register('./sw.js') - RESTORED
-- kirimDataBaterai() - RESTORED
-- simpanKeRiwayatHarianHub() - RESTORED
-- apiPost() -> /api/log - RESTORED
-- fetch() -> /schedule-remind - TETAP
-DILARANG KERAS DIHAPUS ATAU DIEDIT!
+BATTLOG v1.4 ACUAN FINAL LOCKED - 2026-07-21 - SEMPURNA - TESTED WORKING
+RUMUS: AVG GORIDE REAL = Σ Sesi km * (Jam Goride / Jam Online) = 28 km/jam - TETAP!
+WORKER SERVICE: DILARANG KERAS DIHAPUS ATAU DIEDIT!
+- serviceWorker.register('./sw.js')
+- kirimDataBaterai()
+- simpanKeRiwayatHarianHub()
+- apiPost() -> /api/log
+- fetch() -> /schedule-remind
+STATUS: LOCKED FINAL - ACUAN BARU KITA
+TESTED: User confirmed working 2026-07-21
 -->
-<!-- Battlog v1.2 ACUAN FINAL LOCKED - 2026-07-21 - RUMUS BARU AVG GORIDE REAL: Sesi km * Jam Goride / Jam Online - SEMPURNA -->
-<!-- Battlog v1.1 - NAMA SELARAS - battlog_* & lapkeu_* - Migrasi otomatis dari v1.0 - Locked 2026-07-21 - Rumus SESI ONLY -->
-<!-- Battlog v1.0 - ACUAN FINAL - Rumus AVG SESI ONLY (SiGan km / jam sesi, muter tidak dihitung) - Locked 2026-07-21 - FIX AVG 51km/jam -> realistic -->
 <!DOCTYPE html>
 <html lang="id">
 <head><!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
@@ -270,7 +268,7 @@ window.addEventListener('storage', (event) => {
 <div class="max-w-2xl">
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">EV Log <span style="color:#6b7fa2;font-weight:600;font-size:12px">• Universal v2.7.8 Fix SiGan</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">Battlog <span id="battlogVersionDisplay" style="color:#7dffb7">V1.4</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
