@@ -1,3 +1,4 @@
+<!-- LAPKEU V1.13 FINAL ANTI-TEMPLATE REAL - FORCE CLEAR CACHE - 2026-07-22 - LOCKED -->
 <!-- Lapkeu v1.2 ACUAN FINAL LOCKED - 2026-07-21 - Rumus Goride Murni + Insight Strategi Hari Sama - SEMPURNA -->
 <!-- Lapkeu v1.2 - ACUAN BARU FIX TAB - Insight Strategi Hari Sama - Locked 2026-07-21 -->
 <!-- Lapkeu v1.1 - NAMA SELARAS - lapkeu_* & battlog_* - Migrasi otomatis dari v1.0 - Locked 2026-07-21 - SYNC FIX -->
@@ -80,6 +81,30 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     </style>
 </head>
 <body>
+
+<script>
+// FORCE CLEAR OLD GEMINI CACHE - AUTO ON LOAD V13
+(function(){
+  try{
+    let oldKeys = ['lapkeu_gemini_last_result','lapkeu_gemini_last_result_v2','lapkeu_gemini_last_result_v2_antitemplate','lapkeu_gemini_last_result_v3_real','lapkeu_gemini_last_result_v3','lapkeu_gemini_last_result_v12_real'];
+    oldKeys.forEach(k=>{
+      try{ if(localStorage.getItem(k)){ console.log('Clearing old cache',k); localStorage.removeItem(k); } }catch(e){}
+    });
+    // Also clear any insightHtml containing old template
+    let last = localStorage.getItem('lapkeu_gemini_last_result_v13_force');
+    if(last){
+      try{
+        let parsed = JSON.parse(last);
+        if(parsed && parsed.insightHtml && (parsed.insightHtml.includes('TOP 3 NONGKRONG') || parsed.insightHtml.includes('APA YANG HARUS SAYA LAKUKAN'))){
+          console.log('Old template detected in cache, clearing');
+          localStorage.removeItem('lapkeu_gemini_last_result_v13_force');
+        }
+      }catch(e){}
+    }
+  }catch(e){}
+})();
+</script>
+
 
 <!-- GEMINI KEY ICON DI POJOK KANAN ATAS - CUMA SEKALI INPUT TRUS LUPAKAN -->
 <!-- MODAL API KEY -->
@@ -2011,7 +2036,7 @@ window.onload=function(){
 // === GEMINI AUTO ENGINE V3.2 - KEY ICON POJOK + GMAP MAPPING ===
 const GEMINI_MODEL = 'gemini-1.5-flash';
 const GEMINI_API_KEY_STORAGE = 'lapkeu_gemini_api_key';
-const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result_v3_real';
+const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result_v13_force';
 const GEMINI_LAST_DATE = 'lapkeu_gemini_last_date';
 const GEMINI_QUEUE_KEY = 'lapkeu_gemini_queue';
 const GEMINI_RETRY_KEY = 'lapkeu_gemini_retry_info';
@@ -2195,37 +2220,34 @@ function buildRingkasGemini(){
 }
 
 function buildPrompt(ringkas){
-    return `Kamu adalah data analyst senior Gojek Jakarta dengan gaya bahasa santai, analitis, storytelling, TIDAK seperti robot template.
+    return `Kamu adalah analis senior Gojek Jakarta, gaya bahasa santai seperti ngobrol warung kopi, analitis mendalam, storytelling, TIDAK kaku.
 
-ATURAN BAHASA WAJIB:
-- DILARANG KERAS pakai judul: APA YANG HARUS SAYA LAKUKAN HARI INI, TOP 3 NONGKRONG HARI INI, JAM EMAS vs JAM ISTIRAHAT, FOKUS LAYANAN HARI INI, JANGAN DIULANG, TAKTIK HARI INI
-- DILARANG pakai format medal: medal + 3 order Rp 76.667/jam
-- DILARANG pakai WAJIB ON, ISTIRAHAT CAS SHOLAT kaku
-- DILARANG list kaku dengan centang silang
-- WAJIB pakai paragraf panjang analitis, jelaskan KENAPA, korelasi data, sebab-akibat
-- Setiap analisa harus beda struktur, jangan template
-- Tetap pakai angka spesifik tapi dibungkus cerita
-
-DATA 14 HARI (hari ini ${ringkas.globalDate}):
+DATA:
+Hari ini: ${ringkas.globalDate}
+Ringkasan 14 hari:
 ${ringkas.ringkasanText}
-${ringkas.battInfo?'BATERAI: '+ringkas.battInfo:''}
+${ringkas.battInfo?'Info baterai: '+ringkas.battInfo:''}
 
-TUGAS: Buat analisa mendalam ANTI TEMPLATE dalam JSON:
+TUGAS: Tulis laporan harian dalam JSON dengan gaya BARU, natural, paragraf panjang, jelaskan sebab akibat. Jangan pakai judul kapital atau list medali atau istilah WAJIB ON.
+
+Format JSON:
 {
-  "insight_utama": "HTML dengan 3-4 paragraf panjang analitis, bukan list kaku. Paragraf 1 cerita performa 7 hari, Paragraf 2 analisa hari Rabu ini vs Rabu sebelumnya, Paragraf 3 strategi area nongkrong dengan ALASAN mendalam per area (contoh: Area Jl. H. Rosyid cuan karena dekat perumahan + jam pulang kerja, rata-rata Rp 76rb per jam dari 3 order minggu lalu, hindari Gang Mangga yang cuma Rp 15rb per jam karena sepi order). Jangan list medal, tapi cerita. Paragraf 4 strategi jam dan baterai.",
-  "jam_gurih": "HTML paragraf analisa jam, jelaskan kenapa jam itu bagus atau boncos dengan data",
-  "nongkrong": "HTML cerita rekomendasi 3 area dengan alasan per area plus link GMap Petakan per area. Jangan pakai format TOP 3 NONGKRONG.",
-  "layanan": "HTML analisa layanan kenapa Goride Gosend lebih cuan hari ini, dengan angka tapi narasi",
-  "tren": "HTML tren harian dengan storytelling",
+  "insight_utama": "<div style='background:#111d35; border-radius:12px; padding:14px; color:#dbe8ff; line-height:1.7; font-size:13px'><p style='margin-bottom:12px'>Ceritakan performa 7 hari terakhir dengan angka, naik turun, penyebabnya.</p><p style='margin-bottom:12px'>Analisa khusus hari ini, bandingkan dengan hari yang sama minggu lalu, kenapa potensinya begini.</p><p style='margin-bottom:12px'>Rekomendasi area nongkrong dengan cerita mendalam kenapa area tersebut bagus, jam berapa rame, layanan apa, plus kenapa hindari area boncos.</p><p>Strategi jam dan baterai dengan penjelasan.</p></div>",
+  "jam_gurih": "<div style='color:#dbe8ff; font-size:13px; line-height:1.6'>Ceritakan analisa jam dengan narasi, bukan list waktu dan angka kaku.</div>",
+  "nongkrong": "<div style='color:#dbe8ff; font-size:13px'>Cerita 3 area terbaik dengan alasan dan link <a href='https://www.google.com/maps/search/?api=1&query=NAMA' target='_blank' style='color:#40c4ff'>Petakan</a></div>",
+  "layanan": "<div style='color:#dbe8ff; font-size:13px'>Analisa layanan dengan narasi.</div>",
+  "tren": "<div style='color:#dbe8ff; font-size:13px'>Tren harian dengan storytelling.</div>",
   "gmap_areas": ["Jl. H. Rosyid No.2", "Pagedangan", "Jl. Kunir V No.8"]
 }
-INGAT: BAHASA HARUS BARU, ANALITIS, STORYTELLING, ANTI TEMPLATE! JANGAN ULANG FORMAT LAMA!`;
+Tulis dengan gaya baru, natural, jangan template lama.`,
+}
+Ingat: ANTI TEMPLATE! Lebih dalam, lebih analitis, lebih human. Balas JSON saja.`;
 }
 }
 
 async function callGemini(prompt, key){
     let url=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-    let body={contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.7, maxOutputTokens:8192, responseMimeType:"application/json"}};
+    let body={contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.95, maxOutputTokens:8192, responseMimeType:"application/json"}};
     let resp=await fetch(url,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     if(!resp.ok){ let t=await resp.text(); let err=new Error(`API ${resp.status}: ${t.substring(0,600)}`); err.status=resp.status; err.body=t; throw err; }
     let data=await resp.json();
