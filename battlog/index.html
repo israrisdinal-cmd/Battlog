@@ -384,7 +384,7 @@ window.addEventListener('storage', (event) => {
         <div><label class="maka-label">Tarif Listrik (Rp/kWh)</label><div class="flex gap-2"><select id="f_tarif_preset" class="maka-input" style="flex:1"><option value="1444">Rumah – 1.444</option><option value="2466">SPKLU – 2.466</option><option value="0">Gratis / Kantor – 0</option></select><input type="number" id="f_tarif" class="maka-input" value="1444" style="width:130px"></div></div>
         <div><label class="maka-label">Total Bayar (Rp) – kosongkan untuk auto</label><input type="number" id="f_biaya" class="maka-input" placeholder="otomatis dari tarif"></div>
         <div><label class="maka-label">Lokasi</label><div style="position:relative"><input type="text" id="f_lokasi" class="maka-input" placeholder="Rumah / SPKLU …" autocomplete="off"><div id="lokasi_suggest" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:6px;background:#0f1f36;border:1px solid #1e2d4a;border-radius:12px;z-index:50;overflow:hidden"></div></div></div>
-        <div class="relative"><label class="maka-label">Spesifikasi Charger</label><div class="grid grid-cols-2 gap-3"><div class="relative"><input type="number" id="f_custom_v" class="maka-input" style="padding-right: 2.5rem;" placeholder="Voltase" min="0"><span class="custom-addon">V</span></div><div class="relative"><input type="number" id="f_custom_ah" class="maka-input" style="padding-right: 3rem;" placeholder="Ampere" min="0"><span class="custom-addon">Ah</span></div></div><input type="hidden" id="f_charger" value=""><div id="charger_suggest" style="display:none; position:absolute; left:0; right:0; background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; z-index:50; overflow:hidden; margin-top:6px;"></div></div>
+        <div class="relative"><label class="maka-label">Spesifikasi Charger</label><div class="grid grid-cols-2 gap-3"><div class="relative"><input type="text" inputmode="decimal" id="f_custom_v" class="maka-input" style="padding-right: 2.5rem;" placeholder="Voltase" min="0"><span class="custom-addon">V</span></div><div class="relative"><input type="text" inputmode="decimal" id="f_custom_ah" class="maka-input" style="padding-right: 3rem;" placeholder="Ampere" min="0"><span class="custom-addon">Ah</span></div></div><input type="hidden" id="f_charger" value=""><div id="charger_suggest" style="display:none; position:absolute; left:0; right:0; background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; z-index:50; overflow:hidden; margin-top:6px;"></div></div>
         <div class="flex items-center gap-2" style="padding-top: 6px;"><input type="checkbox" id="f_notif_status" checked style="width:18px; height:18px; accent-color: var(--blue); cursor:pointer;"><label for="f_notif_status" style="font-size:13px; color:#9ab8e6; cursor:pointer; font-weight:600;">Kirim Notifikasi Telegram</label></div>
       </div>
       <div class="maka-card shadow-inner" style="background:#0d1f1a; border-color:rgba(125,255,183,.15); margin-bottom:0;">
@@ -739,7 +739,7 @@ function updateLiveCalc(){
     const titleEl=document.getElementById('calc_title_kwh'); if(titleEl) titleEl.textContent=`HITUNG OTOMATIS (BATASAN ${e.cap_kwh} kWh)`;
     set('c_jarak',c.jarak?c.jarak+' km':'–'); set('c_energi',c.energi_terpakai?c.energi_terpakai.toFixed(3)+' kWh':'–'); set('c_whkm',c.wh_per_km?Math.round(c.wh_per_km)+' Wh/km':'–'); set('c_diisi',c.energi_diisi?c.energi_diisi.toFixed(3)+' kWh':'–'); set('c_biaya',fmtRp(c.biaya));
     if(e.charger&&e.batt_akhir<c.targetCas){
-      const regex=/(\d+)\s*v\s*(\d+)\s*ah/i; const m=e.charger.match(regex);
+      const regex=/([\d.,]+)\s*v\s*([\d.,]+)\s*ah/i; const m=e.charger.match(regex);
       if(m){ const volt=Number(m[1])||0, amp=Number(m[2])||0, sisa=Math.max(0,c.targetCas-e.batt_akhir), needWh=sisa*((e.cap_kwh*1000)/100), watt=volt*amp; if(watt>0){ let f=getCalibratedBmsFactor(e.charger); let pre="⚙️ "; if(!f){ f=(e.cap_kwh>=10)?1.1:(amp>10?1.38:1.15); pre=""; } const h=(needWh/watt)*f; const totM=Math.round(h*60); const hh=Math.floor(totM/60), mm=totM%60; set('c_durasi',`${hh>0?hh+' jam ':''}${mm} menit`); let base=Date.now(); if(editId) base=Number(editId); const now=new Date(base); now.setMinutes(now.getMinutes()+totM); const jamStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'); set('c_jam_selesai',pre+jamStr+' ke '+c.targetCas+'%'); } else { set('c_durasi','–'); set('c_jam_selesai','–'); } } else { set('c_durasi','–'); set('c_jam_selesai','–'); }
     } else { set('c_durasi','Tidak mengecas'); set('c_jam_selesai','–'); }
   }catch(e){}
@@ -760,7 +760,7 @@ async function saveEntry(){
   try{ const k='battlog_riwayat_harian'; let hub=JSON.parse(localStorage.getItem(k)||'[]'); const dataBaru={id:entryData.id,date:entryData.tanggal,km_awal:entryData.km_awal,km_akhir:entryData.km_akhir,dist:calc.jarak,batt_used:(entryData.batt_awal-entryData.batt_akhir),wh_per_km:calc.wh_per_km,amount:calc.biaya,note:`BattLog: ${entryData.lokasi||'Jalan'} (${entryData.batt_awal}% ke ${entryData.batt_akhir}%)`}; hub=hub.filter(it=>it.id!==entryData.id); hub.unshift(dataBaru); localStorage.setItem(k,JSON.stringify(hub)); }catch(err){}
   if(editId){ const i=entries.findIndex(x=>x.id===editId); if(i>=0){ if(entries[i].waktu_selesai_riil) entryData.waktu_selesai_riil=entries[i].waktu_selesai_riil; entries[i]=entryData; } editId=null; document.getElementById('saveBtn').textContent='Simpan Catatan'; document.getElementById('cancelEditBtn').style.display='none'; showToast('Catatan diperbarui!','success'); } else { entries.unshift(entryData); showToast('Catatan disimpan!','success'); }
   localStorage.setItem(LS_KEY,JSON.stringify(entries)); kalibrasiSohMover();
-  let jamKirim=null; if(e.charger&&e.batt_akhir<calc.targetCas){ const regex=/(\d+)\s*v\s*(\d+)\s*ah/i; const m=e.charger.match(regex); if(m){ const volt=Number(m[1])||0, amp=Number(m[2])||0, sisa=Math.max(0,calc.targetCas-e.batt_akhir), needWh=sisa*((e.cap_kwh*1000)/100), watt=volt*amp; if(watt>0){ let f=getCalibratedBmsFactor(e.charger)||((e.cap_kwh>=10)?1.1:(amp>10?1.4:1.15)); const h=(needWh/watt)*f; const totM=Math.round(h*60); const targetExec=Number(waktuAsli)+(totM*60*1000); const now=new Date(Number(waktuAsli)); now.setMinutes(now.getMinutes()+totM); jamKirim=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+' ke '+calc.targetCas+'%'; if(e.notif_status){ fetch(API_BASE+'/schedule-remind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:API_CHAT_ID,waktuEksekusi:targetExec,pesan:`⚡ Pengisian Baterai Selesai!\n\nPengisian dari ${e.batt_akhir}% ke ${calc.targetCas}% telah selesai Silakan cabut charger!!`,batt_akhir:e.batt_akhir,batt_setelah:calc.targetCas,jam_selesai:jamKirim})}).then(r=>r.text().then(t=>{ console.log('[NOTIF] Worker response:', t); })).catch(err=>{ console.error('[NOTIF] Gagal:', err); }); } } } }
+  let jamKirim=null; if(e.charger&&e.batt_akhir<calc.targetCas){ const regex=/([\d.,]+)\s*v\s*([\d.,]+)\s*ah/i; const m=e.charger.match(regex); if(m){ const volt=Number(m[1])||0, amp=Number(m[2])||0, sisa=Math.max(0,calc.targetCas-e.batt_akhir), needWh=sisa*((e.cap_kwh*1000)/100), watt=volt*amp; if(watt>0){ let f=getCalibratedBmsFactor(e.charger)||((e.cap_kwh>=10)?1.1:(amp>10?1.4:1.15)); const h=(needWh/watt)*f; const totM=Math.round(h*60); const targetExec=Number(waktuAsli)+(totM*60*1000); const now=new Date(Number(waktuAsli)); now.setMinutes(now.getMinutes()+totM); jamKirim=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+' ke '+calc.targetCas+'%'; if(e.notif_status){ fetch(API_BASE+'/schedule-remind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:API_CHAT_ID,waktuEksekusi:targetExec,pesan:`⚡ Pengisian Baterai Selesai!\n\nPengisian dari ${e.batt_akhir}% ke ${calc.targetCas}% telah selesai Silakan cabut charger!!`,batt_akhir:e.batt_akhir,batt_setelah:calc.targetCas,jam_selesai:jamKirim})}).then(r=>r.text().then(t=>{ console.log('[NOTIF] Worker response:', t); })).catch(err=>{ console.error('[NOTIF] Gagal:', err); }); } } } }
   resetForm(); renderAll(); switchView('dasbor'); 
   // RESTORED: apiPost ke worker /api/log
   try{ apiPost({...entryData, batt_setelah: calc.targetCas}, jamKirim).then(ok => { if(ok && e.lokasi) saveLokasiToHistory(e.lokasi); }).catch(err => console.log('Bg Sync error:', err)); }catch(err){ try{ if(e.lokasi) saveLokasiToHistory(e.lokasi); }catch(e2){} }
@@ -769,14 +769,14 @@ async function saveEntry(){
 
 
 function resetForm(){ document.getElementById('entryForm').reset(); document.getElementById('f_tanggal').value=new Date().toISOString().slice(0,10); document.getElementById('f_tarif').value=1444; document.getElementById('f_tarif_preset').value='1444'; document.getElementById('f_custom_v').value=localStorage.getItem('universal_custom_v')||''; document.getElementById('f_custom_ah').value=localStorage.getItem('universal_custom_ah')||''; renderCapDisplay(); if(document.getElementById('f_notif_status')) document.getElementById('f_notif_status').checked=true; const v=document.getElementById('f_custom_v').value, ah=document.getElementById('f_custom_ah').value; document.getElementById('f_charger').value=(v&&ah)?`${v}v ${ah}ah`:''; editId=null; document.getElementById('saveBtn').textContent='Simpan Catatan'; document.getElementById('cancelEditBtn').style.display='none'; updateLiveCalc(); }
-function startEdit(id){ const e=entries.find(x=>x.id===id); if(!e) return; editId=id; const s=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v??''; }; s('f_tanggal',e.tanggal); s('f_km_awal',e.km_awal); s('f_km_akhir',e.km_akhir); s('f_batt_awal',e.batt_awal); s('f_batt_akhir',e.batt_akhir); s('f_batt_setelah',e.batt_setelah); const t=e.tarif??1444; s('f_tarif',t); const pre=document.getElementById('f_tarif_preset'); if(pre) pre.value=(t===1444?'1444':(t===2466?'2466':(t===0?'0':'1444'))); s('f_biaya',e.biaya??''); s('f_lokasi',e.lokasi); renderCapDisplay(e.cap_kwh||4.0); if(document.getElementById('f_notif_status')) document.getElementById('f_notif_status').checked=e.notif_status!==false; const hc=document.getElementById('f_charger'); if(hc){ const val=e.charger||''; hc.value=val; const m=val.match(/(\d+)\s*v\s*(\d+)\s*ah/i); if(m){ s('f_custom_v',m[1]); s('f_custom_ah',m[2]); } else { s('f_custom_v',''); s('f_custom_ah',''); } } document.getElementById('saveBtn').textContent='Update Catatan'; document.getElementById('cancelEditBtn').style.display='block'; switchView('catat'); updateLiveCalc(); }
+function startEdit(id){ const e=entries.find(x=>x.id===id); if(!e) return; editId=id; const s=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v??''; }; s('f_tanggal',e.tanggal); s('f_km_awal',e.km_awal); s('f_km_akhir',e.km_akhir); s('f_batt_awal',e.batt_awal); s('f_batt_akhir',e.batt_akhir); s('f_batt_setelah',e.batt_setelah); const t=e.tarif??1444; s('f_tarif',t); const pre=document.getElementById('f_tarif_preset'); if(pre) pre.value=(t===1444?'1444':(t===2466?'2466':(t===0?'0':'1444'))); s('f_biaya',e.biaya??''); s('f_lokasi',e.lokasi); renderCapDisplay(e.cap_kwh||4.0); if(document.getElementById('f_notif_status')) document.getElementById('f_notif_status').checked=e.notif_status!==false; const hc=document.getElementById('f_charger'); if(hc){ const val=e.charger||''; hc.value=val; const m=val.match(/([\d.,]+)\s*v\s*([\d.,]+)\s*ah/i); if(m){ s('f_custom_v',m[1]); s('f_custom_ah',m[2]); } else { s('f_custom_v',''); s('f_custom_ah',''); } } document.getElementById('saveBtn').textContent='Update Catatan'; document.getElementById('cancelEditBtn').style.display='block'; switchView('catat'); updateLiveCalc(); }
 function cancelEdit(){ editId=null; resetForm(); }
 function deleteEntry(id){ if(!confirm('Hapus catatan ini?')) return; entries=entries.filter(x=>x.id!==id); localStorage.setItem(LS_KEY,JSON.stringify(entries)); kalibrasiSohMover(); renderAll(); prefillTripStart(true); showToast('Catatan dihapus','success'); }
 
 function simpanKoreksiBms(id){
   const inputEl=document.getElementById(`time_riil_${id}`); if(!inputEl) return; const jamRiil=inputEl.value; if(!jamRiil){ showToast('Isi waktu selesai cas dulu!','error'); return; }
   const idx=entries.findIndex(x=>x.id===id); if(idx<0) return; const e=entries[idx]; const calc=calcEntry(e); if(!e.charger||e.batt_akhir>=calc.targetCas){ showToast('Tidak ada proses cas valid.','error'); return; }
-  const regex=/(\d+)\s*v\s*(\d+)\s*ah/i; const m=e.charger.match(regex); if(!m){ showToast('Format charger tidak didukung.','error'); return; }
+  const regex=/([\d.,]+)\s*v\s*([\d.,]+)\s*ah/i; const m=e.charger.match(regex); if(!m){ showToast('Format charger tidak didukung.','error'); return; }
   const volt=Number(m[1])||0, amp=Number(m[2])||0, sisa=Math.max(0,calc.targetCas-e.batt_akhir), needWh=sisa*(((e.cap_kwh||4.0)*1000)/100), watt=volt*amp; if(watt<=0){ showToast('Daya charger tidak valid.','error'); return; }
   const idealMenit=(needWh/watt)*60; const [hS,mS]=jamRiil.split(':').map(Number); let faktorLama=getCalibratedBmsFactor(e.charger)||((e.cap_kwh>=10)?1.1:(amp>10?1.38:1.15)); const predMenit=Math.round((needWh/watt)*faktorLama*60);
   const logDate=new Date(Number(e.waktu_dibuat_asli||e.id)); const realObj=new Date(logDate.getTime()); realObj.setHours(hS,mS,0,0); if(realObj<logDate) realObj.setDate(realObj.getDate()+1); let realMenit=Math.round((realObj-logDate)/(1000*60)); if(realMenit<=0||realMenit>1440) realMenit=predMenit;
@@ -949,8 +949,53 @@ function perbaruiAIInsightDasbor(avgWhKmMoving, filteredEntries){
 
 // === LOKASI & CHARGER SUGGEST FIXED XSS ===
 const LOKASI_KEY='battlog_lokasi_history';
-function getLokasiHistory(){ try{ return JSON.parse(localStorage.getItem(LOKASI_KEY)||'[]'); }catch(e){return [];} }
-function saveLokasiToHistory(loc){ loc=(loc||'').trim(); if(!loc) return; let h=getLokasiHistory().filter(x=>x.toLowerCase()!==loc.toLowerCase()); h.unshift(loc); h=h.slice(0,10); localStorage.setItem(LOKASI_KEY,JSON.stringify(h)); }
+function getLokasiHistory(){
+  try{
+    let raw=JSON.parse(localStorage.getItem(LOKASI_KEY)||'[]');
+    if(!Array.isArray(raw)) return [];
+    // Normalisasi: string atau object dari GPS hotspot
+    let out=[];
+    for(let it of raw){
+      if(typeof it==='string' && it.trim()){
+        out.push(it.trim());
+      } else if(it && typeof it==='object'){
+        let s=it.area||it.label||it.locality||it.name||'';
+        if(s && typeof s==='string') out.push(s.trim());
+      }
+    }
+    // dedup & filter [object Object]
+    out=out.filter(s=>s && s!=='[object Object]' && !s.includes('[object'));
+    // uniq preserve order
+    let seen=new Set(); let uniq=[];
+    for(let s of out){ let k=s.toLowerCase(); if(!seen.has(k)){ seen.add(k); uniq.push(s); } }
+    return uniq;
+  }catch(e){ return []; }
+}
+function migrateLokasiHistoryObjects(){
+  try{
+    let raw=JSON.parse(localStorage.getItem(LOKASI_KEY)||'[]');
+    if(!Array.isArray(raw)) return;
+    let hasObj=raw.some(x=>typeof x==='object');
+    if(!hasObj) return;
+    let cleaned=getLokasiHistory();
+    localStorage.setItem(LOKASI_KEY, JSON.stringify(cleaned));
+    console.log('[FIX] Migrated lokasi history objects -> strings', cleaned.length);
+  }catch(e){}
+}
+function saveLokasiToHistory(loc){
+  try{
+    if(!loc) return;
+    if(typeof loc==='object'){
+      loc=loc.area||loc.label||loc.locality||'';
+    }
+    loc=String(loc||'').trim();
+    if(!loc || loc==='[object Object]' || loc.includes('[object')) return;
+    let h=getLokasiHistory().filter(x=>x.toLowerCase()!==loc.toLowerCase());
+    h.unshift(loc);
+    h=h.slice(0,10);
+    localStorage.setItem(LOKASI_KEY,JSON.stringify(h));
+  }catch(e){}
+}
 function renderLokasiSuggest(filter=''){
   const box=document.getElementById('lokasi_suggest'); const input=document.getElementById('f_lokasi'); if(!box||!input) return;
   let hist=getLokasiHistory(); if(filter){ const f=filter.toLowerCase(); hist=hist.filter(x=>x.toLowerCase().includes(f)); } hist=hist.slice(0,3);
@@ -964,13 +1009,25 @@ function renderLokasiSuggest(filter=''){
   box.style.display='block';
 }
 function getChargerHistory(){ try{ return JSON.parse(localStorage.getItem('battlog_charger_history')||'[]'); }catch(e){return [];} }
-function saveChargerToHistory(v,ah){ if(!v||!ah) return; const item=`${v}v ${ah}ah`; let h=getChargerHistory().filter(x=>x.toLowerCase()!==item.toLowerCase()); h.unshift(item); h=h.slice(0,5); localStorage.setItem('battlog_charger_history',JSON.stringify(h)); }
+function saveChargerToHistory(v,ah){
+  try{
+    if(!v||!ah) return;
+    v=String(v).replace(',', '.').trim();
+    ah=String(ah).replace(',', '.').trim();
+    if(!v||!ah) return;
+    const item=`${v}v ${ah}ah`;
+    let h=getChargerHistory().filter(x=>x.toLowerCase()!==item.toLowerCase());
+    h.unshift(item);
+    h=h.slice(0,5);
+    localStorage.setItem('battlog_charger_history',JSON.stringify(h));
+  }catch(e){}
+}
 function renderChargerSuggest(){
   const box=document.getElementById('charger_suggest'); if(!box) return; const hist=getChargerHistory(); box.innerHTML=''; if(!hist.length){ box.style.display='none'; return; }
   const title=document.createElement('div'); title.textContent='PILIH CHARGER TERSEDIA:'; title.style.cssText='padding:8px 14px; font-size:11px; color:#8aa0c6; font-weight:bold; border-bottom:1px solid #1e2d4a; background:#112240;'; box.appendChild(title);
   hist.forEach(text=>{
     const div=document.createElement('div'); div.textContent=text.toUpperCase(); div.style.cssText='padding:12px 14px; cursor:pointer; color:#7dffb7; font-size:14px; border-bottom:1px solid #1e2d4a';
-    div.addEventListener('click',()=>{ const m=text.match(/(\d+)\s*v\s*(\d+)\s*ah/i); if(m){ document.getElementById('f_custom_v').value=m[1]; document.getElementById('f_custom_ah').value=m[2]; document.getElementById('f_charger').value=text; box.style.display='none'; updateLiveCalc(); } });
+    div.addEventListener('click',()=>{ const m=text.match(/([\d.,]+)\s*v\s*([\d.,]+)\s*ah/i); if(m){ document.getElementById('f_custom_v').value=m[1]; document.getElementById('f_custom_ah').value=m[2]; document.getElementById('f_charger').value=text; box.style.display='none'; updateLiveCalc(); } });
     div.addEventListener('mouseenter',()=>div.style.background='#13223d'); div.addEventListener('mouseleave',()=>div.style.background='');
     box.appendChild(div);
   });
@@ -986,7 +1043,14 @@ document.getElementById('f_tarif').addEventListener('input',()=>{ const pre=docu
 (function initFormHelpers(){
   const input=document.getElementById('f_lokasi'); const box=document.getElementById('lokasi_suggest'); if(input){ let hist=getLokasiHistory(); if(hist.length===0&&entries.length){ const seen=new Set(); entries.forEach(e=>{ const loc=(e.lokasi||'').trim(); if(loc&&!seen.has(loc.toLowerCase())){ seen.add(loc.toLowerCase()); hist.push(loc); } }); if(hist.length) localStorage.setItem(LOKASI_KEY,JSON.stringify(hist)); } hist=getLokasiHistory(); if(!input.value&&hist[0]) input.value=hist[0]; input.addEventListener('focus',()=>renderLokasiSuggest(input.value)); input.addEventListener('input',()=>renderLokasiSuggest(input.value)); document.addEventListener('click',(e)=>{ if(!e.target.closest('#f_lokasi')&&!e.target.closest('#lokasi_suggest')){ if(box) box.style.display='none'; } }); }
   const hiddenC=document.getElementById('f_charger'); const customV=document.getElementById('f_custom_v'); const customAh=document.getElementById('f_custom_ah'); const chargerBox=document.getElementById('charger_suggest');
-  function syncCustom(){ const v=customV.value.trim(); const ah=customAh.value.trim(); if(v&&ah){ hiddenC.value=`${v}v ${ah}ah`; } else { hiddenC.value=''; } updateLiveCalc(); }
+  function syncCustom(){
+  const rawV=customV.value.trim(); const rawAh=customAh.value.trim();
+  // support koma 82,6 -> 82.6
+  const v=rawV.replace(',', '.').replace(/[^\d.]/g,'');
+  const ah=rawAh.replace(',', '.').replace(/[^\d.]/g,'');
+  if(v&&ah){ hiddenC.value=`${v}v ${ah}ah`; } else { hiddenC.value=''; }
+  updateLiveCalc();
+}
   if(customV&&customAh){ customV.addEventListener('input',syncCustom); customAh.addEventListener('input',syncCustom); customV.addEventListener('focus',renderChargerSuggest); customAh.addEventListener('focus',renderChargerSuggest); }
   document.addEventListener('click',(e)=>{ if(!e.target.closest('#f_custom_v')&&!e.target.closest('#f_custom_ah')&&!e.target.closest('#charger_suggest')){ if(chargerBox) chargerBox.style.display='none'; } });
   const origSave=saveEntry; saveEntry=async function(){ const v=customV.value.trim(); const ah=customAh.value.trim(); if(v&&ah){ saveChargerToHistory(v,ah); } return origSave.apply(this,arguments); };
@@ -995,6 +1059,7 @@ document.getElementById('f_tarif').addEventListener('input',()=>{ const pre=docu
   setTimeout(()=>{ prefillTripStart(false); updateLiveCalc(); },100);
 })();
 
+try{ migrateLokasiHistoryObjects(); }catch(e){}
 kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
 
 // === BRIDGE FIXED SINGLE - PATCHED SYNC V5.22 COMPATIBLE (PAKEM 2.7.8 TETAP) ===
