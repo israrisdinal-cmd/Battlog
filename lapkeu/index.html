@@ -1,4 +1,4 @@
-<!-- Lapkeu v1.3 FIXED V5.23 - 2026-07-23 - Fix Midnight + Dedup + km_akhir bug + Proporsional - SEMPURNA -->
+<!-- Lapkeu v1.3 FIXED V5.24 - 2026-07-23 - Fix Midnight + Dedup + km_akhir bug + Proporsional - SEMPURNA -->
 <!-- Lapkeu v1.2 - ACUAN BARU FIX TAB - Insight Strategi Hari Sama - Locked 2026-07-21 -->
 <!-- Lapkeu v1.1 - NAMA SELARAS - lapkeu_* & battlog_* - Migrasi otomatis dari v1.0 - Locked 2026-07-21 - SYNC FIX -->
 <!-- Lapkeu v1.0 - SiGan FIXED SYNC - Field kompatibel Battlog v1.0 (tanggal, km, lokasi_jemput, lokasi_antar, jam_awal, jam_akhir) - Locked 2026-07-21 -->
@@ -33,7 +33,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.23 FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.24 FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -163,7 +163,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V1.3</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -339,6 +339,18 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
     </div>
 
     <div id="tabContentHistory" class="hidden">
+        <!-- NEW: HOTSPOT JAM INI + GPS -->
+        <div class="card" style="border-left:5px solid #00e676; background:linear-gradient(135deg,#102a1e 0%,#0f1f36 100%);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div style="font-size:13px; font-weight:900; color:#7dffb7; letter-spacing:0.5px;">📍 LOKASI RAMAI JAM INI</div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <span id="hotspotHourBadge" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:800;">JAM --:--</span>
+                    <button id="btnGpsHotspot" onclick="triggerGpsHotspot()" style="background:linear-gradient(180deg,#00e676,#00a651); padding:6px 12px; font-size:12px; border-radius:10px; border:none; color:#fff; font-weight:700;">📡 Aktifkan GPS</button>
+                </div>
+            </div>
+            <div id="gpsStatus" style="font-size:11px; color:#8aa0c6; margin-top:8px; line-height:1.4;">Tap GPS untuk tau lokasi terdekat yang rame order jam ini. Data diambil dari riwayat jemput kamu.</div>
+            <div id="hotspotList" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
         <div id="historyContainer"></div>
         <button class="btn-secondary" onclick="exportToCSV()">Ekspor Semua Data ke CSV</button>
     </div>
@@ -835,6 +847,264 @@ function loadData(){
     document.getElementById('txtTargetProgress').innerText=actualPercent+"% Tercapai "+(actualPercent>=100?"(Tembus! 🎯)":"(Semangat!)");
     loadRekapData();
 }
+
+
+// ===== NEW: HOTSPOT JAM INI + GPS V5.24 =====
+let lastGpsPos = null;
+let currentAreaName = '';
+let geocodeCache = {};
+try{ geocodeCache = JSON.parse(localStorage.getItem('lapkeu_geocode_cache')||'{}'); }catch(e){ geocodeCache={}; }
+function saveGeocodeCache(){ try{ localStorage.setItem('lapkeu_geocode_cache', JSON.stringify(geocodeCache)); }catch(e){} }
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  return R*c;
+}
+
+function buildHotspotByHour(){
+  try{
+    const badge=document.getElementById('hotspotHourBadge');
+    const list=document.getElementById('hotspotList');
+    const status=document.getElementById('gpsStatus');
+    if(!badge||!list) return;
+    const now=new Date();
+    const curH=now.getHours();
+    const curHStr=String(curH).padStart(2,'0')+':00';
+    badge.innerText='JAM '+curHStr;
+    
+    let data=[];
+    try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){ data=[]; }
+    if(!data.length){
+      list.innerHTML='<div style="background:#0f1f36; border:1px dashed #1e3a5f; border-radius:10px; padding:12px; font-size:12px; color:#5a7096; text-align:center;">Belum ada riwayat order. Selesaikan 1-2 order dulu biar hotspot keisi.</div>';
+      return;
+    }
+    // filter jam ini +/-1 jam biar data ga kosong
+    let filtered=data.filter(it=>{
+      if(it.type!=='Pendapatan') return false;
+      if(!it.time) return false;
+      let h=parseInt((it.time||'00:00').split(':')[0]);
+      if(isNaN(h)) return false;
+      let diff=Math.abs(h-curH);
+      if(diff>12) diff=24-diff; // handle midnight
+      return diff<=1; // jam ini +-1
+    });
+    // fallback kalau jam ini sepi, pakai semua data 7 hari terakhir
+    if(filtered.length<3){
+      let cutoff=new Date(); cutoff.setDate(cutoff.getDate()-14);
+      filtered=data.filter(it=>{
+        if(it.type!=='Pendapatan') return false;
+        if(!it.date) return false;
+        try{ let d=new Date(it.date); return d>=cutoff; }catch(e){ return false; }
+      });
+    }
+    if(filtered.length===0) filtered=data.filter(it=>it.type==='Pendapatan');
+
+    let areaMap={};
+    filtered.forEach(it=>{
+      let rawPickup=it.pickup||it.lokasi_jemput||it.jemput||'';
+      let area=typeof extractAreaSimple==='function'? extractAreaSimple(rawPickup) : (rawPickup.substring(0,22)||'Unknown');
+      if(!area) area='Unknown';
+      if(!areaMap[area]) areaMap[area]={count:0, income:0, samples:[], lat:null, lon:null};
+      areaMap[area].count+=1;
+      areaMap[area].income+=Number(it.amount)||0;
+      if(areaMap[area].samples.length<3) areaMap[area].samples.push(rawPickup);
+    });
+
+    let ranked=Object.entries(areaMap).map(([area,s])=>({area,...s, avgIncome: s.count? Math.round(s.income/s.count):0})).sort((a,b)=>b.count-a.count).slice(0,6);
+    
+    // restore cached lat/lon
+    ranked.forEach(r=>{
+      if(geocodeCache[r.area] && geocodeCache[r.area].lat){
+        r.lat=geocodeCache[r.area].lat;
+        r.lon=geocodeCache[r.area].lon;
+      }
+    });
+
+    // if GPS available, calculate distance
+    if(lastGpsPos){
+      ranked.forEach(r=>{
+        if(r.lat && r.lon){
+          r.dist=haversine(lastGpsPos.lat, lastGpsPos.lon, r.lat, r.lon);
+        } else {
+          r.dist=null;
+        }
+      });
+      // sort by distance if we have GPS
+      let withDist=ranked.filter(r=>r.dist!==null);
+      if(withDist.length>=2){
+        ranked.sort((a,b)=>{
+          if(a.dist!==null && b.dist!==null) return a.dist-b.dist;
+          if(a.dist!==null) return -1;
+          if(b.dist!==null) return 1;
+          return b.count-a.count;
+        });
+      }
+    }
+
+    if(ranked.length===0){
+      list.innerHTML='<div style="font-size:12px; color:#5a7096;">Belum ada lokasi di jam ini.</div>';
+      return;
+    }
+
+    let html='';
+    ranked.forEach((r,i)=>{
+      let medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'📍';
+      let distText=r.dist!==null?`${r.dist.toFixed(1)} km dari kamu` : (lastGpsPos ? 'Menghitung jarak...' : '');
+      let isNearest = lastGpsPos && i===0 && r.dist!==null && r.dist<5;
+      let borderColor=isNearest?'#00e676':'#1e3a5f';
+      let bg=isNearest?'linear-gradient(135deg,#0f2a1e,#102a1e)':'#0f1f36';
+      html+=`<div style="background:${bg}; border:1px solid ${borderColor}; border-radius:12px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="font-size:14px;">${medal}</span><span style="font-size:13px; font-weight:800; color:#eaf2ff;">${r.area}</span>${isNearest?'<span style="background:#00e676; color:#001a0f; font-size:9px; font-weight:900; padding:2px 6px; border-radius:999px; margin-left:6px;">TERDEKAT</span>':''}</div>
+          <div style="font-size:11px; color:#8aa0c6; margin-top:2px;">${r.count} order jam ${curHStr}±1 • Avg Rp ${r.avgIncome.toLocaleString('id-ID')} ${distText? ' • '+distText : ''}</div>
+          <div style="font-size:10px; color:#5a7096; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Contoh: ${r.samples[0]||'-'}</div>
+        </div>
+        <button onclick="focusAreaOnMap('${r.area.replace(/'/g, "\'")}')" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:6px 10px; border-radius:10px; font-size:11px; font-weight:700;">Arah</button>
+      </div>`;
+    });
+    list.innerHTML=html;
+
+    // auto geocode top 3 if GPS active and not cached
+    if(lastGpsPos){
+      ranked.slice(0,3).forEach(r=>{
+        if(!r.lat) geocodeArea(r.area);
+      });
+    }
+
+    if(status && !lastGpsPos){
+      status.innerHTML='📊 <b>'+filtered.length+'</b> order terdeteksi di jam <b>'+curHStr+' ±1 jam</b> dari 14 hari terakhir. Aktifkan GPS untuk urutkan by jarak.';
+    }
+  }catch(e){
+    console.log('hotspot err',e);
+  }
+}
+
+function focusAreaOnMap(area){
+  try{
+    let q=encodeURIComponent(area+' , Indonesia');
+    window.open('https://www.google.com/maps/search/?api=1&query='+q,'_blank');
+  }catch(e){}
+}
+
+async function geocodeArea(area){
+  if(geocodeCache[area] && geocodeCache[area].lat) return geocodeCache[area];
+  try{
+    // Nominatim
+    let url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(area)}&countrycodes=id&limit=1`;
+    let res=await fetch(url, {headers:{'Accept':'application/json'}});
+    let j=await res.json();
+    if(j && j[0]){
+      let lat=parseFloat(j[0].lat), lon=parseFloat(j[0].lon);
+      geocodeCache[area]={lat,lon, ts:Date.now()};
+      saveGeocodeCache();
+      buildHotspotByHour();
+      return {lat,lon};
+    }
+  }catch(e){ console.log('geocode err',e); }
+  return null;
+}
+
+async function reverseGeocode(lat,lon){
+  try{
+    let url=`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=id`;
+    let res=await fetch(url);
+    let j=await res.json();
+    if(j){
+      let locality=j.locality||j.city||j.principalSubdivision||'';
+      let district=j.localityInfo && j.localityInfo.administrative && j.localityInfo.administrative.length? j.localityInfo.administrative[0].name : '';
+      let label=[j.locality, j.city, j.principalSubdivision].filter(Boolean).join(', ');
+      return {label, raw:j};
+    }
+  }catch(e){}
+  return {label: lat.toFixed(5)+','+lon.toFixed(5)};
+}
+
+async function triggerGpsHotspot(){
+  const btn=document.getElementById('btnGpsHotspot');
+  const status=document.getElementById('gpsStatus');
+  if(!navigator.geolocation){
+    if(status) status.innerHTML='❌ GPS tidak didukung browser ini.';
+    return;
+  }
+  if(btn){ btn.innerText='📡 Mencari...'; btn.disabled=true; }
+  if(status) status.innerHTML='📡 Meminta lokasi GPS...';
+  
+  navigator.geolocation.getCurrentPosition(async (pos)=>{
+    try{
+      const lat=pos.coords.latitude, lon=pos.coords.longitude;
+      lastGpsPos={lat,lon, acc:pos.coords.accuracy};
+      try{ localStorage.setItem('lapkeu_last_gps', JSON.stringify({lat,lon, ts:Date.now()})); }catch(e){}
+      if(status) status.innerHTML=`📍 Lokasi kamu: ${lat.toFixed(5)}, ${lon.toFixed(5)} (akurasi ±${Math.round(pos.coords.accuracy)}m)<br>🔍 Mencari nama daerah...`;
+      
+      let rev=await reverseGeocode(lat,lon);
+      currentAreaName=rev.label;
+      if(status) status.innerHTML=`✅ Kamu di <b>${rev.label}</b> (±${Math.round(pos.coords.accuracy)}m)<br>📊 Mengurutkan lokasi ramai terdekat jam ini...`;
+      
+      // simpan lokasi ke battlog lokasi history juga biar sinkron
+      try{
+        let hist=JSON.parse(localStorage.getItem('battlog_lokasi_history')||'[]');
+        hist.unshift({area: rev.label, lat, lon, ts: Date.now(), source:'lapkeu_gps_hotspot'});
+        hist=hist.slice(0,50);
+        localStorage.setItem('battlog_lokasi_history', JSON.stringify(hist));
+      }catch(e){}
+
+      buildHotspotByHour();
+      
+      if(btn){ btn.innerText='✅ GPS Aktif'; btn.style.background='linear-gradient(180deg,#0f2a1e,#132a1f)'; btn.disabled=false; }
+      
+      // auto geocode hotspot areas untuk hitung jarak
+      setTimeout(()=>{ buildHotspotByHour(); }, 1500);
+    }catch(e){
+      if(status) status.innerHTML='❌ Error: '+e.message;
+      if(btn){ btn.innerText='📡 Aktifkan GPS'; btn.disabled=false; }
+    }
+  }, (err)=>{
+    console.log(err);
+    if(status) status.innerHTML='❌ Gagal GPS: '+err.message+'<br>Coba aktifkan Location di HP dan izinkan browser.';
+    if(btn){ btn.innerText='📡 Aktifkan GPS'; btn.disabled=false; }
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
+}
+
+// Auto-build saat history dibuka
+(function(){
+  const origSwitchTab=window.switchTab;
+  window.switchTab=function(tabName){
+    if(typeof origSwitchTab==='function') origSwitchTab(tabName);
+    else {
+      const contents = { 'input': document.getElementById('tabContentInput'), 'history': document.getElementById('tabContentHistory'), 'rekap': document.getElementById('tabContentRekap') };
+      const buttons = { 'input': document.getElementById('btnTabInput'), 'history': document.getElementById('btnTabHistory'), 'rekap': document.getElementById('btnTabRekap') };
+      for(let k in contents){ if(contents[k]){ if(k===tabName){ contents[k].classList.remove('hidden'); if(buttons[k]) buttons[k].classList.add('active'); } else { contents[k].classList.add('hidden'); if(buttons[k]) buttons[k].classList.remove('active'); } } }
+      if(tabName==='rekap' && typeof loadRekapData==='function') loadRekapData();
+    }
+    if(tabName==='history'){
+      setTimeout(buildHotspotByHour, 200);
+    }
+  };
+  // build awal & restore GPS
+  try{
+    let last=JSON.parse(localStorage.getItem('lapkeu_last_gps')||'null');
+    if(last && last.lat && Date.now()- (last.ts||0) < 30*60*1000){
+      lastGpsPos=last;
+    }
+  }catch(e){}
+  document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(buildHotspotByHour, 800); });
+})();
+
+// Hook ke loadData biar hotspot refresh tiap data berubah
+(function(){
+  const origLoadData=window.loadData;
+  if(typeof origLoadData==='function'){
+    window.loadData=function(){
+      const r=origLoadData.apply(this, arguments);
+      setTimeout(buildHotspotByHour, 300);
+      return r;
+    };
+  }
+})();
 
 // ===== Rekap Presisi V5 =====
 
@@ -1873,7 +2143,7 @@ window.onload=function(){
           jamAwal=String(jamAwal).replace('.',':');
           mAwal=parseTimeToMinutes(jamAwal);
         }
-        // FIX V5.23: midnight crossing 23:50->00:15 valid, durasi 25 menit
+        // FIX V5.24: midnight crossing 23:50->00:15 valid, durasi 25 menit
         if(mAkhir==null || !jamAkhir || jamAkhir===jamAwal){
           needFix=true;
         } else if(mAwal!=null && mAkhir!=null){
@@ -1901,7 +2171,7 @@ window.onload=function(){
         try{ console.log('[SiGan] Auto-fix jam akhir Goride:', fixedCount, 'trip'); }catch(_){}
       }
       var incomeMap={}, kmMap={}, gorideOrders=[];
-      var seenId={}; // V5.23 FIX: dedup ID transaksi biar income tidak double
+      var seenId={}; // V5.24 FIX: dedup ID transaksi biar income tidak double
       for(var j=0;j<siganData.length;j++){ 
         var it=siganData[j]; 
         if(!it || it.type!=='Pendapatan') continue;
@@ -1919,7 +2189,7 @@ window.onload=function(){
             jb=estimateEndTime(ja, it.dist||0);
           }
           var ma=parseTimeToMinutes(ja), mb=parseTimeToMinutes(jb);
-          // V5.23 FIX: midnight crossing support + validasi durasi
+          // V5.24 FIX: midnight crossing support + validasi durasi
           if(ma!=null && mb!=null){
             var durMB=mb-ma; if(durMB<0) durMB+=1440;
             if(durMB>0 && durMB<=600){
