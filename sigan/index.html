@@ -82,20 +82,16 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 <body>
 
 <script>
-// ================= GPS DINAMIS - STRATEGI HARI INI REAL-TIME =================
+// ================= GPS DINAMIS MANUAL ONLY - TIDAK AUTO ON =================
 window.__CURRENT_GPS = null;
 window.__CURRENT_GPS_ADDRESS = '';
-window.__GPS_WATCH_ID = null;
 
 function saveGPS(lat, lng, address=''){
   window.__CURRENT_GPS = {lat, lng, ts: Date.now()};
   if(address) window.__CURRENT_GPS_ADDRESS = address;
   try{ localStorage.setItem('lapkeu_last_gps', JSON.stringify({lat, lng, address, ts: Date.now()})); }catch(e){}
-  console.log('GPS saved', lat, lng, address);
-  // Update UI if exists
   let el = document.getElementById('gpsStatusText');
   if(el){ el.textContent = `📍 ${address||lat.toFixed(5)+','+lng.toFixed(5)}`; el.style.color='#00e676'; }
-  // Trigger re-render strategi if on rekap tab
   try{ if(typeof window.refreshStrategiGPS==='function') window.refreshStrategiGPS(); }catch(e){}
 }
 
@@ -105,14 +101,13 @@ async function reverseGeocode(lat, lng){
     if(!resp.ok) throw new Error('reverse fail');
     let j = await resp.json();
     let addr = j.display_name||'';
-    // Shorten address
     if(addr.length>80) addr = addr.substring(0,80)+'...';
     return addr;
   }catch(e){ return `${lat.toFixed(4)}, ${lng.toFixed(4)}`; }
 }
 
 function requestGPS(){
-  if(!navigator.geolocation){ console.log('Geolocation not supported'); return; }
+  if(!navigator.geolocation){ alert('Geolocation tidak didukung'); return; }
   let statusEl = document.getElementById('gpsStatusText');
   if(statusEl){ statusEl.textContent='📡 Mencari GPS...'; statusEl.style.color='#ffcc66'; }
   navigator.geolocation.getCurrentPosition(async (pos)=>{
@@ -120,34 +115,17 @@ function requestGPS(){
     let addr = await reverseGeocode(lat,lng);
     saveGPS(lat,lng,addr);
   }, (err)=>{
-    console.log('GPS error', err.message);
     let el=document.getElementById('gpsStatusText');
     if(el){ el.textContent='⚠️ GPS gagal: '+err.message; el.style.color='#ff8a80'; }
-    // Try load last GPS from storage
     try{
       let raw=localStorage.getItem('lapkeu_last_gps');
       if(raw){ let p=JSON.parse(raw); window.__CURRENT_GPS={lat:p.lat,lng:p.lng,ts:p.ts}; window.__CURRENT_GPS_ADDRESS=p.address||''; if(el){ el.textContent=`📍 Last: ${p.address||p.lat.toFixed(4)}`; el.style.color='#8aa0c6'; } }
     }catch(e){}
-  }, {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
-}
-
-function startGPSWatch(){
-  if(!navigator.geolocation) return;
-  if(window.__GPS_WATCH_ID) navigator.geolocation.clearWatch(window.__GPS_WATCH_ID);
-  window.__GPS_WATCH_ID = navigator.geolocation.watchPosition(async (pos)=>{
-    let lat=pos.coords.latitude, lng=pos.coords.longitude;
-    let addr = window.__CURRENT_GPS_ADDRESS||'';
-    // Only reverse geocode if moved >500m or no address
-    if(!addr || !window.__CURRENT_GPS || Math.abs(window.__CURRENT_GPS.lat-lat)>0.005){
-      addr = await reverseGeocode(lat,lng);
-    }
-    saveGPS(lat,lng,addr);
-  }, (err)=>{ console.log('watch error', err.message); }, {enableHighAccuracy:false, timeout:20000, maximumAge:120000});
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
 }
 
 window.refreshStrategiGPS = function(){
   try{
-    // If on rekap tab, re-trigger loadRekapData
     let rekapTab = document.getElementById('btnTabRekap');
     if(rekapTab && rekapTab.classList.contains('active')){
       if(typeof loadRekapData==='function') setTimeout(()=>loadRekapData(),500);
@@ -155,25 +133,8 @@ window.refreshStrategiGPS = function(){
   }catch(e){}
 };
 
-// Auto request GPS on load and when rekap tab opened
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(requestGPS,1500); setTimeout(startGPSWatch,3000); });
-else { setTimeout(requestGPS,1500); setTimeout(startGPSWatch,3000); }
-
-// Hook switchTab to request GPS when rekap opened
-(function(){
-  let tries=0;
-  function hookGPS(){
-    if(typeof window.switchTab==='function' && !window.switchTab.__hooked_gps){
-      let orig=window.switchTab;
-      window.switchTab=function(tabName){
-        orig(tabName);
-        if(tabName==='rekap'){ setTimeout(requestGPS,800); }
-      };
-      window.switchTab.__hooked_gps=true;
-    } else if(tries<30){ tries++; setTimeout(hookGPS,500); }
-  }
-  hookGPS();
-})();
+// MANUAL ONLY - tidak ada auto requestGPS saat buka app
+console.log('GPS mode MANUAL ONLY - aktif hanya saat tekan tombol GPS');
 </script>
 
 
@@ -1072,6 +1033,82 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
 
     let aiHtml = `<div style="background:linear-gradient(135deg,#111d35 0%,#0f1f36 100%); border:1px solid #2b5a9a; border-radius:14px; padding:16px; line-height:1.7;">`;
 
+// ===== GPS DINAMIS + ANALISA JAM SAAT INI =====
+    let currentHour = new Date().getHours();
+    let currentHourStr = String(currentHour).padStart(2,'0')+':00';
+    let gps = window.__CURRENT_GPS||null;
+    let gpsAddr = window.__CURRENT_GPS_ADDRESS||'';
+    try{ if(!gps){ let raw=localStorage.getItem('lapkeu_last_gps'); if(raw){ let p=JSON.parse(raw); gps={lat:p.lat,lng:p.lng}; gpsAddr=p.address||''; } } }catch(e){}
+    
+    // Hitung area & layanan paling cuan di JAM INI SAJA (berdasarkan data historis jam sekarang)
+    let hourData = data.filter(it=>{ let h=parseInt((it.time||'00:00').split(':')[0])||0; return h===currentHour; });
+    let bestAreaNow = null, bestServiceNow = null;
+    if(hourData.length>0){
+        let areaNowMap={};
+        let serviceNowMap={};
+        hourData.forEach(it=>{
+            let area=(typeof extractAreaSimple==='function'? extractAreaSimple(it.pickup||'') : (it.pickup||'').substring(0,25))||'Unknown';
+            if(!areaNowMap[area]) areaNowMap[area]={income:0, count:0};
+            areaNowMap[area].income+=Number(it.amount)||0; areaNowMap[area].count+=1;
+            let cat=it.cat||'Goride';
+            if(!serviceNowMap[cat]) serviceNowMap[cat]={income:0, count:0};
+            serviceNowMap[cat].income+=Number(it.amount)||0; serviceNowMap[cat].count+=1;
+        });
+        let areaNowRanked = Object.entries(areaNowMap).map(([a,s])=>({area:a, avg:s.count? s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg);
+        let serviceNowRanked = Object.entries(serviceNowMap).map(([c,s])=>({cat:c, avg:s.count? s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg);
+        bestAreaNow = areaNowRanked[0]||null;
+        bestServiceNow = serviceNowRanked[0]||null;
+    }
+    
+    let gpsHtml = '';
+    if(gps){
+        gpsHtml = `<div style="background:linear-gradient(135deg,#0a1a14 0%,#111d35 100%); border:1px solid #00e676; border-radius:8px; padding:10px; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size:13px; font-weight:800; color:#00e676;">📍 POSISI KAMU (GPS AKTIF)</div>
+                <button onclick="requestGPS()" style="font-size:12px; padding:6px 10px; border-radius:8px; background:#13223d; border:1px solid #00e676; color:#00e676;">📡 GPS Ulang</button>
+            </div>
+            <div style="font-size:14px; color:#dbe8ff; margin-top:6px;" id="gpsStatusText">📍 ${gpsAddr||gps.lat.toFixed(5)+','+gps.lng.toFixed(5)} • Jam ${currentHourStr}</div>
+            <div style="font-size:12px; color:#8aa0c6; margin-top:4px;">GPS manual - tekan GPS Ulang untuk update posisi</div>
+        </div>`;
+    } else {
+        gpsHtml = `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:8px; padding:10px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <div style="font-size:13px; font-weight:800; color:#ffcc66;">📍 GPS BELUM AKTIF (MANUAL)</div>
+                <div style="font-size:13px; color:#8aa0c6; margin-top:2px;" id="gpsStatusText">Tap tombol GPS untuk aktifkan lokasi</div>
+            </div>
+            <button onclick="requestGPS()" style="font-size:13px; padding:8px 14px; border-radius:10px; background:linear-gradient(180deg,#2b8cff,#1a6fd8); border:none; color:#fff; font-weight:700;">📡 GPS</button>
+        </div>`;
+    }
+    
+    let geserHtml = '';
+    if(bestAreaNow){
+        let jarakInfo = gps? `dari posisi kamu sekarang` : `dari area kamu biasa nongkrong`;
+        geserHtml = `<div style="margin-top:8px; padding:8px; background:rgba(0,230,118,0.08); border-radius:6px;">
+            <b style="color:#00e676;">🎯 Saran Geser Jam ${currentHourStr}:</b> Geser ke <b>${bestAreaNow.area}</b> ${jarakInfo} — historis jam ini ${bestAreaNow.count} order, avg Rp ${Math.round(bestAreaNow.avg).toLocaleString('id-ID')}/order. 
+            Layanan cuan jam ini: <b style="color:#7dffb7;">${bestServiceNow?bestServiceNow.cat:'Goride'}</b> (${bestServiceNow?Math.round(bestServiceNow.count)+' order, avg Rp '+Math.round(bestServiceNow.avg).toLocaleString('id-ID'):''}).
+            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(bestAreaNow.area)}" target="_blank" style="color:#40c4ff; margin-left:6px;">📍 Petakan</a>
+        </div>`;
+    } else if(bestArea){
+        geserHtml = `<div style="margin-top:8px; padding:8px; background:rgba(0,230,118,0.08); border-radius:6px;">
+            <b style="color:#00e676;">🎯 Saran Geser:</b> Jam ${currentHourStr} historis sepi, tapi area <b>${bestArea.area}</b> paling cuan hari ini (Rp ${Math.round(bestArea.rpPerJam).toLocaleString('id-ID')}/jam). Utamakan <b>${servicesRanked[0]?servicesRanked[0].cat:'Goride'}</b>.
+            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(bestArea.area)}" target="_blank" style="color:#40c4ff; margin-left:6px;">📍 Petakan</a>
+        </div>`;
+    }
+
+    aiHtml+=`<div style="background:#0a1328; border-radius:8px; padding:12px; border:1px dashed #1e2d4a;"><div style="font-size:14px; font-weight:800; color:#7dffb7; margin-bottom:6px;">💡 Rangkuman Strategi ${targetWeekdayName} Hari Ini - DINAMIS GPS</div>
+    ${gpsHtml}
+    <div style="font-size:14px; color:#dbe8ff; line-height:1.8;">
+    Hari ini ${targetWeekdayName} jam ${currentHourStr}, data gabungan bilang: fokus di area <b>${bestAreaNow?bestAreaNow.area:bestArea?bestArea.area:'area top'}</b> ${bestAreaNow?' (jam ini)':`pas jam ${bestHour?String(bestHour.h).padStart(2,'0')+':00':''}`} karena di jam itu historinya paling cuan. Utamakan <b>${bestServiceNow?bestServiceNow.cat:servicesRanked[0]?servicesRanked[0].cat:'Goride'}</b> dulu, matiin layanan yang boncos. 
+    ${geserHtml}
+    <div style="margin-top:8px; font-size:13px; color:#8aa0c6;">Kalau jam ${worstHour?String(worstHour.h).padStart(2,'0')+':00':''} lagi sepi, mending rehat cas baterai biar sore-malam bisa gas lagi. Target realistis hari ini Rp ${avgPerJam7?Math.round(avgPerJam7).toLocaleString('id-ID'):''}/jam. <span id="gpsLiveTime" style="font-size:11px;">Update: ${new Date().toLocaleTimeString('id-ID')}</span></div>
+    </div></div>`;
+
+
+    a
+
+    // Lanjutkan sections lain setelah Rangkuman di atas
+
+
     aiHtml+=`<div style="font-size:14px; color:#8aa0c6; margin-bottom:10px;">Analisa ${targetWeekdayName} • ${data7Hari.length} order 7 hari terakhir + ${dataSameDay21.length} order ${targetWeekdayName} 21 hari terakhir</div>`;
 
     aiHtml+=`<div style="margin-bottom:14px;"><div style="font-size:14px; font-weight:800; color:#a78bfa; margin-bottom:6px;">📊 Cerita Performa 7 Hari Terakhir</div><div style="font-size:15px; color:#dbe8ff;">Dalam 7 hari terakhir kamu narik ${totalOrders7} order dengan total sekitar Rp ${Math.round(totalIncome7).toLocaleString('id-ID')}. Rata-rata per jam di kisaran Rp ${avgPerJam7.toLocaleString('id-ID')}. ${hoursRanked.length?`Jam paling cuan kemarin ada di jam ${String(hoursRanked[0].h).padStart(2,'0')}:00 dengan rata-rata Rp ${Math.round(hoursRanked[0].rpPerJam).toLocaleString('id-ID')} per jam, itu biasanya jam pulang kerja atau jam makan malam yang ordernya numpuk.`:'Data jam masih minim, coba isi jam kerja lebih lengkap biar polanya keliatan.'} ${muterInfo?`<br><br><span style='color:#ffcc66;'>${muterInfo}</span>`:''}</div></div>`;
@@ -1113,72 +1150,10 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
     }
 
 
-    // ===== GPS DINAMIS + ANALISA JAM SAAT INI =====
-    let currentHour = new Date().getHours();
-    let currentHourStr = String(currentHour).padStart(2,'0')+':00';
-    let gps = window.__CURRENT_GPS||null;
-    let gpsAddr = window.__CURRENT_GPS_ADDRESS||'';
-    try{ if(!gps){ let raw=localStorage.getItem('lapkeu_last_gps'); if(raw){ let p=JSON.parse(raw); gps={lat:p.lat,lng:p.lng}; gpsAddr=p.address||''; } } }catch(e){}
     
-    // Hitung area & layanan paling cuan di JAM INI SAJA (berdasarkan data historis jam sekarang)
-    let hourData = data.filter(it=>{ let h=parseInt((it.time||'00:00').split(':')[0])||0; return h===currentHour; });
-    let bestAreaNow = null, bestServiceNow = null;
-    if(hourData.length>0){
-        let areaNowMap={};
-        let serviceNowMap={};
-        hourData.forEach(it=>{
-            let area=(typeof extractAreaSimple==='function'? extractAreaSimple(it.pickup||'') : (it.pickup||'').substring(0,25))||'Unknown';
-            if(!areaNowMap[area]) areaNowMap[area]={income:0, count:0};
-            areaNowMap[area].income+=Number(it.amount)||0; areaNowMap[area].count+=1;
-            let cat=it.cat||'Goride';
-            if(!serviceNowMap[cat]) serviceNowMap[cat]={income:0, count:0};
-            serviceNowMap[cat].income+=Number(it.amount)||0; serviceNowMap[cat].count+=1;
-        });
-        let areaNowRanked = Object.entries(areaNowMap).map(([a,s])=>({area:a, avg:s.count? s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg);
-        let serviceNowRanked = Object.entries(serviceNowMap).map(([c,s])=>({cat:c, avg:s.count? s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg);
-        bestAreaNow = areaNowRanked[0]||null;
-        bestServiceNow = serviceNowRanked[0]||null;
-    }
-    
-    let gpsHtml = '';
-    if(gps){
-        gpsHtml = `<div style="background:linear-gradient(135deg,#0a1a14 0%,#111d35 100%); border:1px solid #00e676; border-radius:8px; padding:10px; margin-bottom:10px;">
-            <div style="font-size:13px; font-weight:800; color:#00e676; margin-bottom:4px;">📍 POSISI KAMU SEKARANG (GPS LIVE)</div>
-            <div style="font-size:14px; color:#dbe8ff;" id="gpsStatusText">📍 ${gpsAddr||gps.lat.toFixed(5)+','+gps.lng.toFixed(5)} • Jam ${currentHourStr}</div>
-            <div style="font-size:12px; color:#8aa0c6; margin-top:4px;">GPS aktif, strategi dinamis jam ini</div>
-        </div>`;
-    } else {
-        gpsHtml = `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:8px; padding:8px; margin-bottom:10px;">
-            <div style="font-size:13px; color:#ffcc66;" id="gpsStatusText">📡 Mencari GPS... aktifkan lokasi</div>
-            <button onclick="requestGPS()" style="font-size:12px; padding:4px 8px; margin-top:6px; border-radius:6px; background:#13223d; border:1px solid #2b5a9a; color:#8ab4f8;">🔄 Refresh GPS</button>
-        </div>`;
-    }
-    
-    let geserHtml = '';
-    if(bestAreaNow){
-        let jarakInfo = gps? `dari posisi kamu sekarang` : `dari area kamu biasa nongkrong`;
-        geserHtml = `<div style="margin-top:8px; padding:8px; background:rgba(0,230,118,0.08); border-radius:6px;">
-            <b style="color:#00e676;">🎯 Saran Geser Jam ${currentHourStr}:</b> Geser ke <b>${bestAreaNow.area}</b> ${jarakInfo} — historis jam ini ${bestAreaNow.count} order, avg Rp ${Math.round(bestAreaNow.avg).toLocaleString('id-ID')}/order. 
-            Layanan cuan jam ini: <b style="color:#7dffb7;">${bestServiceNow?bestServiceNow.cat:'Goride'}</b> (${bestServiceNow?Math.round(bestServiceNow.count)+' order, avg Rp '+Math.round(bestServiceNow.avg).toLocaleString('id-ID'):''}).
-            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(bestAreaNow.area)}" target="_blank" style="color:#40c4ff; margin-left:6px;">📍 Petakan</a>
-        </div>`;
-    } else if(bestArea){
-        geserHtml = `<div style="margin-top:8px; padding:8px; background:rgba(0,230,118,0.08); border-radius:6px;">
-            <b style="color:#00e676;">🎯 Saran Geser:</b> Jam ${currentHourStr} historis sepi, tapi area <b>${bestArea.area}</b> paling cuan hari ini (Rp ${Math.round(bestArea.rpPerJam).toLocaleString('id-ID')}/jam). Utamakan <b>${servicesRanked[0]?servicesRanked[0].cat:'Goride'}</b>.
-            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(bestArea.area)}" target="_blank" style="color:#40c4ff; margin-left:6px;">📍 Petakan</a>
-        </div>`;
-    }
-
-    aiHtml+=`<div style="background:#0a1328; border-radius:8px; padding:12px; border:1px dashed #1e2d4a;"><div style="font-size:14px; font-weight:800; color:#7dffb7; margin-bottom:6px;">💡 Rangkuman Strategi ${targetWeekdayName} Hari Ini - DINAMIS GPS</div>
-    ${gpsHtml}
-    <div style="font-size:14px; color:#dbe8ff; line-height:1.8;">
-    Hari ini ${targetWeekdayName} jam ${currentHourStr}, data gabungan bilang: fokus di area <b>${bestAreaNow?bestAreaNow.area:bestArea?bestArea.area:'area top'}</b> ${bestAreaNow?' (jam ini)':`pas jam ${bestHour?String(bestHour.h).padStart(2,'0')+':00':''}`} karena di jam itu historinya paling cuan. Utamakan <b>${bestServiceNow?bestServiceNow.cat:servicesRanked[0]?servicesRanked[0].cat:'Goride'}</b> dulu, matiin layanan yang boncos. 
-    ${geserHtml}
-    <div style="margin-top:8px; font-size:13px; color:#8aa0c6;">Kalau jam ${worstHour?String(worstHour.h).padStart(2,'0')+':00':''} lagi sepi, mending rehat cas baterai biar sore-malam bisa gas lagi. Target realistis hari ini Rp ${avgPerJam7?Math.round(avgPerJam7).toLocaleString('id-ID'):''}/jam. <span id="gpsLiveTime" style="font-size:11px;">Update: ${new Date().toLocaleTimeString('id-ID')}</span></div>
-    </div></div>`;
-
-
-    aiHtml+=`</div>`;
+    // RANGKUMAN PINDAH KE ATAS - placeholder, akan diinsert di awal
+    let rangkumanDinamisHtml = '';
+iHtml+=`</div>`;
     return aiHtml;
 }
 
