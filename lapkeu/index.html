@@ -873,8 +873,10 @@ function buildHotspotByHour(){
     if(!badge||!list) return;
     const now=new Date();
     const curH=now.getHours();
+    const curM=now.getMinutes();
     const curHStr=String(curH).padStart(2,'0')+':00';
-    badge.innerText='JAM '+curHStr;
+    const fullTimeStr=String(curH).padStart(2,'0')+':'+String(curM).padStart(2,'0');
+    badge.innerText='JAM '+fullTimeStr;
     
     let data=[];
     try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){ data=[]; }
@@ -976,7 +978,7 @@ function buildHotspotByHour(){
     }
 
     if(status && !lastGpsPos){
-      status.innerHTML='📊 <b>'+filtered.length+'</b> order terdeteksi di jam <b>'+curHStr+' ±1 jam</b> dari 14 hari terakhir. Aktifkan GPS untuk urutkan by jarak.';
+      status.innerHTML='📊 <b>'+filtered.length+'</b> order terdeteksi di jam <b>'+curHStr+' ±1</b> (sekarang '+fullTimeStr+') dari 14 hari terakhir. Aktifkan GPS untuk urutkan by jarak.';
     }
   }catch(e){
     console.log('hotspot err',e);
