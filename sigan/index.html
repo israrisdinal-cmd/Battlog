@@ -133,7 +133,6 @@ window.refreshStrategiGPS = function(){
   }catch(e){}
 };
 
-// MANUAL ONLY - tidak ada auto requestGPS saat buka app
 console.log('GPS mode MANUAL ONLY - aktif hanya saat tekan tombol GPS');
 </script>
 
@@ -1033,14 +1032,13 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
 
     let aiHtml = `<div style="background:linear-gradient(135deg,#111d35 0%,#0f1f36 100%); border:1px solid #2b5a9a; border-radius:14px; padding:16px; line-height:1.7;">`;
 
-// ===== GPS DINAMIS + ANALISA JAM SAAT INI =====
+    // ===== GPS DINAMIS + ANALISA JAM SAAT INI - RANGKUMAN DI ATAS =====
     let currentHour = new Date().getHours();
     let currentHourStr = String(currentHour).padStart(2,'0')+':00';
     let gps = window.__CURRENT_GPS||null;
     let gpsAddr = window.__CURRENT_GPS_ADDRESS||'';
     try{ if(!gps){ let raw=localStorage.getItem('lapkeu_last_gps'); if(raw){ let p=JSON.parse(raw); gps={lat:p.lat,lng:p.lng}; gpsAddr=p.address||''; } } }catch(e){}
     
-    // Hitung area & layanan paling cuan di JAM INI SAJA (berdasarkan data historis jam sekarang)
     let hourData = data.filter(it=>{ let h=parseInt((it.time||'00:00').split(':')[0])||0; return h===currentHour; });
     let bestAreaNow = null, bestServiceNow = null;
     if(hourData.length>0){
@@ -1054,8 +1052,8 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
             if(!serviceNowMap[cat]) serviceNowMap[cat]={income:0, count:0};
             serviceNowMap[cat].income+=Number(it.amount)||0; serviceNowMap[cat].count+=1;
         });
-        let areaNowRanked = Object.entries(areaNowMap).map(([a,s])=>({area:a, avg:s.count? s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg);
-        let serviceNowRanked = Object.entries(serviceNowMap).map(([c,s])=>({cat:c, avg:s.count? s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg);
+        let areaNowRanked = Object.entries(areaNowMap).map(([aName,s])=>({area:aName, avg:s.count? s.income/s.count:0, count:s.count})).sort((x,y)=>y.avg-x.avg);
+        let serviceNowRanked = Object.entries(serviceNowMap).map(([cName,s])=>({cat:cName, avg:s.count? s.income/s.count:0, count:s.count})).sort((x,y)=>y.avg-x.avg);
         bestAreaNow = areaNowRanked[0]||null;
         bestServiceNow = serviceNowRanked[0]||null;
     }
@@ -1068,7 +1066,6 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
                 <button onclick="requestGPS()" style="font-size:12px; padding:6px 10px; border-radius:8px; background:#13223d; border:1px solid #00e676; color:#00e676;">📡 GPS Ulang</button>
             </div>
             <div style="font-size:14px; color:#dbe8ff; margin-top:6px;" id="gpsStatusText">📍 ${gpsAddr||gps.lat.toFixed(5)+','+gps.lng.toFixed(5)} • Jam ${currentHourStr}</div>
-            <div style="font-size:12px; color:#8aa0c6; margin-top:4px;">GPS manual - tekan GPS Ulang untuk update posisi</div>
         </div>`;
     } else {
         gpsHtml = `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:8px; padding:10px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
@@ -1085,12 +1082,12 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
         let jarakInfo = gps? `dari posisi kamu sekarang` : `dari area kamu biasa nongkrong`;
         geserHtml = `<div style="margin-top:8px; padding:8px; background:rgba(0,230,118,0.08); border-radius:6px;">
             <b style="color:#00e676;">🎯 Saran Geser Jam ${currentHourStr}:</b> Geser ke <b>${bestAreaNow.area}</b> ${jarakInfo} — historis jam ini ${bestAreaNow.count} order, avg Rp ${Math.round(bestAreaNow.avg).toLocaleString('id-ID')}/order. 
-            Layanan cuan jam ini: <b style="color:#7dffb7;">${bestServiceNow?bestServiceNow.cat:'Goride'}</b> (${bestServiceNow?Math.round(bestServiceNow.count)+' order, avg Rp '+Math.round(bestServiceNow.avg).toLocaleString('id-ID'):''}).
+            Layanan cuan jam ini: <b style="color:#7dffb7;">${bestServiceNow?bestServiceNow.cat:'Goride'}</b>
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(bestAreaNow.area)}" target="_blank" style="color:#40c4ff; margin-left:6px;">📍 Petakan</a>
         </div>`;
     } else if(bestArea){
         geserHtml = `<div style="margin-top:8px; padding:8px; background:rgba(0,230,118,0.08); border-radius:6px;">
-            <b style="color:#00e676;">🎯 Saran Geser:</b> Jam ${currentHourStr} historis sepi, tapi area <b>${bestArea.area}</b> paling cuan hari ini (Rp ${Math.round(bestArea.rpPerJam).toLocaleString('id-ID')}/jam). Utamakan <b>${servicesRanked[0]?servicesRanked[0].cat:'Goride'}</b>.
+            <b style="color:#00e676;">🎯 Saran Geser:</b> Area <b>${bestArea.area}</b> paling cuan hari ini (Rp ${Math.round(bestArea.rpPerJam).toLocaleString('id-ID')}/jam). Utamakan <b>${servicesRanked[0]?servicesRanked[0].cat:'Goride'}</b>.
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(bestArea.area)}" target="_blank" style="color:#40c4ff; margin-left:6px;">📍 Petakan</a>
         </div>`;
     }
@@ -1098,15 +1095,11 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
     aiHtml+=`<div style="background:#0a1328; border-radius:8px; padding:12px; border:1px dashed #1e2d4a;"><div style="font-size:14px; font-weight:800; color:#7dffb7; margin-bottom:6px;">💡 Rangkuman Strategi ${targetWeekdayName} Hari Ini - DINAMIS GPS</div>
     ${gpsHtml}
     <div style="font-size:14px; color:#dbe8ff; line-height:1.8;">
-    Hari ini ${targetWeekdayName} jam ${currentHourStr}, data gabungan bilang: fokus di area <b>${bestAreaNow?bestAreaNow.area:bestArea?bestArea.area:'area top'}</b> ${bestAreaNow?' (jam ini)':`pas jam ${bestHour?String(bestHour.h).padStart(2,'0')+':00':''}`} karena di jam itu historinya paling cuan. Utamakan <b>${bestServiceNow?bestServiceNow.cat:servicesRanked[0]?servicesRanked[0].cat:'Goride'}</b> dulu, matiin layanan yang boncos. 
+    Hari ini ${targetWeekdayName} jam ${currentHourStr}, fokus di area <b>${bestAreaNow?bestAreaNow.area:bestArea?bestArea.area:'area top'}</b> ${bestAreaNow?' (jam ini)':`pas jam ${bestHour?String(bestHour.h).padStart(2,'0')+':00':''}`} karena historinya paling cuan. Utamakan <b>${bestServiceNow?bestServiceNow.cat:servicesRanked[0]?servicesRanked[0].cat:'Goride'}</b>.
     ${geserHtml}
-    <div style="margin-top:8px; font-size:13px; color:#8aa0c6;">Kalau jam ${worstHour?String(worstHour.h).padStart(2,'0')+':00':''} lagi sepi, mending rehat cas baterai biar sore-malam bisa gas lagi. Target realistis hari ini Rp ${avgPerJam7?Math.round(avgPerJam7).toLocaleString('id-ID'):''}/jam. <span id="gpsLiveTime" style="font-size:11px;">Update: ${new Date().toLocaleTimeString('id-ID')}</span></div>
+    <div style="margin-top:8px; font-size:13px; color:#8aa0c6;">Target realistis hari ini Rp ${avgPerJam7?Math.round(avgPerJam7).toLocaleString('id-ID'):''}/jam. <span style="font-size:11px;">Update: ${new Date().toLocaleTimeString('id-ID')}</span></div>
     </div></div>`;
 
-
-    a
-
-    // Lanjutkan sections lain setelah Rangkuman di atas
 
 
     aiHtml+=`<div style="font-size:14px; color:#8aa0c6; margin-bottom:10px;">Analisa ${targetWeekdayName} • ${data7Hari.length} order 7 hari terakhir + ${dataSameDay21.length} order ${targetWeekdayName} 21 hari terakhir</div>`;
@@ -1149,11 +1142,9 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
         aiHtml+=`<span style="color:#8aa0c6; font-size:14px;">Solusinya jangan nunggu di situ, langsung geser ke ${bestArea?bestArea.area:'area rame terdekat'}.</span></div></div>`;
     }
 
-
     
-    // RANGKUMAN PINDAH KE ATAS - placeholder, akan diinsert di awal
-    let rangkumanDinamisHtml = '';
-iHtml+=`</div>`;
+    // Rangkuman dipindah ke atas
+    
     return aiHtml;
 }
 
