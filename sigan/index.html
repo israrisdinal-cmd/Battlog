@@ -3355,8 +3355,8 @@ async function generateForecastBesok(force=false){
   let sameDay=data.filter(d=> new Date(d.date).getDay()===tomorrowDay);
   let avgSame=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):0;
   try{
-    let prompt=`Prediksi besok ${tomorrowName}. Histori: ${sameDay.length} order avg Rp ${avgSame}. ATURAN: bahasa jangan panjang, singkat jelas, strategi terukur & akurat, analisa tajam. Format: 1 baris range pendapatan, 3 bullet jam on + area cuan + layanan, 1 baris target Rp/jam terukur. Balas HTML ringkas max 150 kata.`;
-    let body={model:'llama-3.3-70b-versatile', messages:[{role:'user', content:prompt}], temperature:0.7, max_tokens:1200};
+    let prompt=`TUGAS: prediksi besok ${tomorrowName}. Histori: ${sameDay.length} order avg Rp ${avgSame}. ATURAN: max 70 kata, TANPA motivasi. Format:\nRange: Rp X-Y\n• Jam: ...\n• Area: ...\n• Layanan: ...\nTarget: Rp/jam. Datar teknikal.`;
+    let body={model:'llama-3.3-70b-versatile', messages:[{role:'system', content:'Kamu analis data Gojek. Jawab max 70 kata, tanpa motivasi, hanya angka & strategi terukur.'},{role:'user', content:prompt}], temperature:0.4, max_tokens:400};
     let resp=await fetch('https://api.groq.com/openai/v1/chat/completions', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body:JSON.stringify(body)});
     let j=await resp.json(); let txt=j.choices?.[0]?.message?.content||'';
     container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">${txt}</div>`;
@@ -3404,8 +3404,8 @@ async function generateBattlogAnalisa(force=false){
   let lastBatt=batt.slice(0,5).map(b=>`${b.tanggal||''} ${b.km_awal||0}->${b.km_akhir||0} ${b.batt_awal||0}->${b.batt_akhir||0}%`).join('\n');
   let lastOrders=lapkeu.slice(0,10).map(o=>`${o.date||''} ${o.cat||''} ${o.dist||0}km`).join('\n');
   try{
-    let prompt=`Analisa baterai vs order. BATTLOG: ${lastBatt}. ORDERS: ${lastOrders}. ATURAN: bahasa singkat padat jelas, jangan panjang, strategi terukur & akurat, analisa tajam. Format: 1) Wh/km vs jarak (angka), 2) 2 layanan boros/irit, 3) 3 strategi terukur (baterai %, jam, jarak). Max 150 kata HTML.`;
-    let body={model:'llama-3.3-70b-versatile', messages:[{role:'user', content:prompt}], temperature:0.7, max_tokens:1200};
+    let prompt=`BATTLOG: ${lastBatt}\nORDERS: ${lastOrders}\nTUGAS: analisa teknis baterai vs order. ATURAN: super singkat max 80 kata, TANPA motivasi, langsung data teknis. Format bullet:\n• Wh/km avg: X vs ideal 32-35\n• Korelasi: batt<40%+jarak>5km=Wh/km naik Y%\n• Rekom teknis terukur: min batt %, max km, hindari Gofood jauh. Bahasa teknikal singkat, angka presisi.`;
+    let body={model:'llama-3.3-70b-versatile', messages:[{role:'system', content:'Kamu analis teknis EV. Jawab max 80 kata, tanpa motivasi, hanya data teknis terukur.'},{role:'user', content:prompt}], temperature:0.4, max_tokens:500};
     let resp=await fetch('https://api.groq.com/openai/v1/chat/completions', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body:JSON.stringify(body)});
     let j=await resp.json(); let txt=j.choices?.[0]?.message?.content||'';
     container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;">${txt}</div>`;
