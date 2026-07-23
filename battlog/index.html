@@ -404,12 +404,62 @@ window.addEventListener('storage', (event) => {
 
   <div id="view-riwayat" class="view">
     <div style="position: sticky; top: 0; background: var(--bg); z-index: 40; padding-top: 2px; padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 12px;">
-      <div class="maka-card shadow-xl" style="margin-bottom:0;">
-        <div class="flex items-center justify-between mb-2"><div style="font-weight:700; font-size:14px; color:#6fb2ff;">Ringkas Pemakaian</div><div class="flex gap-1" style="font-size:11px;"><button class="pill active" onclick="setRingkas('mingguan',this)" data-r="mingguan">Mingguan</button><button class="pill" onclick="setRingkas('bulanan',this)" data-r="bulanan">Bulanan</button><button class="pill" onclick="setRingkas('tahunan',this)" data-r="tahunan">Tahunan</button></div></div>
-        <div id="ringkasBox" class="space-y-1" style="font-size:12px; color:#9ab8e6; max-h:160px; overflow-y:auto;">Belum ada data.</div>
+      <div class="maka-card shadow-xl" style="margin-bottom:0; transition:all 0.3s;" id="ringkasCard">
+        <div class="flex items-center justify-between mb-2">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button onclick="toggleRingkas()" id="btnToggleRingkas" style="background:#13223d; border:1px solid #1e3a5f; color:#6fb2ff; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px;">👁️</button>
+            <div style="font-weight:700; font-size:14px; color:#6fb2ff;">Ringkas Pemakaian</div>
+            <span id="ringkasBadge" style="background:#0f1f36; border:1px solid #1e2d4a; color:#5a7096; font-size:10px; padding:2px 6px; border-radius:999px; display:none;">Tersembunyi</span>
+          </div>
+          <div class="flex gap-1" style="font-size:11px;" id="ringkasPills"><button class="pill active" onclick="setRingkas('mingguan',this)" data-r="mingguan">Mingguan</button><button class="pill" onclick="setRingkas('bulanan',this)" data-r="bulanan">Bulanan</button><button class="pill" onclick="setRingkas('tahunan',this)" data-r="tahunan">Tahunan</button></div>
+        </div>
+        <div id="ringkasBox" class="space-y-1" style="font-size:12px; color:#9ab8e6; max-h:160px; overflow-y:auto; transition:all 0.3s;">Belum ada data.</div>
       </div>
-      <div class="flex items-center justify-between mt-3"><h2 style="font-weight:700; font-size:16px; margin:0;">Daftar Catatan</h2><input id="searchBox" oninput="renderList()" placeholder="Cari catatan…" class="maka-input" style="width:140px; padding:7px 11px; font-size:12px;"></div>
+      <div class="flex items-center justify-between mt-3"><h2 style="font-weight:700; font-size:16px; margin:0;">Daftar Catatan</h2><div style="display:flex; gap:6px; align-items:center;"><button onclick="toggleRingkas()" style="background:#111d35; border:1px solid #1e2d4a; color:#8aa0c6; padding:6px 10px; border-radius:10px; font-size:11px; font-weight:700;">👁️ Ringkas</button><input id="searchBox" oninput="renderList()" placeholder="Cari catatan…" class="maka-input" style="width:140px; padding:7px 11px; font-size:12px;"></div></div>
     </div>
+    <script>
+    (function(){
+      const KEY='battlog_ringkas_hidden';
+      window.toggleRingkas=function(){
+        const box=document.getElementById('ringkasBox');
+        const pills=document.getElementById('ringkasPills');
+        const badge=document.getElementById('ringkasBadge');
+        const btn=document.getElementById('btnToggleRingkas');
+        if(!box) return;
+        const isHidden=box.style.display==='none';
+        if(isHidden){
+          box.style.display='block';
+          if(pills) pills.style.display='flex';
+          if(badge) badge.style.display='none';
+          if(btn) btn.innerHTML='👁️';
+          localStorage.setItem(KEY,'0');
+        } else {
+          box.style.display='none';
+          if(pills) pills.style.display='none';
+          if(badge) badge.style.display='inline-block';
+          if(btn) btn.innerHTML='🙈';
+          localStorage.setItem(KEY,'1');
+        }
+      };
+      // restore state
+      try{
+        const hidden=localStorage.getItem(KEY)==='1';
+        if(hidden){
+          setTimeout(()=>{
+            const box=document.getElementById('ringkasBox');
+            const pills=document.getElementById('ringkasPills');
+            const badge=document.getElementById('ringkasBadge');
+            const btn=document.getElementById('btnToggleRingkas');
+            if(box){ box.style.display='none'; }
+            if(pills){ pills.style.display='none'; }
+            if(badge){ badge.style.display='inline-block'; }
+            if(btn){ btn.innerHTML='🙈'; }
+          }, 200);
+        }
+      }catch(e){}
+    })();
+    </script>
+
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
 
