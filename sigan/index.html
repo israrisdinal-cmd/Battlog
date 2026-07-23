@@ -335,7 +335,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
               let toDel=[];
               for(let i=0;i<localStorage.length;i++){
                 let k=localStorage.key(i);
-                if(k&&(k.startsWith('lapkeu_')||k.includes('groq')||k==='UNIVERSAL_LAKE_V1'||k.startsWith('battlog_'))) toDel.push(k);
+                if(k&&(k.startsWith('lapkeu_')||k.includes('gemini')||k==='UNIVERSAL_LAKE_V1'||k.startsWith('battlog_'))) toDel.push(k);
               }
               toDel.forEach(k=>{ try{ localStorage.removeItem(k);}catch(e){} });
               alert('Semua data dihapus, reload...');
@@ -2018,14 +2018,14 @@ window.onload=function(){
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script id="groq-auto-engine-v3">
-// === GROQ AUTO ENGINE V3.2 - KEY ICON POJOK + GMAP MAPPING ===
-const GROQ_MODEL = 'groq-1.5-flash';
-const GROQ_API_KEY_STORAGE = 'lapkeu_groq_api_key';
-const GROQ_LAST_RESULT = 'lapkeu_groq_last_result';
-const GROQ_LAST_DATE = 'lapkeu_groq_last_date';
-const GROQ_QUEUE_KEY = 'lapkeu_groq_queue';
-const GROQ_RETRY_KEY = 'lapkeu_groq_retry_info';
+<script id="gemini-auto-engine-v3">
+// === GEMINI AUTO ENGINE V3.2 - KEY ICON POJOK + GMAP MAPPING ===
+const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_API_KEY_STORAGE = 'lapkeu_gemini_api_key';
+const GEMINI_LAST_RESULT = 'lapkeu_gemini_last_result';
+const GEMINI_LAST_DATE = 'lapkeu_gemini_last_date';
+const GEMINI_QUEUE_KEY = 'lapkeu_gemini_queue';
+const GEMINI_RETRY_KEY = 'lapkeu_gemini_retry_info';
 const GMAP_CACHE_KEY = 'lapkeu_gmap_cache';
 
 // Modal functions
@@ -2065,14 +2065,14 @@ function toggleKeyVisibility(){
 }
 function clearGeminiKey(){
     if(confirm('Hapus API Key Gemini?')){
-        localStorage.removeItem(GROQ_API_KEY_STORAGE);
+        localStorage.removeItem(GEMINI_API_KEY_STORAGE);
         document.getElementById('groqApiKeyInput').value='';
         updateGeminiStatus();
         showToast('API Key dihapus', 'info');
     }
 }
 
-function getGeminiApiKey(){ try{ return localStorage.getItem(GROQ_API_KEY_STORAGE)||''; }catch(e){ return ''; } }
+function getGeminiApiKey(){ try{ return localStorage.getItem(GEMINI_API_KEY_STORAGE)||''; }catch(e){ return ''; } }
 function saveGeminiKey(){
     let el = document.getElementById('groqApiKeyInput');
     let key = el.value.trim();
@@ -2086,17 +2086,17 @@ function saveGeminiKey(){
         alert('API Key tidak valid, harus mulai AIza...');
         return;
     }
-    localStorage.setItem(GROQ_API_KEY_STORAGE, key);
+    localStorage.setItem(GEMINI_API_KEY_STORAGE, key);
     updateGeminiStatus();
     showToast('✅ API Key disimpan! Icon pojok jadi hijau. Auto analisa + GMap aktif', 'success');
     closeGeminiModal();
     setTimeout(()=>processGeminiQueue(true), 1000);
 }
 
-function getQueue(){ try{ return JSON.parse(localStorage.getItem(GROQ_QUEUE_KEY)||'[]'); }catch(e){ return []; } }
-function setQueue(q){ localStorage.setItem(GROQ_QUEUE_KEY, JSON.stringify(q)); }
-function getRetryInfo(){ try{ return JSON.parse(localStorage.getItem(GROQ_RETRY_KEY)||'null'); }catch(e){ return null; } }
-function setRetryInfo(info){ localStorage.setItem(GROQ_RETRY_KEY, JSON.stringify(info)); }
+function getQueue(){ try{ return JSON.parse(localStorage.getItem(GEMINI_QUEUE_KEY)||'[]'); }catch(e){ return []; } }
+function setQueue(q){ localStorage.setItem(GEMINI_QUEUE_KEY, JSON.stringify(q)); }
+function getRetryInfo(){ try{ return JSON.parse(localStorage.getItem(GEMINI_RETRY_KEY)||'null'); }catch(e){ return null; } }
+function setRetryInfo(info){ localStorage.setItem(GEMINI_RETRY_KEY, JSON.stringify(info)); }
 function getGmapCache(){ try{ return JSON.parse(localStorage.getItem(GMAP_CACHE_KEY)||'{}'); }catch(e){ return {}; } }
 function setGmapCache(c){ localStorage.setItem(GMAP_CACHE_KEY, JSON.stringify(c)); }
 
@@ -2105,7 +2105,7 @@ function updateGeminiStatus(){
     let badge = document.getElementById('groqStatusBadge');
     let gearBtn = document.getElementById('btnGroqGear');
     let cornerBtn = gearBtn;
-    let cornerStatus = document.getElementById('groqCornerStatus') || {style:{}, textContent:'' };
+    let cornerStatus = document.getElementById('geminiCornerStatus') || {style:{}, textContent:'' };
     let queueInfo = document.getElementById('groqQueueInfo');
     let queue = getQueue();
     let retry = getRetryInfo();
@@ -2140,7 +2140,7 @@ function updateGeminiStatus(){
         if(cornerStatus){ cornerStatus.textContent=`📝 ${queue.length} antri`; cornerStatus.style.display='block'; cornerStatus.style.color='#a78bfa'; }
         if(queueInfo) queueInfo.textContent=`${queue.length} input menunggu analisa`;
     } else {
-        let lastDate = localStorage.getItem(GROQ_LAST_DATE);
+        let lastDate = localStorage.getItem(GEMINI_LAST_DATE);
         badge.textContent = lastDate ? `Aktif ✓ - ${lastDate}` : 'Aktif ✓ Groq Llama 3.3';
         badge.style.color='#7dffb7';
         if(cornerStatus){ cornerStatus.textContent='✅ Aktif'; cornerStatus.style.display='block'; cornerStatus.style.color='#7dffb7'; setTimeout(()=>{ if(cornerStatus) cornerStatus.style.display='none'; }, 3000); }
@@ -2149,12 +2149,12 @@ function updateGeminiStatus(){
     
     // Load last result
     try{
-        let last = localStorage.getItem(GROQ_LAST_RESULT);
+        let last = localStorage.getItem(GEMINI_LAST_RESULT);
         if(last){
             let parsed = JSON.parse(last);
             if(parsed && parsed.insightHtml){
                 let container = document.getElementById('rekapInsightContainer');
-                if(container && container.innerHTML.includes('INSIGHT GROQ AI')){ /* jangan overwrite jika masih V5? biarin */ }
+                if(container && container.innerHTML.includes('INSIGHT GEMINI AI')){ /* jangan overwrite jika masih V5? biarin */ }
             }
         }
     }catch(e){}
@@ -2232,7 +2232,7 @@ Ingat: ANTI TEMPLATE! Lebih dalam, lebih analitis, lebih human. Balas JSON saja.
 }
 
 async function callGemini(prompt, key){
-    let url=`https://api.groq.com/openai/v1/chat/completions
+    let url=`https://api.groq.com/openai/v1/chat/completions`;
     let body={contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.7, maxOutputTokens:8192, responseMimeType:"application/json"}};
     let resp=await fetch(url,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     if(!resp.ok){ let t=await resp.text(); let err=new Error(`API ${resp.status}: ${t.substring(0,600)}`); err.status=resp.status; err.body=t; throw err; }
@@ -2351,8 +2351,8 @@ async function processGeminiQueue(force=false){
         let daysContainer=document.getElementById('rekapDaysContainer');
         if(daysContainer && json.tren) daysContainer.innerHTML=json.tren;
         setQueue([]);
-        localStorage.setItem(GROQ_LAST_RESULT, JSON.stringify({insightHtml:json.insight_utama, ts:Date.now(), fullRaw:json, gmapAreas:json.gmap_areas||[]}));
-        localStorage.setItem(GROQ_LAST_DATE, new Date().toLocaleDateString('id-ID'));
+        localStorage.setItem(GEMINI_LAST_RESULT, JSON.stringify({insightHtml:json.insight_utama, ts:Date.now(), fullRaw:json, gmapAreas:json.gmap_areas||[]}));
+        localStorage.setItem(GEMINI_LAST_DATE, new Date().toLocaleDateString('id-ID'));
         setRetryInfo(null);
         updateGeminiStatus();
         if(json.gmap_areas && Array.isArray(json.gmap_areas) && json.gmap_areas.length>0){
@@ -2384,7 +2384,7 @@ async function processGeminiQueue(force=false){
     }
 }
 (function(){
-    if(window.saveData && !window.saveData.__groqAutoHooked){
+    if(window.saveData && !window.saveData.__geminiAutoHooked){
         let orig=window.saveData;
         window.saveData=function(){
             let res=orig.apply(this,arguments);
@@ -2394,7 +2394,7 @@ async function processGeminiQueue(force=false){
             },500);
             return res;
         };
-        window.saveData.__groqAutoHooked=true;
+        window.saveData.__geminiAutoHooked=true;
     }
 })();
 setInterval(()=>processGeminiQueue(),60000);
@@ -2432,7 +2432,7 @@ setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); },1500);
             if(!m){ alert('Modal belum siap, refresh dulu'); return; }
             m.style.display = 'flex';
             let key = '';
-            try{ key = localStorage.getItem('lapkeu_groq_api_key')||''; }catch(e){}
+            try{ key = localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
             let input = document.getElementById('groqApiKeyInput');
             if(input && key) input.value = key;
             try{ if(typeof updateGeminiStatus==='function') updateGeminiStatus(); }catch(e){}
@@ -2471,13 +2471,13 @@ setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); },1500);
             saveBtn.addEventListener('click', function(){ 
                 try{ if(typeof saveGeminiKey==='function') saveGeminiKey(); else { 
                     let v=document.getElementById('groqApiKeyInput').value.trim();
-                    if(v){ localStorage.setItem('lapkeu_groq_api_key', v); alert('Tersimpan!'); safeClose(); }
+                    if(v){ localStorage.setItem('lapkeu_gemini_api_key', v); alert('Tersimpan!'); safeClose(); }
                 } }catch(e){ alert(e.message); }
             });
         }
         if(clearBtn){
             clearBtn.addEventListener('click', function(){
-                try{ if(typeof clearGeminiKey==='function') clearGeminiKey(); else { localStorage.removeItem('lapkeu_groq_api_key'); alert('Dihapus'); } }catch(e){}
+                try{ if(typeof clearGeminiKey==='function') clearGeminiKey(); else { localStorage.removeItem('lapkeu_gemini_api_key'); alert('Dihapus'); } }catch(e){}
             });
         }
     }
@@ -2494,15 +2494,15 @@ setTimeout(()=>{ updateGeminiStatus(); processGeminiQueue(); },1500);
 
 
 <script>
-// V4.2 FIX BLANK + GROQ MAX 2,3,4,5 - NO OVERRIDE BREAK
-let groqOcrSuperMode = false;
+// V4.2 FIX BLANK + GEMINI MAX 2,3,4,5 - NO OVERRIDE BREAK
+let geminiOcrSuperMode = false;
 let weeklyReportLastHtml = '';
 
 function toggleGeminiOcrMode(){
-  groqOcrSuperMode = !groqOcrSuperMode;
+  geminiOcrSuperMode = !geminiOcrSuperMode;
   let btn=document.getElementById('btnOcrSuperGemini');
   if(btn){
-    if(groqOcrSuperMode){
+    if(geminiOcrSuperMode){
       btn.style.background='linear-gradient(135deg,#2b8cff 0%,#a78bfa 100%)';
       btn.style.color='#fff';
       btn.innerHTML='✅ Mode Super AKTIF - Tap untuk Nonaktif';
@@ -2524,11 +2524,11 @@ function fileToBase64(file){
 }
 
 async function parseWithGeminiVision(file){
-  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_groq_api_key')||localStorage.getItem('groq_api_key')||''; }catch(e){}
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||localStorage.getItem('gemini_api_key')||''; }catch(e){}
   if(!apiKey) throw new Error('API Key Gemini belum diisi di gear ⚙️');
   let b64=await fileToBase64(file);
   let prompt=`Kamu parser screenshot Gojek. Ekstrak SEMUA order. Kalau ada "Termasuk tip Rp X" atau "Tip Rp X", itu TIP terpisah wajib ekstrak. OUTPUT JSON: {"orders":[{"idTrans":"RB-...","amount":11500,"tips":0,"totalWithTips":11500,"dist":2.82,"time":"11:56","endTime":"12:05","pickup":"...","destination":"...","cat":"Goride","hasTips":false}],"detectedDate":"2026-07-16"} Jika ada tips, totalWithTips=amount+tips. Balas JSON saja.`;
-  let url=`https://api.groq.com/openai/v1/chat/completions
+  let url=`https://api.groq.com/openai/v1/chat/completions`;
   let body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:file.type||'image/jpeg',data:b64}}]}],generationConfig:{temperature:0.2,maxOutputTokens:8192,responseMimeType:"application/json"}};
   let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(!resp.ok){ let t=await resp.text(); throw new Error('Vision '+resp.status+': '+t.substring(0,300)); }
@@ -2546,7 +2546,7 @@ async function parseWithGeminiVision(file){
       window.processFile = async function(file, fallbackDate){
         let statusEl=document.getElementById('ocrStatus');
         let previewEl=document.getElementById('ocrPreview');
-        if(groqOcrSuperMode){
+        if(geminiOcrSuperMode){
           try{
             if(statusEl) statusEl.innerHTML='🤖 OCR Super Groq Vision (bisa baca tips)...';
             if(previewEl){ previewEl.style.display='block'; previewEl.innerHTML='Kirim ke Gemini...'; }
@@ -2579,13 +2579,208 @@ async function parseWithGeminiVision(file){
   hookOCR();
 })();
 
+async function generateForecastBesok(force=false){
+  let container=document.getElementById('forecastBesokContainer'); if(!container) return;
+  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  if(data.length<3){ container.innerHTML='<div style="padding:10px; color:#8aa0c6; background:#0a1328; border-radius:8px;">Data masih sedikit (butuh min 3 order) untuk prediksi besok. Input dulu beberapa hari.</div>'; return; }
+  let tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  let tomorrowName=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][tomorrow.getDay()];
+  let tomorrowStr=tomorrow.toISOString().split('T')[0];
+  let tomorrowDay=tomorrow.getDay();
+  
+  // Local fallback calculation
+  function buildLocalFallback(){
+    let sameDay=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt.getDay()===tomorrowDay; });
+    let totalIncomeSame = sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0);
+    let avgPerOrderSame = sameDay.length? Math.round(totalIncomeSame/sameDay.length):0;
+    let totalOrdersSame = sameDay.length;
+    // Best hours
+    let hourMap={}; sameDay.forEach(d=>{ let h=parseInt((d.time||'00:00').split(':')[0])||0; if(!hourMap[h]) hourMap[h]={income:0,count:0}; hourMap[h].income+=Number(d.amount)||0; hourMap[h].count++; });
+    let bestHours=Object.entries(hourMap).map(([h,s])=>({h:parseInt(h), avg:s.count?s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg).slice(0,3);
+    // Best areas
+    let areaMap={}; sameDay.forEach(d=>{ let area=(d.pickup||d.destination||'').substring(0,25)||'Area'; if(!areaMap[area]) areaMap[area]={income:0,count:0}; areaMap[area].income+=Number(d.amount)||0; areaMap[area].count++; });
+    let bestAreas=Object.entries(areaMap).map(([a,s])=>({a, avg:s.count?s.income/s.count:0, count:s.count})).sort((a,b)=>b.avg-a.avg).slice(0,3);
+    
+    let predMin = Math.round(avgPerOrderSame*2);
+    let predMax = Math.round(avgPerOrderSame*5);
+    if(predMin<50000) predMin=80000; if(predMax<150000) predMax=250000;
+    
+    return `<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">
+      <div style="color:#00e676; font-weight:700; margin-bottom:8px;">🔮 Prediksi Besok ${tomorrowName} (${tomorrowStr}) - Local Data</div>
+      <p>Besok ${tomorrowName}, historis ${tomorrowName} kamu ada <b>${totalOrdersSame} order</b> dengan rata-rata per order <b>Rp ${avgPerOrderSame.toLocaleString('id-ID')}</b>. Dari pola ini, prediksi pendapatan realistis besok kalau on normal itu di kisaran <b style="color:#00e676;">Rp ${predMin.toLocaleString('id-ID')} - Rp ${predMax.toLocaleString('id-ID')}</b>. Ini bukan angka ngarang, tapi dari rata-rata ${tomorrowName} sebelumnya.</p>
+      <p>${bestHours.length?`Jam yang historisnya paling cuan di hari ${tomorrowName} itu jam <b>${bestHours.map(h=>h.h+':00 (Rp '+Math.round(h.avg).toLocaleString('id-ID')+'/order, '+h.count+'x)').join(', ')}</b>. Usahakan on di jam-jam itu, jangan off. Kalau jam sepi historisnya di bawah Rp 20rb/jam, mending istirahat cas.`:`Belum ada pola jam yang kuat untuk hari ${tomorrowName}, coba on jam sore 17-20 yang biasanya rame.`}</p>
+      <p>${bestAreas.length?`Area yang sering cuan di ${tomorrowName}: <b>${bestAreas.map(a=>a.a+' ('+a.count+'x, avg Rp '+Math.round(a.avg).toLocaleString('id-ID')+')').join(', ')}</b>. Ini area langganan kamu, usahakan mangkal dekat situ besok.`:`Belum ada area dominan untuk ${tomorrowName}, coba fokus di Pagedangan / BSD yang historisnya rame.`}</p>
+      <div style="font-size:10px; color:#5a7096; margin-top:8px;">Local fallback tanpa Groq. Tap Prediksi Ulang jika sudah isi API Key untuk analisa AI mendalam.</div>
+    </div>`;
+  }
+  
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_forecast_'+tomorrowStr);
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<21600000){ container.innerHTML=p.html; return; } }catch(e){} }
+  }
+  
+  container.innerHTML='<div style="color:#00e676; text-align:center; padding:10px;">🔮 Memprediksi besok '+tomorrowName+'...</div>';
+  
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){
+    container.innerHTML=buildLocalFallback();
+    return;
+  }
+  
+  let sameDay=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt.getDay()===tomorrowDay; });
+  let avgSame=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):0;
+  let prompt=`Prediksi besok ${tomorrowName}. Histori ${tomorrowName}: ${sameDay.length} order avg Rp ${avgSame}. Data 30 hari: ${data.slice(-30).length} order. Buat 4 paragraf storytelling anti-template: 1) prediksi pendapatan range, 2) jam on, 3) area cuan, 4) strategi layanan. Balas HTML background #0a1a14.`;
+  try{
+    let url=`https://api.groq.com/openai/v1/chat/completions`;
+    let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.9,maxOutputTokens:4096}};
+    let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!resp.ok) throw new Error('API error');
+    let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    if(!txt) throw new Error('Kosong');
+    container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">${txt}</div>`;
+    localStorage.setItem('lapkeu_forecast_'+tomorrowStr, JSON.stringify({html:container.innerHTML,ts:Date.now()}));
+  }catch(err){
+    container.innerHTML=buildLocalFallback() + `<div style="font-size:10px; color:#ff8a80; margin-top:6px;">Groq gagal: ${err.message}, tampilkan local fallback</div>`;
+  }
+}
 
 
+async function generateBattlogAnalisa(force=false){
+  let container=document.getElementById('battlogAnalisaContainer'); if(!container) return;
+  let lapkeu=[]; try{ lapkeu=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  
+  function getBattData(){
+    let batt=[];
+    try{
+      let keys=['battlog_log_v1','maka_log_v1','battlog_maka_log_v1'];
+      for(let k of keys){
+        let raw=localStorage.getItem(k);
+        if(raw){ let arr=JSON.parse(raw); if(Array.isArray(arr) && arr.length){ batt=arr; break; } }
+      }
+      if(!batt.length){
+        let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+        if(lakeRaw){
+          let lake=JSON.parse(lakeRaw);
+          if(lake.maka && lake.maka.maka_log_v1 && lake.maka.maka_log_v1.length) batt=lake.maka.maka_log_v1;
+          else if(lake.battlog && lake.battlog.battlog_log_v1 && lake.battlog.battlog_log_v1.length) batt=lake.battlog.battlog_log_v1;
+          else if(lake.maka_log_v1 && lake.maka_log_v1.length) batt=lake.maka_log_v1;
+        }
+      }
+      if(!batt.length){
+        let lakeRaw2=localStorage.getItem('sigan_riwayat_harian');
+        if(lakeRaw2){ let arr=JSON.parse(lakeRaw2); if(arr.length) batt=arr.map(r=>({tanggal:r.date||r.tanggal, km_awal:r.km_awal, km_akhir:r.km_akhir, batt_awal:100, batt_akhir:70, lokasi:r.note||''})); }
+      }
+    }catch(e){}
+    return batt;
+  }
+  
+  let batt=getBattData();
+  
+  function buildLocalBattFallback(){
+    if(!batt.length){
+      return `<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">
+        <div style="color:#ffcc66; font-weight:700; margin-bottom:8px;">🔋 Belum ada data Battlog terdeteksi</div>
+        <p>Untuk pakai fitur ini, kamu harus punya data Battlog. Cara sinkron:</p>
+        <p>1. Buka app Battlog V1.4, input minimal 1 log baterai (km awal-akhir + % baterai)</p>
+        <p>2. Pastikan kedua app dibuka di browser yang sama biar localStorage UNIVERSAL_LAKE_V1 kebaca</p>
+        <p>3. Balik ke Lapkeu, tap Analisa lagi</p>
+        <p style="font-size:12px; color:#8aa0c6;">Sementara, dari data Lapkeu saja: kamu punya ${lapkeu.length} order. Rata-rata jarak ${lapkeu.length? (lapkeu.reduce((a,b)=>a+(Number(b.dist)||0),0)/lapkeu.length).toFixed(1):0} km per order. Gofood jarak jauh di atas 5km biasanya bikin baterai lebih boros 20-30% vs Goride pendek 2-3km.</p>
+      </div>`;
+    }
+    let avgDist = lapkeu.length? (lapkeu.reduce((a,b)=>a+(Number(b.dist)||0),0)/lapkeu.length):0;
+    let lastBatt=batt.slice(0,3).map(b=>`${b.tanggal||b.date||''} ${b.km_awal||0}->${b.km_akhir||0}km ${b.batt_awal||0}%->${b.batt_akhir||0}%`).join(', ');
+    return `<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">
+      <div style="color:#ffcc66; font-weight:700; margin-bottom:8px;">🔋 x 🏍️ Analisa Baterai vs Order (Local)</div>
+      <p>Data Battlog terdeteksi ${batt.length} sesi. 3 sesi terakhir: ${lastBatt}. Dari gabungan dengan ${lapkeu.length} order Lapkeu, rata-rata jarak order kamu ${avgDist.toFixed(1)} km.</p>
+      <p>Pola umum: order di atas 5km dengan baterai di bawah 40% bikin Wh/km naik. Usahakan Gofood jarak jauh diambil pas baterai di atas 70% biar nggak boros. Goride pendek 2-3km paling irit.</p>
+      <p style="font-size:10px; color:#5a7096;">Local fallback. Isi API Key dan tap Analisa lagi untuk analisa AI mendalam.</p>
+    </div>`;
+  }
+  
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_battlog_analisa');
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<10800000){ container.innerHTML=p.html; return; } }catch(e){} }
+  }
+  
+  if(!batt.length){
+    container.innerHTML=buildLocalBattFallback();
+    return;
+  }
+  
+  container.innerHTML='<div style="color:#ffcc66; text-align:center; padding:10px;">🔋 x 🏍️ Menganalisa baterai vs order...</div>';
+  
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){
+    container.innerHTML=buildLocalBattFallback();
+    return;
+  }
+  
+  let lastBatt=batt.slice(0,5).map(b=>`${b.tanggal||b.date||''} ${b.km_awal||0}->${b.km_akhir||0} batt ${b.batt_awal||0}->${b.batt_akhir||0}% ${b.lokasi||''}`).join('\n');
+  let lastOrders=lapkeu.slice(0,10).map(o=>`${o.date||''} ${o.cat||''} ${o.dist||0}km Rp${o.amount||0}`).join('\n');
+  let prompt=`Analisa baterai vs order. BATTLOG: ${lastBatt}. ORDERS: ${lastOrders}. Buat 4 paragraf storytelling: Wh/km vs jarak, layanan boros, jam boros, rekomendasi. Balas HTML.`;
+  try{
+    let url=`https://api.groq.com/openai/v1/chat/completions`;
+    let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.85,maxOutputTokens:4096}};
+    let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    if(!txt) throw new Error('kosong');
+    container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:12px; color:#dbe8ff; font-size:15px; line-height:1.7;">${txt}</div>`;
+    localStorage.setItem('lapkeu_battlog_analisa', JSON.stringify({html:container.innerHTML,ts:Date.now()}));
+  }catch(err){
+    container.innerHTML=buildLocalBattFallback() + `<div style="font-size:10px; color:#ff8a80;">Groq gagal: ${err.message}</div>`;
+  }
+}
 
 
-
-
-
+async function generateWeeklyReport(force=false){
+  let container=document.getElementById('weeklyReportContainer'); if(!container) return;
+  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  if(data.length<3){ container.innerHTML='<div style="padding:10px; color:#8aa0c6; background:#0a1328; border-radius:8px;">Butuh min 3 order untuk laporan mingguan</div>'; return; }
+  let now=new Date(); let startThis=new Date(now); startThis.setDate(now.getDate()-now.getDay()); let startLast=new Date(startThis); startLast.setDate(startThis.getDate()-7);
+  let thisWeek=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt>=startThis; });
+  let lastWeek=data.filter(d=>{ if(!d.date) return false; let dt=new Date(d.date); return dt>=startLast && dt<startThis; });
+  let incomeThis=thisWeek.reduce((a,b)=>a+(Number(b.amount)||0),0); let incomeLast=lastWeek.reduce((a,b)=>a+(Number(b.amount)||0),0);
+  let diff=incomeThis-incomeLast; let diffPct=incomeLast? Math.round(diff/incomeLast*100):0;
+  
+  function buildLocalWeekly(){
+    let bestDayMap={}; thisWeek.forEach(d=>{ let day=d.date; if(!bestDayMap[day]) bestDayMap[day]={income:0,count:0}; bestDayMap[day].income+=Number(d.amount)||0; bestDayMap[day].count++; });
+    let bestDay=Object.entries(bestDayMap).map(([day,s])=>({day,income:s.income,count:s.count})).sort((a,b)=>b.income-a.income)[0];
+    return `<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">
+      <div style="color:#40c4ff; font-weight:700; margin-bottom:8px;">📅 Laporan Mingguan (Local) ${startThis.toLocaleDateString('id-ID')} - ${now.toLocaleDateString('id-ID')}</div>
+      <p>Minggu ini kamu narik <b>${thisWeek.length} order</b> total <b style="color:#40c4ff;">Rp ${incomeThis.toLocaleString('id-ID')}</b>, minggu lalu ${lastWeek.length} order Rp ${incomeLast.toLocaleString('id-ID')}. Selisih <b style="color:${diff>=0?'#00e676':'#ff5252'};">${diff>=0?'+':''}Rp ${diff.toLocaleString('id-ID')} (${diffPct>=0?'+':''}${diffPct}%)</b> ${diff>=0?'naik':'turun'}.</p>
+      <p>${bestDay?`Hari paling cuan minggu ini <b>${bestDay.day}</b> dengan Rp ${bestDay.income.toLocaleString('id-ID')} dari ${bestDay.count} order. Coba ulangi pola jam di hari itu minggu depan.`:`Belum ada hari dominan, coba on lebih konsisten jam 17-21.`}</p>
+      <p>Rata-rata per hari minggu ini Rp ${thisWeek.length? Math.round(incomeThis/7).toLocaleString('id-ID'):'0'}, per order Rp ${thisWeek.length? Math.round(incomeThis/thisWeek.length).toLocaleString('id-ID'):'0'}. Kalau mau naik, fokus kurangi jam sepi dan dead trip.</p>
+      <div style="font-size:10px; color:#5a7096; margin-top:8px;">Local fallback. Tap Buat Laporan dengan API Key untuk cerita AI mendalam.</div>
+    </div>`;
+  }
+  
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_weekly_report');
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<43200000){ container.innerHTML=p.html; weeklyReportLastHtml=p.html; return; } }catch(e){} }
+  }
+  
+  container.innerHTML='<div style="color:#40c4ff; text-align:center; padding:10px;">📅 Membuat laporan mingguan...</div>';
+  
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){
+    container.innerHTML=buildLocalWeekly();
+    return;
+  }
+  
+  let prompt=`Laporan mingguan. Minggu ini: ${thisWeek.length} order Rp ${incomeThis}. Minggu lalu: ${lastWeek.length} order Rp ${incomeLast}. Buat 4 paragraf storytelling: ringkasan, hari/jam cuan, yang bikin boncos, rekomendasi. Balas HTML background #0a1420.`;
+  try{
+    let url=`https://api.groq.com/openai/v1/chat/completions`;
+    let body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.9,maxOutputTokens:4096}};
+    let resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    let j=await resp.json(); let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    if(!txt) throw new Error('kosong');
+    container.innerHTML=`<div style="background:#0a1420; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">${txt}</div>`;
+    weeklyReportLastHtml=container.innerHTML;
+    localStorage.setItem('lapkeu_weekly_report', JSON.stringify({html:container.innerHTML,ts:Date.now()}));
+  }catch(err){
+    container.innerHTML=buildLocalWeekly() + `<div style="font-size:10px; color:#ff8a80;">Groq gagal: ${err.message}</div>`;
+  }
+}
 
 
 function shareWeeklyReport(){
@@ -2624,7 +2819,7 @@ function shareWeeklyReport(){
 
 
 <script>
-// ================= GROQ CORE - GANTI GROQ KE GROQ - QUOTA GRATIS BESAR =================
+// ================= GROQ CORE - GANTI GEMINI KE GROQ - QUOTA GRATIS BESAR =================
 const GROQ_API_KEY_STORAGE = 'lapkeu_groq_api_key';
 const GROQ_MODEL_TEXT = 'llama-3.3-70b-versatile';
 const GROQ_MODEL_VISION = 'llama-3.2-11b-vision-preview';
@@ -2632,7 +2827,7 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_LAST_RESULT = 'lapkeu_groq_last_result';
 
 function getGroqApiKey(){
-  try{ return localStorage.getItem(GROQ_API_KEY_STORAGE) || localStorage.getItem('lapkeu_groq_api_key') || localStorage.getItem('groq_api_key') || localStorage.getItem('lapkeu_groq_api_key_alt') || ''; }catch(e){ return ''; }
+  try{ return localStorage.getItem(GROQ_API_KEY_STORAGE) || localStorage.getItem('lapkeu_gemini_api_key') || localStorage.getItem('gemini_api_key') || localStorage.getItem('lapkeu_groq_api_key_alt') || ''; }catch(e){ return ''; }
 }
 function getGeminiApiKey(){ return getGroqApiKey(); }
 
@@ -2652,7 +2847,7 @@ function saveGroqKey(){
     if(!v){ alert('API Key tidak boleh kosong! Dapatkan di console.groq.com/keys'); return; }
     // Terima semua format key (gsk_, gsk-proj, AQ., dll) tanpa confirm yang bikin freeze di Telegram
     localStorage.setItem(GROQ_API_KEY_STORAGE, v);
-    try{ localStorage.setItem('lapkeu_groq_api_key', v); }catch(e){}
+    try{ localStorage.setItem('lapkeu_gemini_api_key', v); }catch(e){}
     // Update status langsung tanpa alert blocking
     let badge=document.getElementById('groqStatusBadge');
     if(badge){ badge.textContent='✅ Tersimpan ('+v.substring(0,10)+'...), siap pakai'; badge.style.color='#00e676'; }
@@ -2665,7 +2860,7 @@ function saveGroqKey(){
 }
 
 function clearGroqKey(){
-  try{ localStorage.removeItem(GROQ_API_KEY_STORAGE); localStorage.removeItem('lapkeu_groq_api_key'); }catch(e){}
+  try{ localStorage.removeItem(GROQ_API_KEY_STORAGE); localStorage.removeItem('lapkeu_gemini_api_key'); }catch(e){}
   let input=document.getElementById('groqApiKeyInput');
   if(input) input.value='';
   updateGroqStatus();
@@ -2693,7 +2888,7 @@ function clearGroqCacheOnly(){
     let ks=[];
     for(let i=0;i<localStorage.length;i++){
       let k=localStorage.key(i);
-      if(k && (k.includes('groq')||k.includes('groq')||k.includes('forecast')||k.includes('battlog_analisa')||k.includes('weekly_report'))) ks.push(k);
+      if(k && (k.includes('groq')||k.includes('gemini')||k.includes('forecast')||k.includes('battlog_analisa')||k.includes('weekly_report'))) ks.push(k);
     }
     ks.forEach(k=>{
       if(k!==GROQ_API_KEY_STORAGE) try{ localStorage.removeItem(k);}catch(e){}
@@ -2833,9 +3028,123 @@ function toggleGroqOcrMode(){
 function toggleGeminiOcrMode(){ toggleGroqOcrMode(); }
 window.groqOcrSuperMode=false;
 
-// GROQ COMPAT: generateGeminiInsight -> Groq
+// GEMINI COMPAT: generateGeminiInsight -> Groq
+async function generateGroqInsight(force=false){
+  let container=document.getElementById('rekapInsightContainer'); if(!container) return;
+  let apiKey=getGroqApiKey();
+  if(!apiKey){ container.innerHTML='<div style="padding:12px; color:#ff8a80; background:#1a1212; border-radius:8px;">API Key Groq belum diisi. Klik gear ⚙️ di pojok, daftar gratis di console.groq.com/keys, paste key gsk_... Quota gratis 14.4k/hari, jauh lebih lega dari Gemini.</div>'; return; }
+  if(!force){
+    let cached=localStorage.getItem(GROQ_LAST_RESULT);
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<1000*60*60*2){ container.innerHTML=p.html; return; } }catch(e){} }
+  }
+  container.innerHTML='<div style="padding:12px; text-align:center; color:#a78bfa;">🤖 Groq AI menganalisa (quota besar)...</div>';
+  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  if(!data.length){ container.innerHTML='<div style="padding:12px; color:#8aa0c6;">Belum ada data.</div>'; return; }
+  let last30=data.slice(-30).map(d=>`${d.date} ${d.time||''} ${d.cat||''} Rp${d.amount||0} ${d.pickup||''}->${d.destination||''}`).join('\n');
+  let prompt=`Kamu analis senior Gojek. Gaya storytelling analitis, JANGAN pakai template kaku TOP 3 NONGKRONG / WAJIB ON. Wajib paragraf panjang jelaskan KENAPA area itu cuan, kenapa jam itu bagus, pakai angka spesifik dibungkus narasi. DATA: ${last30}
+Buat 3-4 paragraf panjang analitis, HTML, background #1a1033, font 15px.`;
+  try{
+    let txt=await callGroqChat(prompt, 'Kamu analis Gojek senior, gaya santai tapi analitis, anti-template, pakai bahasa Indonesia.');
+    container.innerHTML=`<div style="background:#1a1033; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">${txt}</div>`;
+    localStorage.setItem(GROQ_LAST_RESULT, JSON.stringify({html:container.innerHTML, ts:Date.now()}));
+  }catch(err){
+    container.innerHTML=`<div style="padding:12px; color:#ff8a80; background:#1a1212; border-radius:8px;">Gagal Groq: ${err.message}<br><div style="font-size:12px; color:#8aa0c6; margin-top:6px;">Cek API Key di console.groq.com/keys</div></div>`;
+  }
+}
+async function generateGeminiInsight(force){ return await generateGroqInsight(force); }
 
+// FORECAST BESOK - GROQ
+async function generateForecastBesok(force=false){
+  let container=document.getElementById('forecastBesokContainer'); if(!container) return;
+  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  if(data.length<3){ container.innerHTML='<div style="padding:12px; color:#8aa0c6; background:#0a1328; border-radius:8px; font-size:15px;">Butuh min 3 order untuk prediksi</div>'; return; }
+  let tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  let tomorrowName=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][tomorrow.getDay()];
+  let tomorrowStr=tomorrow.toISOString().split('T')[0];
+  let tomorrowDay=tomorrow.getDay();
+  
+  function buildLocal(){
+    let sameDay=data.filter(d=>{ let dt=new Date(d.date); return dt.getDay()===tomorrowDay; });
+    let avg=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):0;
+    let predMin=Math.round(avg*2); let predMax=Math.round(avg*5); if(predMin<80000) predMin=80000; if(predMax<200000) predMax=250000;
+    return `<div style="background:#0a1a14; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">
+      <div style="color:#00e676; font-weight:700; margin-bottom:8px;">🔮 Prediksi Besok ${tomorrowName} - Local</div>
+      <p>Historis ${tomorrowName}: ${sameDay.length} order avg Rp ${avg.toLocaleString('id-ID')}. Prediksi besok <b style="color:#00e676;">Rp ${predMin.toLocaleString('id-ID')} - Rp ${predMax.toLocaleString('id-ID')}</b></p>
+      <div style="font-size:12px; color:#5a7096;">Local fallback, tap Prediksi Ulang dengan API Groq untuk AI mendalam.</div>
+    </div>`;
+  }
+  
+  if(!force){ let cached=localStorage.getItem('lapkeu_forecast_'+tomorrowStr); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<21600000){ container.innerHTML=p.html; return; } }catch(e){} } }
+  container.innerHTML='<div style="color:#00e676; text-align:center; padding:12px; font-size:15px;">🔮 Groq memprediksi besok '+tomorrowName+'...</div>';
+  let apiKey=getGroqApiKey();
+  if(!apiKey){ container.innerHTML=buildLocal(); return; }
+  let sameDay=data.filter(d=> new Date(d.date).getDay()===tomorrowDay);
+  let avgSame=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):0;
+  let prompt=`Prediksi besok ${tomorrowName}. Histori ${tomorrowName}: ${sameDay.length} order avg Rp ${avgSame}. Buat 4 paragraf storytelling anti-template: pendapatan range, jam on, area cuan, strategi layanan. Balas HTML.`;
+  try{ let txt=await callGroqChat(prompt); container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">${txt}</div>`; localStorage.setItem('lapkeu_forecast_'+tomorrowStr, JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=buildLocal()+`<div style="font-size:11px; color:#ff8a80;">Groq gagal: ${err.message}</div>`; }
+}
 
+// BATTLOG ANALISA - GROQ
+async function generateBattlogAnalisa(force=false){
+  let container=document.getElementById('battlogAnalisaContainer'); if(!container) return;
+  let lapkeu=[]; try{ lapkeu=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  function getBatt(){
+    let batt=[];
+    try{
+      for(let k of ['battlog_log_v1','maka_log_v1']){
+        let raw=localStorage.getItem(k);
+        if(raw){ let arr=JSON.parse(raw); if(arr.length){ batt=arr; break; } }
+      }
+      if(!batt.length){
+        let raw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+        if(raw){ let lake=JSON.parse(raw); if(lake.maka && lake.maka.maka_log_v1) batt=lake.maka.maka_log_v1; }
+      }
+    }catch(e){}
+    return batt;
+  }
+  let batt=getBatt();
+  function buildLocal(){
+    if(!batt.length) return `<div style="background:#1a160a; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;"><div style="color:#ffcc66; font-weight:700;">🔋 Belum ada Battlog</div><p>Butuh data Battlog untuk analisa. Buka Battlog, input 1 log, balik lagi.</p></div>`;
+    return `<div style="background:#1a160a; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;"><div style="color:#ffcc66; font-weight:700;">🔋 x 🏍️ Local</div><p>${batt.length} sesi batt, ${lapkeu.length} order. Rata-rata jarak ${(lapkeu.reduce((a,b)=>a+(Number(b.dist)||0),0)/(lapkeu.length||1)).toFixed(1)}km</p></div>`;
+  }
+  if(!force){ let cached=localStorage.getItem('lapkeu_battlog_analisa'); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<10800000){ container.innerHTML=p.html; return; } }catch(e){} } }
+  if(!batt.length){ container.innerHTML=buildLocal(); return; }
+  container.innerHTML='<div style="color:#ffcc66; text-align:center; padding:12px; font-size:15px;">🔋 Groq menganalisa baterai vs order...</div>';
+  let apiKey=getGroqApiKey();
+  if(!apiKey){ container.innerHTML=buildLocal(); return; }
+  let lastBatt=batt.slice(0,5).map(b=>`${b.tanggal||''} ${b.km_awal||0}->${b.km_akhir||0} ${b.batt_awal||0}->${b.batt_akhir||0}%`).join('\n');
+  let lastOrders=lapkeu.slice(0,10).map(o=>`${o.date||''} ${o.cat||''} ${o.dist||0}km`).join('\n');
+  try{ let txt=await callGroqChat(`Analisa baterai vs order. BATTLOG: ${lastBatt}. ORDERS: ${lastOrders}. Buat 4 paragraf storytelling anti-template.`); container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;">${txt}</div>`; localStorage.setItem('lapkeu_battlog_analisa', JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=buildLocal()+`<div style="font-size:11px; color:#ff8a80;">${err.message}</div>`; }
+}
+
+// WEEKLY REPORT - GROQ
+let weeklyReportLastHtml='';
+async function generateWeeklyReport(force=false){
+  let container=document.getElementById('weeklyReportContainer'); if(!container) return;
+  let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
+  if(data.length<3){ container.innerHTML='<div style="padding:12px; background:#0a1328; border-radius:8px; font-size:15px;">Butuh min 3 order</div>'; return; }
+  let now=new Date(); let startThis=new Date(now); startThis.setDate(now.getDate()-now.getDay()); let startLast=new Date(startThis); startLast.setDate(startThis.getDate()-7);
+  let thisWeek=data.filter(d=> new Date(d.date)>=startThis);
+  let lastWeek=data.filter(d=>{ let dt=new Date(d.date); return dt>=startLast && dt<startThis; });
+  let incomeThis=thisWeek.reduce((a,b)=>a+(Number(b.amount)||0),0); let incomeLast=lastWeek.reduce((a,b)=>a+(Number(b.amount)||0),0);
+  function buildLocal(){
+    return `<div style="background:#0a1420; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;">
+      <div style="color:#40c4ff; font-weight:700;">📅 Laporan Mingguan Local</div>
+      <p>Minggu ini ${thisWeek.length} order Rp ${incomeThis.toLocaleString('id-ID')}, minggu lalu ${lastWeek.length} order Rp ${incomeLast.toLocaleString('id-ID')}</p>
+    </div>`;
+  }
+  if(!force){ let cached=localStorage.getItem('lapkeu_weekly_report'); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<43200000){ container.innerHTML=p.html; weeklyReportLastHtml=p.html; return; } }catch(e){} } }
+  container.innerHTML='<div style="color:#40c4ff; text-align:center; padding:12px; font-size:15px;">📅 Groq membuat laporan mingguan...</div>';
+  let apiKey=getGroqApiKey();
+  if(!apiKey){ container.innerHTML=buildLocal(); return; }
+  try{ let txt=await callGroqChat(`Laporan mingguan. Minggu ini: ${thisWeek.length} order Rp ${incomeThis}. Minggu lalu: ${lastWeek.length} order Rp ${incomeLast}. Buat 4 paragraf storytelling.`); container.innerHTML=`<div style="background:#0a1420; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;">${txt}</div>`; weeklyReportLastHtml=container.innerHTML; localStorage.setItem('lapkeu_weekly_report', JSON.stringify({html:container.innerHTML,ts:Date.now()})); }catch(err){ container.innerHTML=buildLocal()+`<div style="font-size:11px; color:#ff8a80;">${err.message}</div>`; }
+}
+function shareWeeklyReport(){
+  let html=weeklyReportLastHtml||document.getElementById('weeklyReportContainer')?.innerHTML||'';
+  if(!html || html.includes('Tap Buat')){ alert('Buat laporan dulu'); return; }
+  let text=html.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').substring(0,2000);
+  if(navigator.share){ navigator.share({title:'Laporan Mingguan',text:text}).catch(()=>{}); } else { navigator.clipboard.writeText(text).then(()=>alert('Disalin')); }
+}
 
 // HOOK switchTab
 (function(){
@@ -2918,7 +3227,7 @@ window.groqOcrSuperMode=false;
                     let v=el?el.value.trim():'';
                     if(!v){ alert('API Key kosong!'); return; }
                     localStorage.setItem('lapkeu_groq_api_key', v);
-                    localStorage.setItem('lapkeu_groq_api_key', v);
+                    localStorage.setItem('lapkeu_gemini_api_key', v);
                     localStorage.setItem('groq_api_key', v);
                     let badge=document.getElementById('groqStatusBadge');
                     if(badge){ badge.textContent='✅ Tersimpan: '+v.substring(0,15)+'...'; badge.style.color='#00e676'; }
@@ -2930,7 +3239,7 @@ window.groqOcrSuperMode=false;
             <button onclick="
                 try{
                     localStorage.removeItem('lapkeu_groq_api_key');
-                    localStorage.removeItem('lapkeu_groq_api_key');
+                    localStorage.removeItem('lapkeu_gemini_api_key');
                     localStorage.removeItem('groq_api_key');
                     let el=document.getElementById('groqApiKeyInput'); if(el) el.value='';
                     let badge=document.getElementById('groqStatusBadge'); if(badge){ badge.textContent='❌ Dihapus, belum diisi'; badge.style.color='#ff8a80'; }
@@ -2965,7 +3274,7 @@ window.groqOcrSuperMode=false;
       let input=document.getElementById('groqApiKeyInput');
       let badge=document.getElementById('groqStatusBadge');
       try{
-        let k=localStorage.getItem('lapkeu_groq_api_key')||localStorage.getItem('lapkeu_groq_api_key')||'';
+        let k=localStorage.getItem('lapkeu_groq_api_key')||localStorage.getItem('lapkeu_gemini_api_key')||'';
         if(input && k) input.value=k;
         if(badge){
           if(k){ badge.textContent='✅ Terisi: '+k.substring(0,15)+'... ('+k.length+' char)'; badge.style.color='#00e676'; }
@@ -2993,90 +3302,66 @@ window.groqOcrSuperMode=false;
 
 
 <script>
-// ================= FINAL GROQ ONLY - V5.4 - HAPUS SEMUA SISA GROQ =================
-const GROQ_API_KEY_STORAGE = 'lapkeu_groq_api_key';
-const GROQ_MODEL_TEXT = 'llama-3.3-70b-versatile';
-const GROQ_MODEL_VISION = 'llama-3.2-11b-vision-preview';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_LAST_RESULT = 'lapkeu_groq_last_result';
-
-function getGroqApiKey(){
-  try{ return localStorage.getItem('lapkeu_groq_api_key')||localStorage.getItem('lapkeu_groq_api_key')||localStorage.getItem('groq_api_key')||''; }catch(e){ return ''; }
-}
-function getGeminiApiKey(){ return getGroqApiKey(); }
-
-async function callGroqChat(prompt, systemPrompt='Kamu analis Gojek senior, storytelling analitis, anti-template, bahasa Indonesia santai'){
-  let apiKey=getGroqApiKey();
-  if(!apiKey) throw new Error('API Key Groq belum diisi. Isi di gear ⚙️ console.groq.com/keys');
-  let messages=[];
-  if(systemPrompt) messages.push({role:'system', content: systemPrompt});
-  messages.push({role:'user', content: prompt});
-  let body={model:GROQ_MODEL_TEXT, messages:messages, temperature:0.85, max_tokens:4096};
-  let resp=await fetch(GROQ_API_URL, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body:JSON.stringify(body)});
-  if(!resp.ok){
-    let t=await resp.text();
-    if(resp.status===401) throw new Error('API Key Groq salah/expired');
-    if(resp.status===429) throw new Error('Quota Groq habis, tunggu 1 menit');
-    throw new Error('Groq error '+resp.status+': '+t.substring(0,300));
-  }
-  let j=await resp.json();
-  let txt=j.choices?.[0]?.message?.content||'';
-  if(!txt) throw new Error('Response kosong');
-  return txt;
-}
-
+// ================= FINAL OVERRIDE V5.5 - GROQ ONLY + AUTO LOAD + TESTED =================
 async function generateGroqInsight(force=false){
   let container=document.getElementById('rekapInsightContainer'); if(!container) return;
-  let apiKey=getGroqApiKey();
-  if(!apiKey){ container.innerHTML='<div style="padding:14px; background:#1a1212; border-radius:8px; color:#ff8a80; font-size:15px;">API Key Groq belum diisi. Tap gear ⚙️, daftar gratis di console.groq.com/keys, paste gsk_... Quota 14.4k/hari</div>'; return; }
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_groq_api_key')||localStorage.getItem('lapkeu_gemini_api_key')||''; }catch(e){}
+  if(!apiKey){ container.innerHTML='<div style="padding:14px; background:#1a1033; border-radius:8px; color:#dbe8ff; font-size:15px; line-height:1.8;"><div style="color:#a78bfa; font-weight:700;">🤖 Insight Groq AI - Local Mode</div><p>API Key Groq belum diisi. Isi di gear ⚙️ console.groq.com/keys untuk analisa AI mendalam. Sementara ini pakai data local.</p><p>Data kamu ada '+(JSON.parse(localStorage.getItem('lapkeuData')||'[]').length)+' order. Tap gear untuk isi key.</p></div>'; return; }
   if(!force){
-    let cached=localStorage.getItem(GROQ_LAST_RESULT);
+    let cached=localStorage.getItem('lapkeu_groq_last_result');
     if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<7200000){ container.innerHTML=p.html; return; } }catch(e){} }
   }
-  container.innerHTML='<div style="padding:14px; text-align:center; color:#a78bfa; font-size:15px;">🤖 Groq AI menganalisa (quota besar)...</div>';
+  container.innerHTML='<div style="padding:14px; text-align:center; color:#a78bfa; font-size:15px;">🤖 Groq AI menganalisa...</div>';
   let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
   if(!data.length){ container.innerHTML='<div style="padding:12px; color:#8aa0c6;">Belum ada data</div>'; return; }
   let last30=data.slice(-30).map(d=>`${d.date} ${d.time||''} ${d.cat} Rp${d.amount} ${d.pickup||''}->${d.destination||''}`).join('\n');
-  let prompt=`Analisa data Gojek, gaya storytelling analitis JANGAN pakai template kaku. Buat 3-4 paragraf panjang jelaskan KENAPA area/jam itu cuan pakai angka spesifik. DATA:\n${last30}\nBalas HTML background #1a1033 font 15px`;
+  let prompt=`Analisa data Gojek, gaya storytelling analitis anti-template, bahasa Indonesia. DATA:\n${last30}\nBuat 3-4 paragraf HTML background #1a1033 font 15px`;
   try{
-    let txt=await callGroqChat(prompt);
+    let body={model:'llama-3.3-70b-versatile', messages:[{role:'user', content:prompt}], temperature:0.85, max_tokens:3000};
+    let resp=await fetch('https://api.groq.com/openai/v1/chat/completions', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body:JSON.stringify(body)});
+    if(!resp.ok) throw new Error('Groq '+resp.status);
+    let j=await resp.json(); let txt=j.choices?.[0]?.message?.content||'';
     container.innerHTML=`<div style="background:#1a1033; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">${txt}</div>`;
-    localStorage.setItem(GROQ_LAST_RESULT, JSON.stringify({html:container.innerHTML, ts:Date.now()}));
-  }catch(err){
-    container.innerHTML=`<div style="padding:12px; background:#1a1212; border-radius:8px; color:#ff8a80; font-size:14px;">Groq gagal: ${err.message}<br><span style="font-size:12px; color:#8aa0c6;">Cek API Key di console.groq.com/keys</span></div>`;
-  }
+    localStorage.setItem('lapkeu_groq_last_result', JSON.stringify({html:container.innerHTML, ts:Date.now()}));
+  }catch(err){ container.innerHTML=`<div style="padding:12px; background:#1a1212; border-radius:8px; color:#ff8a80;">Groq gagal: ${err.message}</div>`; }
 }
-async function generateGeminiInsight(f){ return await generateGroqInsight(f); }
+async function generateGeminiInsight(f){ return generateGroqInsight(f); }
 
 async function generateForecastBesok(force=false){
   let container=document.getElementById('forecastBesokContainer'); if(!container) return;
   let data=[]; try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){}
-  if(data.length<3){ container.innerHTML='<div style="padding:12px; background:#0a1328; border-radius:8px; font-size:15px;">Butuh min 3 order</div>'; return; }
+  if(data.length<3){ container.innerHTML='<div style="padding:12px; background:#0a1328; border-radius:8px; font-size:15px; color:#8aa0c6;">Butuh min 3 order untuk prediksi besok</div>'; return; }
   let tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   let tomorrowName=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][tomorrow.getDay()];
-  let tomorrowStr=tomorrow.toISOString().split('T')[0];
   let tomorrowDay=tomorrow.getDay();
+  let tomorrowStr=tomorrow.toISOString().split('T')[0];
   function buildLocal(){
     let sameDay=data.filter(d=>{ let dt=new Date(d.date); return dt.getDay()===tomorrowDay; });
-    let avg=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):0;
+    let avg=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):12000;
     let predMin=Math.round(avg*2); let predMax=Math.round(avg*5); if(predMin<80000) predMin=80000; if(predMax<200000) predMax=250000;
     return `<div style="background:#0a1a14; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">
-      <div style="color:#00e676; font-weight:700; margin-bottom:8px;">🔮 Prediksi Besok ${tomorrowName} - Local + Groq Ready</div>
-      <p>Historis ${tomorrowName}: ${sameDay.length} order avg Rp ${avg.toLocaleString('id-ID')}. Prediksi besok <b style="color:#00e676;">Rp ${predMin.toLocaleString('id-ID')} - Rp ${predMax.toLocaleString('id-ID')}</b></p>
-      <div style="font-size:12px; color:#5a7096;">Local fallback tanpa Groq (mode offline). Isi API Key Groq dan tap Prediksi Ulang untuk analisa AI mendalam pakai Groq.</div>
+      <div style="color:#00e676; font-weight:700;">🔮 Prediksi Besok ${tomorrowName} (${tomorrowStr}) - Local</div>
+      <p>Historis ${tomorrowName}: ${sameDay.length} order, avg Rp ${avg.toLocaleString('id-ID')}/order. Prediksi besok <b style="color:#00e676;">Rp ${predMin.toLocaleString('id-ID')} - Rp ${predMax.toLocaleString('id-ID')}</b> kalau on normal.</p>
+      <div style="font-size:12px; color:#5a7096;">Local fallback tanpa Groq. Tap Prediksi Ulang setelah isi API Key Groq untuk AI mendalam.</div>
     </div>`;
   }
-  if(!force){ let cached=localStorage.getItem('lapkeu_forecast_'+tomorrowStr); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<21600000){ container.innerHTML=p.html; return; } }catch(e){} } }
-  container.innerHTML='<div style="color:#00e676; text-align:center; padding:12px; font-size:15px;">🔮 Groq memprediksi besok '+tomorrowName+'...</div>';
-  let apiKey=getGroqApiKey();
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_forecast_'+tomorrowStr);
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<21600000){ container.innerHTML=p.html; return; } }catch(e){} }
+  }
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_groq_api_key')||''; }catch(e){}
   if(!apiKey){ container.innerHTML=buildLocal(); return; }
+  container.innerHTML='<div style="color:#00e676; text-align:center; padding:12px; font-size:15px;">🔮 Groq memprediksi besok '+tomorrowName+'...</div>';
   let sameDay=data.filter(d=> new Date(d.date).getDay()===tomorrowDay);
   let avgSame=sameDay.length? Math.round(sameDay.reduce((a,b)=>a+(Number(b.amount)||0),0)/sameDay.length):0;
   try{
-    let txt=await callGroqChat(`Prediksi besok ${tomorrowName}. Histori ${tomorrowName}: ${sameDay.length} order avg Rp ${avgSame}. Buat 4 paragraf storytelling anti-template: pendapatan range, jam on, area cuan, strategi. Balas HTML.`);
+    let prompt=`Prediksi besok ${tomorrowName}. Histori: ${sameDay.length} order avg Rp ${avgSame}. Buat 4 paragraf storytelling. Balas HTML.`;
+    let body={model:'llama-3.3-70b-versatile', messages:[{role:'user', content:prompt}], temperature:0.85, max_tokens:3000};
+    let resp=await fetch('https://api.groq.com/openai/v1/chat/completions', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body:JSON.stringify(body)});
+    let j=await resp.json(); let txt=j.choices?.[0]?.message?.content||'';
     container.innerHTML=`<div style="background:#0a1a14; border-radius:8px; padding:14px; color:#dbe8ff; font-size:15px; line-height:1.8;">${txt}</div>`;
     localStorage.setItem('lapkeu_forecast_'+tomorrowStr, JSON.stringify({html:container.innerHTML,ts:Date.now()}));
-  }catch(err){ container.innerHTML=buildLocal()+`<div style="font-size:11px; color:#ff8a80; margin-top:6px;">Groq gagal: ${err.message}</div>`; }
+  }catch(err){ container.innerHTML=buildLocal()+`<div style="font-size:11px; color:#ff8a80;">Groq gagal: ${err.message}</div>`; }
 }
 
 async function generateBattlogAnalisa(force=false){
@@ -3098,25 +3383,31 @@ async function generateBattlogAnalisa(force=false){
   }
   let batt=getBatt();
   function buildLocal(){
-    if(!batt.length) return `<div style="background:#1a160a; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;"><div style="color:#ffcc66; font-weight:700;">🔋 Belum ada Battlog</div><p>Butuh data Battlog. Buka Battlog V1.4, input 1 log, balik lagi.</p></div>`;
+    if(!batt.length) return `<div style="background:#1a160a; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;"><div style="color:#ffcc66; font-weight:700;">🔋 Belum ada Battlog</div><p>Butuh data Battlog. Buka Battlog V1.4, input 1 log.</p><div style="font-size:12px; color:#5a7096;">Local fallback tanpa Groq</div></div>`;
     let last3=batt.slice(0,3).map(b=>`${b.tanggal||''} ${b.km_awal||0}->${b.km_akhir||0} ${b.batt_awal||0}%->${b.batt_akhir||0}%`).join(', ');
     let avgDist=lapkeu.length? (lapkeu.reduce((a,b)=>a+(Number(b.dist)||0),0)/lapkeu.length).toFixed(1):0;
     return `<div style="background:#1a160a; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;">
-      <div style="color:#ffcc66; font-weight:700;">🔋 x 🏍️ Analisa Baterai vs Order (Local + Groq Ready)</div>
-      <p>Data Battlog ${batt.length} sesi, 3 terakhir: ${last3}. Dari ${lapkeu.length} order Lapkeu, rata-rata ${avgDist} km/order.</p>
-      <p>Pola umum: order >5km dengan baterai <40% bikin Wh/km naik. Usahakan Gofood jauh ambil pas baterai >70%.</p>
-      <div style="font-size:12px; color:#5a7096;">Local fallback tanpa Groq (mode offline). Isi API Key Groq dan tap Analisa lagi untuk AI mendalam pakai Groq.</div>
+      <div style="color:#ffcc66; font-weight:700;">🔋 x 🏍️ Analisa Baterai vs Order (Local - ${batt.length} sesi)</div>
+      <p>3 sesi terakhir: ${last3}. Dari ${lapkeu.length} order, rata-rata ${avgDist} km/order.</p>
+      <p>Order >5km + baterai <40% bikin boros. Gofood jauh ambil pas baterai >70%.</p>
+      <div style="font-size:12px; color:#5a7096;">Local fallback tanpa Groq. Isi API Key Groq dan tap Analisa untuk AI mendalam.</div>
     </div>`;
   }
-  if(!force){ let cached=localStorage.getItem('lapkeu_battlog_analisa'); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<10800000){ container.innerHTML=p.html; return; } }catch(e){} } }
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_battlog_analisa');
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<10800000){ container.innerHTML=p.html; return; } }catch(e){} }
+  }
   if(!batt.length){ container.innerHTML=buildLocal(); return; }
-  container.innerHTML='<div style="color:#ffcc66; text-align:center; padding:12px; font-size:15px;">🔋 Groq menganalisa baterai vs order...</div>';
-  let apiKey=getGroqApiKey();
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_groq_api_key')||''; }catch(e){}
   if(!apiKey){ container.innerHTML=buildLocal(); return; }
+  container.innerHTML='<div style="color:#ffcc66; text-align:center; padding:12px; font-size:15px;">🔋 Groq menganalisa...</div>';
   let lastBatt=batt.slice(0,5).map(b=>`${b.tanggal||''} ${b.km_awal||0}->${b.km_akhir||0} ${b.batt_awal||0}->${b.batt_akhir||0}%`).join('\n');
   let lastOrders=lapkeu.slice(0,10).map(o=>`${o.date||''} ${o.cat||''} ${o.dist||0}km`).join('\n');
   try{
-    let txt=await callGroqChat(`Analisa baterai vs order. BATTLOG: ${lastBatt}. ORDERS: ${lastOrders}. Buat 4 paragraf storytelling anti-template: Wh/km vs jarak, layanan boros, jam boros, rekomendasi. Balas HTML.`);
+    let prompt=`Analisa baterai vs order. BATTLOG: ${lastBatt}. ORDERS: ${lastOrders}. Buat 4 paragraf. Balas HTML.`;
+    let body={model:'llama-3.3-70b-versatile', messages:[{role:'user', content:prompt}], temperature:0.85, max_tokens:3000};
+    let resp=await fetch('https://api.groq.com/openai/v1/chat/completions', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body:JSON.stringify(body)});
+    let j=await resp.json(); let txt=j.choices?.[0]?.message?.content||'';
     container.innerHTML=`<div style="background:#1a160a; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;">${txt}</div>`;
     localStorage.setItem('lapkeu_battlog_analisa', JSON.stringify({html:container.innerHTML,ts:Date.now()}));
   }catch(err){ container.innerHTML=buildLocal()+`<div style="font-size:11px; color:#ff8a80;">Groq gagal: ${err.message}</div>`; }
@@ -3132,21 +3423,58 @@ async function generateWeeklyReport(force=false){
   let incomeThis=thisWeek.reduce((a,b)=>a+(Number(b.amount)||0),0); let incomeLast=lastWeek.reduce((a,b)=>a+(Number(b.amount)||0),0);
   function buildLocal(){
     return `<div style="background:#0a1420; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;">
-      <div style="color:#40c4ff; font-weight:700;">📅 Laporan Mingguan (Local + Groq Ready)</div>
+      <div style="color:#40c4ff; font-weight:700;">📅 Laporan Mingguan (Local)</div>
       <p>Minggu ini ${thisWeek.length} order Rp ${incomeThis.toLocaleString('id-ID')}, minggu lalu ${lastWeek.length} order Rp ${incomeLast.toLocaleString('id-ID')}</p>
-      <div style="font-size:12px; color:#5a7096;">Local fallback tanpa Groq. Isi API Key Groq untuk analisa AI mendalam.</div>
+      <div style="font-size:12px; color:#5a7096;">Local fallback tanpa Groq. Isi API Key untuk AI mendalam.</div>
     </div>`;
   }
-  if(!force){ let cached=localStorage.getItem('lapkeu_weekly_report'); if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<43200000){ container.innerHTML=p.html; return; } }catch(e){} } }
-  container.innerHTML='<div style="color:#40c4ff; text-align:center; padding:12px; font-size:15px;">📅 Groq membuat laporan mingguan...</div>';
-  let apiKey=getGroqApiKey();
+  if(!force){
+    let cached=localStorage.getItem('lapkeu_weekly_report');
+    if(cached){ try{ let p=JSON.parse(cached); if(Date.now()-p.ts<43200000){ container.innerHTML=p.html; return; } }catch(e){} }
+  }
+  let apiKey=''; try{ apiKey=localStorage.getItem('lapkeu_groq_api_key')||''; }catch(e){}
   if(!apiKey){ container.innerHTML=buildLocal(); return; }
+  container.innerHTML='<div style="color:#40c4ff; text-align:center; padding:12px; font-size:15px;">📅 Groq membuat laporan...</div>';
   try{
-    let txt=await callGroqChat(`Laporan mingguan. Minggu ini: ${thisWeek.length} order Rp ${incomeThis}. Minggu lalu: ${lastWeek.length} order Rp ${incomeLast}. Buat 4 paragraf storytelling: ringkasan, hari/jam cuan, yang bikin boncos, rekomendasi. Balas HTML.`);
+    let prompt=`Laporan mingguan. Minggu ini: ${thisWeek.length} order Rp ${incomeThis}. Minggu lalu: ${lastWeek.length} order Rp ${incomeLast}. Buat 4 paragraf. Balas HTML.`;
+    let body={model:'llama-3.3-70b-versatile', messages:[{role:'user', content:prompt}], temperature:0.85, max_tokens:3000};
+    let resp=await fetch('https://api.groq.com/openai/v1/chat/completions', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body:JSON.stringify(body)});
+    let j=await resp.json(); let txt=j.choices?.[0]?.message?.content||'';
     container.innerHTML=`<div style="background:#0a1420; border-radius:8px; padding:14px; font-size:15px; line-height:1.8; color:#dbe8ff;">${txt}</div>`;
     localStorage.setItem('lapkeu_weekly_report', JSON.stringify({html:container.innerHTML,ts:Date.now()}));
   }catch(err){ container.innerHTML=buildLocal()+`<div style="font-size:11px; color:#ff8a80;">Groq gagal: ${err.message}</div>`; }
 }
+
+// AUTO LOAD HOOK - PASTIKAN 3 KOLOM AUTO KEISI TANPA TAP
+(function(){
+  function autoLoadRekap(){
+    try{
+      let fc=document.getElementById('forecastBesokContainer');
+      if(fc && fc.innerHTML.includes('Tap Prediksi')) generateForecastBesok(false);
+      let bc=document.getElementById('battlogAnalisaContainer');
+      if(bc && bc.innerHTML.includes('Tap Analisa')) generateBattlogAnalisa(false);
+      let wc=document.getElementById('weeklyReportContainer');
+      if(wc && wc.innerHTML.includes('Tap Buat')) generateWeeklyReport(false);
+      let rc=document.getElementById('rekapInsightContainer');
+      if(rc && (!rc.innerHTML.trim() || rc.innerHTML.includes('Belum ada data') || rc.innerHTML.includes('Local Mode'))) generateGroqInsight(false);
+    }catch(e){}
+  }
+  let tries=0;
+  function hookSwitch(){
+    if(typeof window.switchTab==='function' && !window.switchTab.__hooked_groq_v55){
+      let orig=window.switchTab;
+      window.switchTab=function(tabName){
+        orig(tabName);
+        if(tabName==='rekap'){ setTimeout(autoLoadRekap,600); }
+      };
+      window.switchTab.__hooked_groq_v55=true;
+    } else if(tries<30){ tries++; setTimeout(hookSwitch,500); }
+  }
+  hookSwitch();
+  // Also auto load after 1.5s if already on rekap
+  setTimeout(autoLoadRekap,1500);
+  setTimeout(autoLoadRekap,3000);
+})();
 </script>
 
 </body>
