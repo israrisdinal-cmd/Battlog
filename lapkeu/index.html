@@ -33,7 +33,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.24.5 FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.24.6 FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -163,7 +163,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.5</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.6</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -908,7 +908,7 @@ function buildHotspotByHour(){
     let areaMap={};
     filtered.forEach(it=>{
       let rawPickup=it.pickup||it.lokasi_jemput||it.jemput||it.destination||it.lokasi_antar||'';
-      if(typeof cleanGojekAddress==='function'){ try{ rawPickup=cleanGojekAddress(rawPickup); }catch(e){} }
+      if(typeof cleanGojekAddressDeep==='function'){ try{ rawPickup=cleanGojekAddressDeep(rawPickup); }catch(e){} } else if(typeof cleanGojekAddress==='function'){ try{ rawPickup=cleanGojekAddress(rawPickup); }catch(e){} }
       let area=typeof extractAreaSimple==='function'? extractAreaSimple(rawPickup) : (rawPickup.substring(0,22)||'Unknown');
       if(!area || area.trim()==='') area='Unknown';
       if(!areaMap[area]) areaMap[area]={count:0, income:0, samples:[], lat:null, lon:null};
@@ -1168,7 +1168,7 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
             let h=parseInt((item.time||'00:00').split(':')[0])||0;
             hourMap[h].income+=amt*weight; hourMap[h].hours+=dur*weight; hourMap[h].orders+=1*weight; hourMap[h].score+= (dur>0? (amt/dur)*weight : 0);
             
-            let rawAreaIt=item.pickup||''; if(typeof cleanGojekAddress==='function'){ try{ rawAreaIt=cleanGojekAddress(rawAreaIt); }catch(e){} } let area = (typeof extractAreaSimple==='function'? extractAreaSimple(rawAreaIt) : (rawAreaIt.substring(0,20))) || 'Unknown';
+            let rawAreaIt=item.pickup||''; if(typeof cleanGojekAddressDeep==='function'){ try{ rawAreaIt=cleanGojekAddressDeep(rawAreaIt); }catch(e){} } else if(typeof cleanGojekAddress==='function'){ try{ rawAreaIt=cleanGojekAddress(rawAreaIt); }catch(e){} } let area = (typeof extractAreaSimple==='function'? extractAreaSimple(rawAreaIt) : (rawAreaIt.substring(0,20))) || 'Unknown';
             if(!areaMap[area]) areaMap[area]={income:0, hours:0, orders:0, score:0};
             areaMap[area].income+=amt*weight; areaMap[area].hours+=dur*weight; areaMap[area].orders+=1*weight; areaMap[area].score+= (dur>0? (amt/dur)*weight : 0);
             
@@ -1444,7 +1444,7 @@ function loadRekapData(){
                     blockMatch.orderCount++;
                     // heatmap area: pakai pickup sebagai sumber order
                     try{
-                        let rawTier=ord.pickup||ord.destination||''; if(typeof cleanGojekAddress==='function'){ try{ rawTier=cleanGojekAddress(rawTier); }catch(e){} } let areaKey=extractAreaSimple(rawTier);
+                        let rawTier=ord.pickup||ord.destination||''; if(typeof cleanGojekAddressDeep==='function'){ try{ rawTier=cleanGojekAddressDeep(rawTier); }catch(e){} } else if(typeof cleanGojekAddress==='function'){ try{ rawTier=cleanGojekAddress(rawTier); }catch(e){} } let areaKey=extractAreaSimple(rawTier);
                         if(areaKey){
                             blockMatch.areas[areaKey]=(blockMatch.areas[areaKey]||0)+1;
                         }
@@ -1901,44 +1901,71 @@ window.onload=function(){
   function cleanGojekAddress(raw){
     if(!raw) return '';
     let s=String(raw).trim();
-    // Step 1: remove leading bullet / dash / dot artifacts
-    s=s.replace(/^[\s•·●○·\u2022\u00B7\-\–\—]+/, '');
-    // Step 2: remove Tesseract misread of blue/yellow dots as e, o, eo, ee, oo, etc
-    // e.g. "e Jl.", "eo Jl.", "o Jl.", "e Purnawarman"
-    s=s.replace(/^(?:[eEoO]{1,3}|[eE]\s*[oO]|[oO]\s*[eE])\s+/, '');
-    s=s.replace(/^[eEoO]\s+(?=(Jl\.?|Jalan|Gg|Gang|Perum|Komplek|Komp|Desa|Dusun|Kec|Kel|RT|RW|No|Blok|Kav|Jl|Q[A-Z0-9]{2,}\+))/i, '');
-    // single isolated latin char at start: "e " or "a " before address
-    s=s.replace(/^[a-zA-Z]\s+(?=[A-Z0-9])/,'');
-    s=s.replace(/^[^A-Za-z0-9\u00C0-\u024F]+/, '');
-    s=s.replace(/^(e|eo|o|ee|oo)\s+/i,'');
-    // Remove duplicate leading e/o again after first clean
-    s=s.replace(/^[eEoO]{1,2}\s+/,'');
+    // Ultra aggressive cleaning - loop until stable
+    let prev='';
+    let loop=0;
+    while(s!==prev && loop<6){
+      prev=s;
+      // remove bullets, dashes, spaces
+      s=s.replace(/^[\s•·●○·\u2022\u00B7\-\–\—\|]+/, '');
+      // remove leading e, eo, o, ee, oo, etc - various Tesseract misread of blue/yellow dots
+      s=s.replace(/^(?:[eEoO]{1,3}|eo|oe|ee|oo|e\s*o|o\s*e)\s+/i, '');
+      // e or eo directly before Jl/Jalan/etc without proper space handling
+      s=s.replace(/^[eEoO]+\s*(?=(Jl\.?|Jalan|Gg\.?|Gang|Perum|Komplek|Komp|Desa|Dusun|Kec\.?|Kel\.?|RT|RW|No\.?|Blok|Kav|Jl))/i, '');
+      // single isolated char at start like "e " or "a " before address
+      s=s.replace(/^[a-zA-Z]\s+(?=[A-Z0-9])/,'');
+      s=s.replace(/^[eEoO]\s+/i,'');
+      s=s.replace(/^[^A-Za-z0-9\u00C0-\u024F]+/, '');
+      loop++;
+    }
+    // Final safety: if still starts with e + space + Jl, strip again
+    s=s.replace(/^(e|eo|o)\s+(?=Jl\.?|Jalan)/i,'');
     return s.trim().substring(0,120);
+  }
+  function cleanGojekAddressDeep(raw){
+    if(!raw) return '';
+    let s=cleanGojekAddress(raw);
+    // extra for display: remove any remaining leading e/o that slipped
+    s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
+    return s.trim();
   }
   function migrateCleanOldAddresses(){
     try{
       let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
       let changed=0;
+      let cleaner = typeof cleanGojekAddressDeep==='function' ? cleanGojekAddressDeep : cleanGojekAddress;
       for(let it of data){
         let oldPick=it.pickup||'';
         let oldDest=it.destination||'';
-        let newPick=cleanGojekAddress(oldPick);
-        let newDest=cleanGojekAddress(oldDest);
-        // Also clean lokasi_jemput/antar aliases
-        if(newPick!==oldPick || newDest!==oldDest){
+        let oldNote=it.note||'';
+        let newPick=cleaner(oldPick);
+        let newDest=cleaner(oldDest);
+        let newNote=oldNote;
+        // clean note that contains e Jl...
+        if(oldNote){
+          newNote=oldNote.replace(/e\s+Jl\./gi,'Jl.').replace(/eo\s+Jl\./gi,'Jl.');
+          // use cleaner on parts after |
+          let parts=oldNote.split('|');
+          if(parts.length>1){
+            let addrPart=parts[1];
+            let cleanedAddr=cleaner(addrPart);
+            if(cleanedAddr!==addrPart) newNote=parts[0]+'| '+cleanedAddr;
+          }
+        }
+        if(newPick!==oldPick || newDest!==oldDest || newNote!==oldNote){
           it.pickup=newPick;
           it.destination=newDest;
           if(it.lokasi_jemput!==undefined) it.lokasi_jemput=newPick;
           if(it.lokasi_antar!==undefined) it.lokasi_antar=newDest;
           if(it.jemput!==undefined) it.jemput=newPick;
           if(it.antar!==undefined) it.antar=newDest;
+          if(newNote!==oldNote) it.note=newNote;
           changed++;
         }
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo');
-        // also update lake
+        console.log('[FIX V5.24.6] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
@@ -1949,6 +1976,25 @@ window.onload=function(){
           }
         }catch(e){}
       }
+      // Also clean geocode cache keys that have e/eo
+      try{
+        let cacheRaw=localStorage.getItem('lapkeu_geocode_cache');
+        if(cacheRaw){
+          let cache=JSON.parse(cacheRaw);
+          let newCache={};
+          let cacheChanged=0;
+          for(let k in cache){
+            let newK=cleaner(k);
+            if(newK!==k && newK) cacheChanged++;
+            if(newK) newCache[newK]=cache[k];
+            else newCache[k]=cache[k];
+          }
+          if(cacheChanged>0){
+            localStorage.setItem('lapkeu_geocode_cache', JSON.stringify(newCache));
+            console.log('[FIX] Cleaned geocode cache '+cacheChanged+' keys');
+          }
+        }
+      }catch(e){}
       return changed;
     }catch(e){ console.log('migrate clean err',e); return 0; }
   }
@@ -2000,8 +2046,8 @@ window.onload=function(){
           if(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(ln)) continue;
           candidates.push(ln);
         }
-        if(candidates.length>=1) pickup=cleanGojekAddress(candidates[0]);
-        if(candidates.length>=2) destination=cleanGojekAddress(candidates[1]);
+        if(candidates.length>=1) pickup=cleanGojekAddressDeep(candidates[0]);
+        if(candidates.length>=2) destination=cleanGojekAddressDeep(candidates[1]);
       }
       results.push({amount, dist, start, end, cat, idTrans, pickup, destination, loc: (pickup?pickup:'') + (destination?' -> '+destination:''), raw:m[0].substring(0,80)});
     }
