@@ -33,7 +33,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.26.0 AI Vision FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.27.0 PaddleOCR FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -163,7 +163,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.26.0 AI Vision</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.27.0 PaddleOCR</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -2112,7 +2112,7 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.26.0 AI Vision: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // V5.27.0 PaddleOCR: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
     // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
@@ -2173,7 +2173,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.26.0 AI Vision] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.27.0 PaddleOCR] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
@@ -2354,70 +2354,83 @@ window.onload=function(){
     statusEl.innerHTML='🔍 Siapkan foto '+file.name+' ...';
     previewEl.style.display='block';
     previewEl.innerHTML='Proses...';
+
+    // 1. Coba PaddleOCR dulu (offline, gratis, lebih akurat dari Tesseract)
+    try{
+      statusEl.innerHTML='🔍 PaddleOCR V5 (gratis offline) membaca '+file.name+'...';
+      previewEl.innerHTML='Init PaddleOCR model (pertama kali download ~20MB)...';
+      let resizedBlob = await resizeImageForOCR(file, 1600);
+      let fullText = await window.paddleRecognizeBlob(resizedBlob);
+      previewEl.innerHTML='<div style="color:#7dffb7;white-space:pre-wrap;max-height:160px;overflow:auto; font-size:11px;">PaddleOCR:\n'+fullText.substring(0,1200)+'</div>';
+      let ocrDate=parseDateFromOcrText(fullText);
+      if(!ocrDate){
+        try{
+          let topBlob=await cropImageTop(resizedBlob, 0.30);
+          let topText = await window.paddleRecognizeBlob(topBlob);
+          ocrDate=parseDateFromOcrText(topText);
+        }catch(e){}
+      }
+      if(!ocrDate) ocrDate=fallbackDate;
+      let parsed=parseGojekText(fullText);
+      parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
+      if(parsed.length){
+        statusEl.innerHTML='✅ PaddleOCR: '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km').join(', ');
+        return parsed;
+      }
+      statusEl.innerHTML='⚠️ PaddleOCR tidak menemukan trip, coba Tesseract...';
+    }catch(err){
+      console.log('PaddleOCR fail',err);
+      statusEl.innerHTML='⚠️ PaddleOCR gagal: '+err.message.substring(0,200)+'<br>Coba fallback Tesseract...';
+    }
+
+    // 2. Fallback Tesseract.js (lama)
+    try{
+      let resizedBlob = await resizeImageForOCR(file, 1200);
+      statusEl.innerHTML='🔍 Fallback Tesseract membaca '+file.name+'...';
+      let fullText = await ocrWithWorker(resizedBlob, 'OCR fallback');
+      previewEl.innerHTML='<div style="color:#8aa0c6;white-space:pre-wrap;max-height:120px;overflow:auto">'+fullText.substring(0,900)+'</div>';
+      let ocrDate=parseDateFromOcrText(fullText);
+      if(!ocrDate) ocrDate=fallbackDate;
+      let parsed=parseGojekText(fullText);
+      parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
+      if(parsed.length){
+        statusEl.innerHTML='✅ Tesseract: '+parsed.length+' trip | '+parsed.map(p=> p.idTrans+' Rp'+p.amount).join(', ');
+        return parsed;
+      }
+    }catch(err){
+      console.log('Tesseract fail',err);
+    }
+
+    // 3. Fallback Gemini kalau ada key
     let geminiKey=getGeminiKey();
-    // Coba AI Vision dulu kalau ada key (lebih akurat)
     if(geminiKey){
       try{
-        statusEl.innerHTML='✨ AI Vision Gemini membaca '+file.name+' (lebih akurat dari OCR)...';
+        statusEl.innerHTML='✨ Coba AI Vision Gemini...';
         let resizedBlob = await resizeImageForOCR(file, 1600);
         let b64=await blobToBase64(resizedBlob);
         let gemResults=await geminiParseGojek(b64, 'image/jpeg');
-        previewEl.innerHTML='<div style="color:#7dffb7; white-space:pre-wrap; max-height:160px; overflow:auto; font-size:11px;">AI Vision result:\n'+JSON.stringify(gemResults,null,2).substring(0,1000)+'</div>';
         if(gemResults && gemResults.length>0){
           let parsed=gemResults.map(r=>{
             let amt=Number(r.amount)||0;
             let dist=Number(r.dist)||0;
             let idTrans=(r.idTrans||'').toUpperCase().trim();
-            let start=r.start||'';
-            let end=r.end||'';
-            let pick=r.pickup||'';
-            let dest=r.destination||'';
-            // bersihkan alamat pakai cleaner kita
+            let start=r.start||''; let end=r.end||'';
+            let pick=r.pickup||''; let dest=r.destination||'';
             try{ if(typeof cleanGojekAddressDeep==='function'){ pick=cleanGojekAddressDeep(pick); dest=cleanGojekAddressDeep(dest); } }catch(e){}
             return {amount:amt, dist:dist, start:start, end:end, cat:getIdCategory(idTrans), idTrans:idTrans, pickup:pick, destination:dest, loc: (pick?pick:'') + (dest?' -> '+dest:''), date: r.date||fallbackDate, raw:'AI:'+idTrans};
           }).filter(p=>p.idTrans);
-          // tanggal fallback
           let ocrDate = parsed[0]?.date || fallbackDate;
-          if(!ocrDate) ocrDate=fallbackDate;
           parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
-          statusEl.innerHTML='✅ AI Vision: '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end).join(', ');
+          statusEl.innerHTML='✅ AI Vision: '+parsed.length+' trip';
           return parsed;
-        } else {
-          statusEl.innerHTML='⚠️ AI Vision tidak menemukan trip, fallback ke OCR biasa...';
         }
       }catch(err){
-        console.log('Gemini fail, fallback OCR',err);
-        statusEl.innerHTML='⚠️ AI Vision gagal: '+err.message+'<br>Fallback ke OCR biasa...';
+        statusEl.innerHTML='❌ Semua OCR gagal: '+err.message;
       }
     }
 
-    // Fallback OCR lama (gratis offline)
-    try{
-      let resizedBlob = await resizeImageForOCR(file, 1200);
-      statusEl.innerHTML='🔍 Membaca '+file.name+' (OCR offline)...';
-      let fullText = await ocrWithWorker(resizedBlob, 'OCR full');
-      previewEl.innerHTML='<div style="color:#8aa0c6;white-space:pre-wrap;max-height:120px;overflow:auto">'+fullText.substring(0,900)+'</div>';
-      let ocrDate=parseDateFromOcrText(fullText);
-      if(!ocrDate){
-        try{
-          statusEl.innerHTML='🔍 Cari tanggal di header atas...';
-          let topBlob=await cropImageTop(resizedBlob, 0.25);
-          let topText = await ocrWithWorker(topBlob, 'OCR header');
-          ocrDate=parseDateFromOcrText(topText);
-          if(ocrDate) statusEl.innerHTML='✅ Tanggal dari header: '+ocrDate;
-        }catch(e){ console.log('crop date fail',e); }
-      }
-      if(!ocrDate) ocrDate=fallbackDate;
-      let parsed=parseGojekText(fullText);
-      parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
-      if(!parsed.length){ statusEl.innerHTML='⚠️ Tidak ada trip di '+file.name+' (tanggal deteksi: '+ocrDate+')<br>Text: '+fullText.substring(0,200); return []; }
-      statusEl.innerHTML='✅ OCR: '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL FOTO: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end).join(', ');
-      return parsed;
-    }catch(err){
-      statusEl.innerHTML='❌ OCR gagal: '+err.message+'<br>Coba foto ulang lebih terang.';
-      console.error(err);
-      return [];
-    }
+    statusEl.innerHTML='❌ Gagal baca '+file.name+' - coba foto lebih terang & dekat';
+    return [];
   }
   // ===== GEMINI VISION FREE TIER V5.26 =====
 function getGeminiKey(){ try{ return localStorage.getItem('gemini_api_key')||''; }catch(e){ return ''; } }
@@ -2435,7 +2448,7 @@ async function blobToBase64(blob){
 async function geminiParseGojek(base64Image, mimeType){
   const apiKey=getGeminiKey();
   if(!apiKey) throw new Error('No Gemini key');
-  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const url=`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   const prompt=`Kamu adalah parser struk Gojek driver Indonesia. Dari screenshot ini extract SEMUA trip yang terlihat.
 Untuk tiap trip kembalikan JSON object:
 {
@@ -2507,7 +2520,7 @@ function showGeminiKeyUI(){
     if(!k){ document.getElementById('geminiStatus').innerHTML='❌ Masukkan key dulu'; return; }
     document.getElementById('geminiStatus').innerHTML='⏳ Test koneksi Gemini...';
     try{
-      let testUrl=`https://generativelanguage.googleapis.com/v1beta/models?key=${k}`;
+      let testUrl=`https://generativelanguage.googleapis.com/v1/models?key=${k}`;
       let r=await fetch(testUrl);
       if(r.ok) document.getElementById('geminiStatus').innerHTML='✅ Koneksi OK, key valid! Gratis 1500/hari.';
       else document.getElementById('geminiStatus').innerHTML='❌ Key tidak valid: '+r.status;
@@ -2661,6 +2674,72 @@ fileInput.addEventListener('change', async (e)=>{
     }
   });
 })();
+
+<!-- PaddleOCR V5.27 -->
+<script type="importmap">
+{
+  "imports": {
+    "ppu-paddle-ocr/web": "https://cdn.jsdelivr.net/npm/ppu-paddle-ocr@6.0.0/dist/web.js",
+    "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.min.js"
+  }
+}
+</script>
+<script type="module">
+// Setup PaddleOCR global
+window.paddleReady = false;
+window.paddleService = null;
+window.paddleInitError = null;
+async function initPaddleOcrService(){
+  if(window.paddleService) return window.paddleService;
+  if(window.paddleInitError) throw window.paddleInitError;
+  try{
+    const mod = await import('ppu-paddle-ocr/web');
+    const { PaddleOcrService } = mod;
+    // Setup WASM paths
+    try{
+      const ort = await import('onnxruntime-web');
+      if(ort.env && ort.env.wasm){
+        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+      }
+    }catch(e){ console.log('ort wasm path set fail',e); }
+    const service = new PaddleOcrService({
+      // pakai model default v6 small - 50+ bahasa termasuk Indonesia
+      debugging: { debug: false, verbose: false }
+    });
+    await service.initialize();
+    window.paddleService = service;
+    window.paddleReady = true;
+    console.log('PaddleOCR initialized');
+    return service;
+  }catch(e){
+    console.error('PaddleOCR init fail',e);
+    window.paddleInitError = e;
+    throw e;
+  }
+}
+window.initPaddleOcrService = initPaddleOcrService;
+
+async function paddleRecognizeBlob(blob){
+  const service = await initPaddleOcrService();
+  // Convert blob to ImageBitmap -> canvas
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap,0,0);
+  bitmap.close();
+  const result = await service.recognize(canvas);
+  // result.text is full text, result.lines is array
+  let fullText = result.text || '';
+  if(result.lines && result.lines.length){
+    fullText = result.lines.map(l=>l.text||'').join('\n');
+  }
+  return fullText;
+}
+window.paddleRecognizeBlob = paddleRecognizeBlob;
+</script>
+
 </script>
 
 
