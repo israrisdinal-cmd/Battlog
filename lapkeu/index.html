@@ -33,7 +33,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.24.10 FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.24.12 FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -163,7 +163,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.10</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.12</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -1015,10 +1015,19 @@ function buildHotspotByHour(){
     }catch(e){}
 
     if(lastGpsPos){
-      // geocode top 5, dengan delay biar tidak kena rate limit
+      // geocode top 5 pakai alamat lengkap (sample) + bias GPS Pamulang, delay biar tidak rate limit
       ranked.slice(0,5).forEach((r,idx)=>{
         if(r.area!=='Unknown' && !r.lat){
-          setTimeout(()=>{ try{ geocodeArea(r.area); }catch(e){} }, idx*400);
+          let fullSample = (r.samples && r.samples[0]) ? r.samples[0] : r.area;
+          setTimeout(()=>{ try{ geocodeArea(r.area, fullSample); }catch(e){} }, idx*500);
+        }
+      });
+    } else {
+      // tanpa GPS, tetap geocode 1-2 teratas untuk cache awal
+      ranked.slice(0,2).forEach((r,idx)=>{
+        if(r.area!=='Unknown' && !r.lat){
+          let fullSample = (r.samples && r.samples[0]) ? r.samples[0] : r.area;
+          setTimeout(()=>{ try{ geocodeArea(r.area, fullSample); }catch(e){} }, idx*500);
         }
       });
     }
@@ -1047,51 +1056,129 @@ function focusAreaOnMap(area){
 }
 
 let geocodeFailCount={};
-async function geocodeArea(area){
+async function geocodeArea(area, fullSample){
   if(!area || area==='Unknown') return null;
   if(typeof geocodeCache==='undefined') window.geocodeCache={};
-  if(geocodeCache[area] && geocodeCache[area].lat) return geocodeCache[area];
-  if(geocodeFailCount[area] && geocodeFailCount[area]>=3) return null;
+  // cache key pakai area asli biar tetap nyambung
+  let cacheKey=area;
+  if(geocodeCache[cacheKey] && geocodeCache[cacheKey].lat){
+    // validasi jarak cache lama: kalau jarak >100km dari posisi sekarang, anggap invalid & re-geocode
+    if(lastGpsPos && geocodeCache[cacheKey].lat){
+      try{
+        let d=haversine(lastGpsPos.lat, lastGpsPos.lon, geocodeCache[cacheKey].lat, geocodeCache[cacheKey].lon);
+        if(d>60){
+          console.log('[GEOCODE] cache jarak jauh '+d.toFixed(1)+'km untuk '+area+', re-geocode');
+          delete geocodeCache[cacheKey];
+        } else {
+          return geocodeCache[cacheKey];
+        }
+      }catch(e){ return geocodeCache[cacheKey]; }
+    } else {
+      return geocodeCache[cacheKey];
+    }
+  }
+  if(geocodeFailCount[cacheKey] && geocodeFailCount[cacheKey]>=3) return null;
+
+  // Siapkan query yang lebih spesifik pakai fullSample (contoh: Jl. Kubis I No 22, Pondok Cabe, Pamulang)
+  let baseSample = (fullSample||'').trim();
+  let cleanedArea = area;
+  // Bersihkan No No.
+  cleanedArea=cleanedArea.replace(/\bNo\.?\s+No\.?\b/gi,'No.').replace(/\bNo\s+No\b/gi,'No.');
+  
+  let queries=[];
+  if(baseSample){
+    queries.push(baseSample + ', Indonesia');
+    queries.push(baseSample + ', Tangerang Selatan, Indonesia');
+    queries.push(baseSample);
+  }
+  queries.push(cleanedArea + ', Pondok Cabe, Pamulang, Tangerang Selatan, Indonesia');
+  queries.push(cleanedArea + ', Pamulang, Tangerang Selatan, Indonesia');
+  queries.push(cleanedArea + ', Tangerang Selatan, Indonesia');
+  queries.push(cleanedArea + ', Jakarta, Indonesia');
+  queries.push(cleanedArea + ', Indonesia');
+  // deduplicate
+  queries=[...new Set(queries)].filter(q=>q && q.length>5).slice(0,6);
+
+  // Siapkan viewbox bias dari posisi GPS sekarang
+  let viewboxParam='';
+  if(lastGpsPos){
+    let delta=0.3; // ~33km
+    let left=lastGpsPos.lon - delta;
+    let right=lastGpsPos.lon + delta;
+    let top=lastGpsPos.lat + delta;
+    let bottom=lastGpsPos.lat - delta;
+    viewboxParam=`&viewbox=${left},${top},${right},${bottom}&bounded=0`;
+  }
+
   try{
-    let queries=[area, area+', Tangerang Selatan', area+', Jakarta', area+', Indonesia'];
     for(let q of queries){
       try{
-        let url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=id&limit=1`;
+        let url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=id&limit=5${viewboxParam}`;
         let res=await fetch(url, {headers:{'Accept':'application/json'}});
         if(!res.ok) continue;
-        let j=await res.json();
-        if(j && j[0] && j[0].lat){
-          let lat=parseFloat(j[0].lat), lon=parseFloat(j[0].lon);
-          geocodeCache[area]={lat,lon, ts:Date.now(), q:q};
+        let results=await res.json();
+        if(!results || !results.length) continue;
+        // Pilih hasil yang jaraknya paling dekat & <60km
+        let best=null;
+        let bestDist=Infinity;
+        for(let r of results){
+          if(!r.lat || !r.lon) continue;
+          let lat=parseFloat(r.lat), lon=parseFloat(r.lon);
+          if(isNaN(lat)||isNaN(lon)) continue;
+          if(lastGpsPos){
+            let d=haversine(lastGpsPos.lat, lastGpsPos.lon, lat, lon);
+            // Tolak yang >60km karena pasti nyasar (contoh Jl. Kubis di Sulawesi)
+            if(d>60) continue;
+            if(d<bestDist){ bestDist=d; best={lat,lon, q:q, dist:d, display_name:r.display_name}; }
+          } else {
+            // tanpa GPS, ambil yang pertama
+            best={lat,lon, q:q, dist:null, display_name:r.display_name};
+            break;
+          }
+        }
+        if(best){
+          geocodeCache[cacheKey]={lat:best.lat, lon:best.lon, ts:Date.now(), q:best.q, display_name:best.display_name};
           try{ if(typeof saveGeocodeCache==='function') saveGeocodeCache(); }catch(e){}
           buildHotspotByHour();
-          return {lat,lon};
+          return best;
         }
-      }catch(e){ /* try next query */ }
-      await new Promise(r=>setTimeout(r,200));
+      }catch(e){ /* try next */ }
+      await new Promise(r=>setTimeout(r,300));
     }
-    // Fallback: coba Photon
+    // Fallback Photon dengan bias lat/lon
     try{
-      let url2=`https://photon.komoot.io/api/?q=${encodeURIComponent(area+', Indonesia')}&limit=1`;
-      let res2=await fetch(url2);
-      if(res2.ok){
+      for(let q of queries.slice(0,3)){
+        let url2=`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=3`;
+        if(lastGpsPos) url2+=`&lat=${lastGpsPos.lat}&lon=${lastGpsPos.lon}`;
+        let res2=await fetch(url2);
+        if(!res2.ok) continue;
         let j2=await res2.json();
-        if(j2 && j2.features && j2.features[0] && j2.features[0].geometry){
-          let coords=j2.features[0].geometry.coordinates;
-          let lon=coords[0], lat=coords[1];
-          geocodeCache[area]={lat,lon, ts:Date.now(), q:'photon:'+area};
-          try{ if(typeof saveGeocodeCache==='function') saveGeocodeCache(); }catch(e){}
-          buildHotspotByHour();
-          return {lat,lon};
+        if(j2 && j2.features){
+          let best=null, bestDist=Infinity;
+          for(let f of j2.features){
+            if(!f.geometry || !f.geometry.coordinates) continue;
+            let lon=f.geometry.coordinates[0], lat=f.geometry.coordinates[1];
+            if(lastGpsPos){
+              let d=haversine(lastGpsPos.lat, lastGpsPos.lon, lat, lon);
+              if(d>60) continue;
+              if(d<bestDist){ bestDist=d; best={lat,lon, q:'photon:'+q}; }
+            } else {
+              best={lat,lon, q:'photon:'+q}; break;
+            }
+          }
+          if(best){
+            geocodeCache[cacheKey]={lat:best.lat, lon:best.lon, ts:Date.now(), q:best.q};
+            try{ if(typeof saveGeocodeCache==='function') saveGeocodeCache(); }catch(e){}
+            buildHotspotByHour();
+            return best;
+          }
         }
+        await new Promise(r=>setTimeout(r,300));
       }
     }catch(e){}
   }catch(e){ console.log('geocode err',e); }
-  geocodeFailCount[area]=(geocodeFailCount[area]||0)+1;
-  if(geocodeFailCount[area]>=2){
-    // stop trying, update UI
-    setTimeout(buildHotspotByHour, 300);
-  }
+  geocodeFailCount[cacheKey]=(geocodeFailCount[cacheKey]||0)+1;
+  setTimeout(buildHotspotByHour, 300);
   return null;
 }
 
@@ -2025,7 +2112,7 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.24.10: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // V5.24.12: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
     // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
@@ -2086,7 +2173,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.24.10] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.24.12] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
