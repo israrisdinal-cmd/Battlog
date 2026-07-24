@@ -33,7 +33,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.24.7 FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.24.8 FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -163,7 +163,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.7</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.8</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -906,17 +906,38 @@ function buildHotspotByHour(){
     if(filtered.length===0){ filtered=data.filter(it=>it.type==='Pendapatan'); usedFallback=true; }
 
     let areaMap={};
+    let displayNameMap={};
     filtered.forEach(it=>{
       let rawPickup=it.pickup||it.lokasi_jemput||it.jemput||it.destination||it.lokasi_antar||'';
       if(typeof cleanGojekAddressDeep==='function'){ try{ rawPickup=cleanGojekAddressDeep(rawPickup); }catch(e){} } else if(typeof cleanGojekAddress==='function'){ try{ rawPickup=cleanGojekAddress(rawPickup); }catch(e){} }
       let area=typeof extractAreaSimple==='function'? extractAreaSimple(rawPickup) : (rawPickup.substring(0,22)||'Unknown');
       if(!area || area.trim()==='') area='Unknown';
-      if(!areaMap[area]) areaMap[area]={count:0, income:0, samples:[], lat:null, lon:null};
-      areaMap[area].count+=1;
-      areaMap[area].income+=Number(it.amount)||0;
-      if(areaMap[area].samples.length<3) areaMap[area].samples.push(rawPickup);
+      let groupKey = typeof normalizeAreaKeyForGrouping==='function' ? normalizeAreaKeyForGrouping(rawPickup) : area.toLowerCase();
+      if(!groupKey || groupKey==='unknown') groupKey=area.toLowerCase();
+      if(!displayNameMap[groupKey]) displayNameMap[groupKey]=area;
+      if(area!== 'Unknown' && displayNameMap[groupKey]==='Unknown') displayNameMap[groupKey]=area;
+      if(!areaMap[groupKey]) areaMap[groupKey]={count:0, income:0, samples:[], lat:null, lon:null, displayArea: area};
+      areaMap[groupKey].count+=1;
+      areaMap[groupKey].income+=Number(it.amount)||0;
+      if(areaMap[groupKey].samples.length<3) areaMap[groupKey].samples.push(rawPickup);
+      if(area.length>areaMap[groupKey].displayArea.length) areaMap[groupKey].displayArea=area;
     });
-
+    {
+      let newMap={};
+      for(let k in areaMap){
+        let entry=areaMap[k];
+        let disp = entry.displayArea || displayNameMap[k] || k;
+        if(typeof cleanGojekAddressDeep==='function'){ try{ disp=cleanGojekAddressDeep(disp); }catch(e){} }
+        if(!newMap[disp]){
+          newMap[disp]={count: entry.count, income: entry.income, samples: entry.samples, lat: entry.lat, lon: entry.lon};
+        } else {
+          newMap[disp].count+=entry.count;
+          newMap[disp].income+=entry.income;
+          newMap[disp].samples=newMap[disp].samples.concat(entry.samples).slice(0,3);
+        }
+      }
+      areaMap=newMap;
+    }
     let ranked=Object.entries(areaMap).map(([area,s])=>({area,...s, avgIncome: s.count? Math.round(s.income/s.count):0})).sort((a,b)=>b.count-a.count).slice(0,6);
     try{
       ranked.forEach(r=>{
@@ -1401,10 +1422,12 @@ function loadRekapData(){
     function extractAreaSimpleOrig(addr){
         if(!addr) return '';
         addr=addr.replace(/\n/g,' ').trim();
-        let clean=addr.replace(/\b(Jl\.?|Jalan|No\.?|RT|RW|Kav|Blok)\b/gi,'').replace(/\d+/g,'').trim();
+        addr=addr.replace(/\b(Jln|Jl)\.(?=[A-Za-z])/gi, '$1. ');
+        let clean=addr.replace(/\b(Jl\.?|Jln\.?|Jalan|No\.?|RT\.?|RW\.?|Kav\.?|Blok|Gg\.?|Gang)\b/gi,'').replace(/\d+/g,'').trim();
+        clean=clean.replace(/^[.,\s]+/,'').trim();
         let parts=clean.split(/[,.]/)[0].split(/\s+/).filter(w=>w.length>2);
-        if(parts.length===0) return addr.substring(0,20);
-        return parts.slice(0,3).join(' ').substring(0,22);
+        if(parts.length===0) return addr.substring(0,20).trim();
+        return parts.slice(0,3).join(' ').substring(0,22).trim();
     }
     function extractAreaSimple(addr){ if(!addr) return ''; let c=typeof cleanGojekAddress==='function'? cleanGojekAddress(addr) : addr; return extractAreaSimpleOrig(c); }
 
@@ -1996,9 +2019,25 @@ window.onload=function(){
   function cleanGojekAddressDeep(raw){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
-    // extra for display: remove any remaining leading e/o that slipped
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
+    s=s.replace(/\bJln\.(?=\S)/gi, 'Jln. ');
+    s=s.replace(/\bJl\.(?=\S)/gi, 'Jl. ');
+    s=s.replace(/\bJln\b/gi, 'Jl.');
+    s=s.replace(/\bJalan\b/gi, 'Jl.');
+    s=s.replace(/\bJl\.\s*\./gi, 'Jl.');
+    s=s.replace(/\s{2,}/g, ' ');
+    s=s.replace(/^Jl\.\s+([a-z])/i, function(m,p1){ return 'Jl. '+p1.toUpperCase(); });
     return s.trim();
+  }
+  function normalizeAreaKeyForGrouping(addr){
+    if(!addr) return 'Unknown';
+    let k=cleanGojekAddressDeep(addr);
+    k=k.toLowerCase();
+    k=k.replace(/\b(jl\.?|jln\.?|jalan)\b/gi,'');
+    k=k.replace(/[^a-z0-9 ]/g,' ');
+    k=k.replace(/\s+/g,' ').trim();
+    let parts=k.split(' ').filter(function(w){ return w.length>2; });
+    return (parts.slice(0,2).join(' ')||k).substring(0,20) || 'unknown';
   }
   function migrateCleanOldAddresses(){
     try{
@@ -2036,7 +2075,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.24.7] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.24.8] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
