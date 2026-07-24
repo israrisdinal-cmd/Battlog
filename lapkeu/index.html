@@ -59,7 +59,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.31.0 OCR.SPACE No.1 FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.31.1 OCR.Space Hideable FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -189,7 +189,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.31.0 OCR.SPACE No.1</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.31.1 OCR.Space Hideable</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -2138,7 +2138,7 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.31.0 OCR.SPACE No.1: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // V5.31.1 OCR.Space Hideable: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
     // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
@@ -2199,7 +2199,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.31.0 OCR.SPACE No.1] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.31.1 OCR.Space Hideable] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
@@ -2440,30 +2440,78 @@ window.onload=function(){
   const container=document.getElementById('tabContentInput');
   if(!container) return;
   if(document.getElementById('ocrSpaceBox')) return;
+  
+  let isHidden = localStorage.getItem('hideOcrSpaceCard') === '1';
+  let key=localStorage.getItem('ocrSpaceKey')||'';
+  
   const div=document.createElement('div');
   div.id='ocrSpaceBox';
-  div.style.cssText='background:#0f1f36; border:1px solid #1e3a5f; border-radius:10px; padding:10px; margin:10px 0; font-size:12px;';
-  let key=localStorage.getItem('ocrSpaceKey')||'';
+  div.style.cssText='background:#0f1f36; border:1px solid #1e3a5f; border-radius:10px; padding:10px; margin:10px 0; font-size:12px; position:relative;';
+  
+  let hiddenStyle = isHidden ? 'display:none;' : '';
+  
   div.innerHTML=`
-    <div style="font-weight:800; color:#7dffb7; margin-bottom:6px;">🔍 OCR.Space (No.1) - Gratis 1000/hari, Lebih Akurat dari Tesseract</div>
-    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
-      <label style="display:flex; align-items:center; gap:4px; background:${window.useOcrSpace?'#132a1f':'#111a2f'}; padding:5px 8px; border-radius:6px; border:1px solid ${window.useOcrSpace?'#1e4a32':'#2a3a5a'};">
-        <input type="checkbox" id="chkOcrSpace" ${window.useOcrSpace?'checked':''}> Aktifkan OCR.Space
-      </label>
-      <span style="font-size:10px; color:#5a7096;">ON = pakai OCR.Space (online, akurat). OFF = Tesseract offline saja.</span>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <div style="font-weight:800; color:#7dffb7;">🔍 OCR.Space (No.1) - Gratis 1000/hari</div>
+      <div style="display:flex; gap:4px;">
+        <button id="hideOcrSpaceBtn" style="background:#1a2a44; border:1px solid #2a3a5a; color:#8aa0c6; padding:3px 8px; border-radius:6px; font-size:10px;">Sembunyikan ▲</button>
+      </div>
     </div>
-    <div style="display:flex; gap:6px;">
-      <input id="ocrSpaceKeyInput" type="text" placeholder="API Key (pakai helloworld untuk test)" value="${key}" style="flex:1; background:#0a1328; border:1px solid #1e3a5f; border-radius:6px; padding:6px 8px; color:#eaf2ff; font-size:11px;">
-      <button id="saveOcrSpaceKey" style="background:#1e3a5f; border:none; color:#7dffb7; padding:6px 10px; border-radius:6px; font-weight:700; font-size:11px;">Simpan</button>
+    <div id="ocrSpaceContent" style="${hiddenStyle}">
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
+        <label style="display:flex; align-items:center; gap:4px; background:${window.useOcrSpace?'#132a1f':'#111a2f'}; padding:5px 8px; border-radius:6px; border:1px solid ${window.useOcrSpace?'#1e4a32':'#2a3a5a'};">
+          <input type="checkbox" id="chkOcrSpace" ${window.useOcrSpace?'checked':''}> Aktifkan OCR.Space
+        </label>
+        <span style="font-size:10px; color:#5a7096;">ON = OCR.Space akurat. OFF = Tesseract offline.</span>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <input id="ocrSpaceKeyInput" type="text" placeholder="API Key (helloworld untuk test)" value="${key}" style="flex:1; background:#0a1328; border:1px solid #1e3a5f; border-radius:6px; padding:6px 8px; color:#eaf2ff; font-size:11px;">
+        <button id="saveOcrSpaceKey" style="background:#1e3a5f; border:none; color:#7dffb7; padding:6px 10px; border-radius:6px; font-weight:700; font-size:11px;">Simpan & Sembunyikan</button>
+      </div>
+      <div id="ocrSpaceStatus" style="margin-top:6px; font-size:10px; color:#8aa0c6;">Key demo <b>helloworld</b> bisa dipakai test. Daftar: <a href="https://ocr.space/ocrapi/freekey" target="_blank" style="color:#2b8cff;">ocr.space/ocrapi/freekey</a></div>
     </div>
-    <div id="ocrSpaceStatus" style="margin-top:6px; font-size:10px; color:#8aa0c6;">Key demo <b>helloworld</b> bisa dipakai test. Daftar gratis 1000/hari: <a href="https://ocr.space/ocrapi/freekey" target="_blank" style="color:#2b8cff;">ocr.space/ocrapi/freekey</a></div>
+    <div id="ocrSpaceCollapsed" style="${isHidden ? '' : 'display:none;'} display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#5a7096; background:#0a1328; padding:6px 8px; border-radius:6px; margin-top:6px;">
+      <span>✅ OCR.Space aktif | Key: ${key ? key.substring(0,6)+'...' : 'helloworld'} | Klik Tampilkan untuk edit</span>
+      <button id="showOcrSpaceBtn" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:3px 8px; border-radius:6px; font-size:10px;">Tampilkan ▼</button>
+    </div>
   `;
   container.prepend(div);
-  document.getElementById('chkOcrSpace').onchange=(e)=>{ window.useOcrSpace=e.target.checked; localStorage.setItem('useOcrSpace', e.target.checked?'1':'0'); };
+  
+  const chk = document.getElementById('chkOcrSpace');
+  if(chk) chk.onchange=(e)=>{ window.useOcrSpace=e.target.checked; localStorage.setItem('useOcrSpace', e.target.checked?'1':'0'); };
+  
   document.getElementById('saveOcrSpaceKey').onclick=()=>{
     localStorage.setItem('ocrSpaceKey', document.getElementById('ocrSpaceKeyInput').value.trim());
-    document.getElementById('ocrSpaceStatus').innerHTML='✅ Key disimpan!';
-    setTimeout(()=>{ document.getElementById('ocrSpaceStatus').innerHTML='Key demo helloworld bisa dipakai test.'; },2000);
+    localStorage.setItem('hideOcrSpaceCard', '1');
+    document.getElementById('ocrSpaceStatus').innerHTML='✅ Key disimpan & card disembunyikan!';
+    setTimeout(()=>{
+      document.getElementById('ocrSpaceContent').style.display='none';
+      document.getElementById('ocrSpaceCollapsed').style.display='flex';
+      document.getElementById('hideOcrSpaceBtn').innerText='Sembunyikan ▲';
+    },800);
+  };
+  
+  document.getElementById('hideOcrSpaceBtn').onclick=()=>{
+    let content=document.getElementById('ocrSpaceContent');
+    let collapsed=document.getElementById('ocrSpaceCollapsed');
+    if(content.style.display==='none'){
+      content.style.display='block';
+      collapsed.style.display='none';
+      localStorage.setItem('hideOcrSpaceCard', '0');
+      document.getElementById('hideOcrSpaceBtn').innerText='Sembunyikan ▲';
+    } else {
+      content.style.display='none';
+      collapsed.style.display='flex';
+      localStorage.setItem('hideOcrSpaceCard', '1');
+      document.getElementById('hideOcrSpaceBtn').innerText='Tampilkan ▼';
+    }
+  };
+  
+  document.getElementById('showOcrSpaceBtn').onclick=()=>{
+    document.getElementById('ocrSpaceContent').style.display='block';
+    document.getElementById('ocrSpaceCollapsed').style.display='none';
+    localStorage.setItem('hideOcrSpaceCard', '0');
+    document.getElementById('hideOcrSpaceBtn').innerText='Sembunyikan ▲';
   };
 }
 setTimeout(showOcrSpaceToggle, 800);
