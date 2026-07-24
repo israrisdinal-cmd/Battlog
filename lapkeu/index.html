@@ -12,76 +12,29 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 <!DOCTYPE html>
 <html lang="id">
 <head><!-- PLAYABLE_TOUCH_PATCH_V1 -->
-<!-- PaddleOCR V5.28 CLEAN - NO GEMINI -->
 <script>
-window.paddleReady = false;
-window.paddleService = null;
-window.paddleInitError = null;
-window.usePaddle = localStorage.getItem('usePaddle') !== '0';
-window.paddleLoading = false;
+window.useOcrSpace = localStorage.getItem('useOcrSpace') !== '0'; // default ON for this version
+window.ocrSpaceKey = localStorage.getItem('ocrSpaceKey') || 'helloworld';
 
-async function initPaddleOcrServiceWithTimeout(timeoutMs=90000){
-  if(window.paddleService) return window.paddleService;
-  if(window.paddleInitError) throw window.paddleInitError;
-  if(window.paddleLoading){
-    let waited=0;
-    while(window.paddleLoading && waited<timeoutMs){
-      await new Promise(r=>setTimeout(r,200));
-      waited+=200;
-      if(window.paddleService) return window.paddleService;
-    }
-    if(window.paddleService) return window.paddleService;
-  }
-  window.paddleLoading = true;
-  let timeout;
-  try{
-    const loadPromise = (async()=>{
-      const mod = await import('https://cdn.jsdelivr.net/npm/ppu-paddle-ocr@6.0.0/dist/web.js');
-      const { PaddleOcrService } = mod;
-      try{
-        const ort = await import('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.min.js');
-        if(ort.env && ort.env.wasm){
-          ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
-        }
-      }catch(e){}
-      const service = new PaddleOcrService({ debugging: { debug: false, verbose: false } });
-      await service.initialize();
-      window.paddleService = service;
-      window.paddleReady = true;
-      return service;
-    })();
-    const timeoutPromise = new Promise((_,rej)=>{ timeout=setTimeout(()=>rej(new Error('PaddleOCR timeout 90s - coba pakai WiFi')), timeoutMs); });
-    const service = await Promise.race([loadPromise, timeoutPromise]);
-    clearTimeout(timeout);
-    window.paddleLoading=false;
-    return service;
-  }catch(e){
-    clearTimeout(timeout);
-    window.paddleLoading=false;
-    window.paddleInitError=e;
-    window.paddleReady=false;
-    throw e;
-  }
-}
-window.initPaddleOcrService = initPaddleOcrServiceWithTimeout;
+function getOcrSpaceKey(){ return localStorage.getItem('ocrSpaceKey') || 'helloworld'; }
 
-async function paddleRecognizeBlob(blob){
-  const service = await initPaddleOcrServiceWithTimeout(90000);
-  const bitmap = await createImageBitmap(blob);
-  const canvas = document.createElement('canvas');
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(bitmap,0,0);
-  if(bitmap.close) bitmap.close();
-  const result = await service.recognize(canvas);
-  let fullText = result.text || '';
-  if(result.lines && result.lines.length){
-    fullText = result.lines.map(l=>l.text||'').join('\n');
+async function ocrSpaceParse(blob){
+  let apiKey=getOcrSpaceKey();
+  let form=new FormData();
+  form.append('apikey', apiKey);
+  form.append('language', 'eng');
+  form.append('isOverlayRequired', 'false');
+  form.append('OCREngine', '2');
+  form.append('file', blob, 'gojek.jpg');
+  let res=await fetch('https://api.ocr.space/parse/image', {method:'POST', body:form});
+  let json=await res.json();
+  if(json.OCRExitCode!==1 && json.OCRExitCode!==2){
+    throw new Error(json.ErrorMessage || 'OCR.Space gagal');
   }
-  return fullText;
+  let text = json.ParsedResults?.map(r=>r.ParsedText).join('\n') || '';
+  return text;
 }
-window.paddleRecognizeBlob = paddleRecognizeBlob;
+window.ocrSpaceParse=ocrSpaceParse;
 </script>
 
 <script>
@@ -106,7 +59,7 @@ window.paddleRecognizeBlob = paddleRecognizeBlob;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.28.0 PaddleOCR Clean No Gemini FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.31.0 OCR.SPACE No.1 FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -236,7 +189,7 @@ window.paddleRecognizeBlob = paddleRecognizeBlob;
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.28.0 PaddleOCR Clean No Gemini</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.31.0 OCR.SPACE No.1</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -2185,7 +2138,7 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.28.0 PaddleOCR Clean No Gemini: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // V5.31.0 OCR.SPACE No.1: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
     // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
@@ -2246,7 +2199,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.28.0 PaddleOCR Clean No Gemini] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.31.0 OCR.SPACE No.1] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
@@ -2428,19 +2381,19 @@ window.onload=function(){
     previewEl.style.display='block';
     previewEl.innerHTML='Proses...';
 
-    // 1. PaddleOCR jika ON
-    if(window.usePaddle){
+    // 1. OCR.Space (No.1 pilihan kamu)
+    if(window.useOcrSpace){
       try{
-        statusEl.innerHTML='<div id="statusInfo">🔍 PaddleOCR membaca '+file.name+'...<br><span style="font-size:10px; color:#8aa0c6;">Pertama kali download 20MB, tunggu sampai ✅ selesai</span></div>';
-        previewEl.innerHTML='<div id="previewInfo">📥 Download model 20MB... Jangan tutup app</div>';
-        let resizedBlob = await resizeImageForOCR(file, 1600);
-        let fullText = await window.paddleRecognizeBlob(resizedBlob);
-        previewEl.innerHTML='<div style="color:#7dffb7;white-space:pre-wrap;max-height:160px;overflow:auto; font-size:11px;">PaddleOCR:\n'+fullText.substring(0,1200)+'</div>';
+        statusEl.innerHTML='🔍 OCR.Space (gratis, online) membaca '+file.name+'...';
+        previewEl.innerHTML='Upload ke OCR.Space...';
+        let resizedBlob = await resizeImageForOCR(file, 1400);
+        let fullText = await window.ocrSpaceParse(resizedBlob);
+        previewEl.innerHTML='<div style="color:#7dffb7;white-space:pre-wrap;max-height:160px;overflow:auto; font-size:11px;">OCR.Space:\n'+fullText.substring(0,1200)+'</div>';
         let ocrDate=parseDateFromOcrText(fullText);
         if(!ocrDate){
           try{
             let topBlob=await cropImageTop(resizedBlob, 0.30);
-            let topText = await window.paddleRecognizeBlob(topBlob);
+            let topText = await window.ocrSpaceParse(topBlob);
             ocrDate=parseDateFromOcrText(topText);
           }catch(e){}
         }
@@ -2448,20 +2401,20 @@ window.onload=function(){
         let parsed=parseGojekText(fullText);
         parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
         if(parsed.length){
-          statusEl.innerHTML='✅ PaddleOCR: '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km').join(', ');
+          statusEl.innerHTML='✅ OCR.Space: '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km').join(', ');
           return parsed;
         }
-        statusEl.innerHTML='⚠️ PaddleOCR tidak menemukan trip, coba Tesseract...';
+        statusEl.innerHTML='⚠️ OCR.Space tidak menemukan trip, fallback Tesseract...';
       }catch(err){
-        console.log('PaddleOCR fail',err);
-        statusEl.innerHTML='⚠️ PaddleOCR: '+err.message.substring(0,150)+'<br>Fallback ke Tesseract...';
+        console.log('OCR.Space fail',err);
+        statusEl.innerHTML='⚠️ OCR.Space gagal: '+err.message.substring(0,150)+'<br>Fallback Tesseract offline...';
       }
     }
 
-    // 2. Tesseract fallback
+    // 2. Tesseract offline fallback
     try{
       let resizedBlob = await resizeImageForOCR(file, 1200);
-      statusEl.innerHTML='🔍 Tesseract membaca '+file.name+'...';
+      statusEl.innerHTML='🔍 Tesseract offline membaca '+file.name+'...';
       let fullText = await ocrWithWorker(resizedBlob, 'OCR full');
       previewEl.innerHTML='<div style="color:#8aa0c6;white-space:pre-wrap;max-height:120px;overflow:auto">'+fullText.substring(0,900)+'</div>';
       let ocrDate=parseDateFromOcrText(fullText);
@@ -2483,30 +2436,37 @@ window.onload=function(){
       return [];
     }
   }
-  // Toggle UI PaddleOCR - Clean
-function showPaddleToggle(){
+  function showOcrSpaceToggle(){
   const container=document.getElementById('tabContentInput');
   if(!container) return;
-  if(document.getElementById('paddleToggleBox')) return;
+  if(document.getElementById('ocrSpaceBox')) return;
   const div=document.createElement('div');
-  div.id='paddleToggleBox';
+  div.id='ocrSpaceBox';
   div.style.cssText='background:#0f1f36; border:1px solid #1e3a5f; border-radius:10px; padding:10px; margin:10px 0; font-size:12px;';
+  let key=localStorage.getItem('ocrSpaceKey')||'';
   div.innerHTML=`
-    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-      <button id="togglePaddleBtn" style="background:${window.usePaddle?'#132a1f':'#1e2d4a'}; border:1px solid ${window.usePaddle?'#1e4a32':'#2a3a5a'}; color:#7dffb7; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700;">${window.usePaddle?'✅ PaddleOCR ON (Akurat)':'❌ PaddleOCR OFF (Tesseract Ringan)'}</button>
-      <span style="font-size:10px; color:#5a7096;">ON = akurat, butuh download 20MB pertama kali. OFF = ringan, langsung jalan.</span>
+    <div style="font-weight:800; color:#7dffb7; margin-bottom:6px;">🔍 OCR.Space (No.1) - Gratis 1000/hari, Lebih Akurat dari Tesseract</div>
+    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
+      <label style="display:flex; align-items:center; gap:4px; background:${window.useOcrSpace?'#132a1f':'#111a2f'}; padding:5px 8px; border-radius:6px; border:1px solid ${window.useOcrSpace?'#1e4a32':'#2a3a5a'};">
+        <input type="checkbox" id="chkOcrSpace" ${window.useOcrSpace?'checked':''}> Aktifkan OCR.Space
+      </label>
+      <span style="font-size:10px; color:#5a7096;">ON = pakai OCR.Space (online, akurat). OFF = Tesseract offline saja.</span>
     </div>
-    <div id="paddleStatus" style="margin-top:6px; font-size:11px; color:#8aa0c6;">${window.usePaddle?'Siap download model 20MB saat scan pertama':'Pakai Tesseract offline'}</div>
+    <div style="display:flex; gap:6px;">
+      <input id="ocrSpaceKeyInput" type="text" placeholder="API Key (pakai helloworld untuk test)" value="${key}" style="flex:1; background:#0a1328; border:1px solid #1e3a5f; border-radius:6px; padding:6px 8px; color:#eaf2ff; font-size:11px;">
+      <button id="saveOcrSpaceKey" style="background:#1e3a5f; border:none; color:#7dffb7; padding:6px 10px; border-radius:6px; font-weight:700; font-size:11px;">Simpan</button>
+    </div>
+    <div id="ocrSpaceStatus" style="margin-top:6px; font-size:10px; color:#8aa0c6;">Key demo <b>helloworld</b> bisa dipakai test. Daftar gratis 1000/hari: <a href="https://ocr.space/ocrapi/freekey" target="_blank" style="color:#2b8cff;">ocr.space/ocrapi/freekey</a></div>
   `;
   container.prepend(div);
-  document.getElementById('togglePaddleBtn').onclick=()=>{
-    window.usePaddle=!window.usePaddle;
-    localStorage.setItem('usePaddle', window.usePaddle?'1':'0');
-    document.getElementById('togglePaddleBtn').innerHTML=window.usePaddle?'✅ PaddleOCR ON (Akurat)':'❌ PaddleOCR OFF (Tesseract Ringan)';
-    document.getElementById('paddleStatus').innerHTML=window.usePaddle?'Siap download model 20MB saat scan pertama':'Pakai Tesseract offline';
+  document.getElementById('chkOcrSpace').onchange=(e)=>{ window.useOcrSpace=e.target.checked; localStorage.setItem('useOcrSpace', e.target.checked?'1':'0'); };
+  document.getElementById('saveOcrSpaceKey').onclick=()=>{
+    localStorage.setItem('ocrSpaceKey', document.getElementById('ocrSpaceKeyInput').value.trim());
+    document.getElementById('ocrSpaceStatus').innerHTML='✅ Key disimpan!';
+    setTimeout(()=>{ document.getElementById('ocrSpaceStatus').innerHTML='Key demo helloworld bisa dipakai test.'; },2000);
   };
 }
-setTimeout(showPaddleToggle, 800);
+setTimeout(showOcrSpaceToggle, 800);
 
 fileInput.addEventListener('change', async (e)=>{
     let files=Array.from(e.target.files||[]);
