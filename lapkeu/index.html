@@ -33,7 +33,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.24.12 FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.26.0 AI Vision FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -163,7 +163,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.12</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.26.0 AI Vision</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -2112,7 +2112,7 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.24.12: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // V5.26.0 AI Vision: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
     // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
@@ -2173,7 +2173,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.24.12] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.26.0 AI Vision] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
@@ -2323,9 +2323,28 @@ window.onload=function(){
       });
       await worker.loadLanguage('ind+eng');
       await worker.initialize('ind+eng');
+      // V5.25: set PSM 6 = assume uniform block of text (Gojek invoice), OEM 1 = LSTM
+      try{
+        await worker.setParameters({
+          tessedit_pageseg_mode: '6',
+          tessedit_ocr_engine_mode: '1',
+          preserve_interword_spaces: '1',
+          tessedit_char_blacklist: '•·●○'
+        });
+      }catch(e){ console.log('set params fail',e); }
       const {data:{text}} = await worker.recognize(blob);
       await worker.terminate();
-      return text;
+      // post-correction dictionary untuk alamat umum Pamulang
+      let corrected=text;
+      try{
+        // fix common OCR misread
+        corrected=corrected.replace(/\bJ[Il1][nN]\b/g,'Jln');
+        corrected=corrected.replace(/\bJ[Il1]\b/g,'Jl');
+        corrected=corrected.replace(/Purnawarman/g,'Purnawarman');
+        corrected=corrected.replace(/Kemiri1/g,'Kemiri');
+        corrected=corrected.replace(/Kubis I No No\./gi,'Kubis I No.');
+      }catch(e){}
+      return corrected;
     }catch(err){
       try{ if(worker) await worker.terminate(); }catch(_){}
       throw err;
@@ -2334,10 +2353,48 @@ window.onload=function(){
   async function processFile(file, fallbackDate){
     statusEl.innerHTML='🔍 Siapkan foto '+file.name+' ...';
     previewEl.style.display='block';
-    previewEl.innerHTML='Resize & OCR...';
+    previewEl.innerHTML='Proses...';
+    let geminiKey=getGeminiKey();
+    // Coba AI Vision dulu kalau ada key (lebih akurat)
+    if(geminiKey){
+      try{
+        statusEl.innerHTML='✨ AI Vision Gemini membaca '+file.name+' (lebih akurat dari OCR)...';
+        let resizedBlob = await resizeImageForOCR(file, 1600);
+        let b64=await blobToBase64(resizedBlob);
+        let gemResults=await geminiParseGojek(b64, 'image/jpeg');
+        previewEl.innerHTML='<div style="color:#7dffb7; white-space:pre-wrap; max-height:160px; overflow:auto; font-size:11px;">AI Vision result:\n'+JSON.stringify(gemResults,null,2).substring(0,1000)+'</div>';
+        if(gemResults && gemResults.length>0){
+          let parsed=gemResults.map(r=>{
+            let amt=Number(r.amount)||0;
+            let dist=Number(r.dist)||0;
+            let idTrans=(r.idTrans||'').toUpperCase().trim();
+            let start=r.start||'';
+            let end=r.end||'';
+            let pick=r.pickup||'';
+            let dest=r.destination||'';
+            // bersihkan alamat pakai cleaner kita
+            try{ if(typeof cleanGojekAddressDeep==='function'){ pick=cleanGojekAddressDeep(pick); dest=cleanGojekAddressDeep(dest); } }catch(e){}
+            return {amount:amt, dist:dist, start:start, end:end, cat:getIdCategory(idTrans), idTrans:idTrans, pickup:pick, destination:dest, loc: (pick?pick:'') + (dest?' -> '+dest:''), date: r.date||fallbackDate, raw:'AI:'+idTrans};
+          }).filter(p=>p.idTrans);
+          // tanggal fallback
+          let ocrDate = parsed[0]?.date || fallbackDate;
+          if(!ocrDate) ocrDate=fallbackDate;
+          parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
+          statusEl.innerHTML='✅ AI Vision: '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end).join(', ');
+          return parsed;
+        } else {
+          statusEl.innerHTML='⚠️ AI Vision tidak menemukan trip, fallback ke OCR biasa...';
+        }
+      }catch(err){
+        console.log('Gemini fail, fallback OCR',err);
+        statusEl.innerHTML='⚠️ AI Vision gagal: '+err.message+'<br>Fallback ke OCR biasa...';
+      }
+    }
+
+    // Fallback OCR lama (gratis offline)
     try{
       let resizedBlob = await resizeImageForOCR(file, 1200);
-      statusEl.innerHTML='🔍 Membaca '+file.name+' (resized)...';
+      statusEl.innerHTML='🔍 Membaca '+file.name+' (OCR offline)...';
       let fullText = await ocrWithWorker(resizedBlob, 'OCR full');
       previewEl.innerHTML='<div style="color:#8aa0c6;white-space:pre-wrap;max-height:120px;overflow:auto">'+fullText.substring(0,900)+'</div>';
       let ocrDate=parseDateFromOcrText(fullText);
@@ -2354,7 +2411,7 @@ window.onload=function(){
       let parsed=parseGojekText(fullText);
       parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
       if(!parsed.length){ statusEl.innerHTML='⚠️ Tidak ada trip di '+file.name+' (tanggal deteksi: '+ocrDate+')<br>Text: '+fullText.substring(0,200); return []; }
-      statusEl.innerHTML='✅ '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL FOTO: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end).join(', ');
+      statusEl.innerHTML='✅ OCR: '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL FOTO: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km '+p.start+'-'+p.end).join(', ');
       return parsed;
     }catch(err){
       statusEl.innerHTML='❌ OCR gagal: '+err.message+'<br>Coba foto ulang lebih terang.';
@@ -2362,7 +2419,105 @@ window.onload=function(){
       return [];
     }
   }
-  fileInput.addEventListener('change', async (e)=>{
+  // ===== GEMINI VISION FREE TIER V5.26 =====
+function getGeminiKey(){ try{ return localStorage.getItem('gemini_api_key')||''; }catch(e){ return ''; } }
+function setGeminiKey(k){ try{ localStorage.setItem('gemini_api_key', k); }catch(e){} }
+
+async function blobToBase64(blob){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>{ let s=r.result; if(typeof s==='string' && s.includes(',')) s=s.split(',')[1]; res(s); };
+    r.onerror=rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+async function geminiParseGojek(base64Image, mimeType){
+  const apiKey=getGeminiKey();
+  if(!apiKey) throw new Error('No Gemini key');
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const prompt=`Kamu adalah parser struk Gojek driver Indonesia. Dari screenshot ini extract SEMUA trip yang terlihat.
+Untuk tiap trip kembalikan JSON object:
+{
+  "idTrans": "ID transaksi seperti F-..., RB-..., MT-..., GK-... (huruf besar)",
+  "amount": angka tanpa titik/koma contoh 31100,
+  "dist": jarak km contoh 2.3,
+  "start": "jam mulai format HH:MM",
+  "end": "jam selesai HH:MM",
+  "pickup": "alamat jemput lengkap",
+  "destination": "alamat antar lengkap",
+  "date": "tanggal foto kalau ada format YYYY-MM-DD, kalau tidak ada null"
+}
+Kalau ada banyak trip dalam 1 foto, kembalikan array. Kalau cuma 1, tetap array 1 item.
+Hanya kembalikan JSON array murni, tanpa markdown, tanpa penjelasan. Contoh:
+[{"idTrans":"F-123456","amount":15000,"dist":2.1,"start":"12:30","end":"12:45","pickup":"Jl. Pahlawan No.80, Rempoa","destination":"Jl. Kubis I No.22, Pondok Cabe","date":null}]
+Jika tidak ada trip, kembalikan [].
+PENTING: alamat harus lengkap, jangan potong. Normalisasi Jl/Jln/Jin semua jadi Jl.
+`;
+  const body={
+    contents:[{ parts:[ {text: prompt}, {inline_data:{mime_type: mimeType||'image/jpeg', data: base64Image}} ] }],
+    generationConfig:{ temperature:0.1, maxOutputTokens: 2048 }
+  };
+  let res=await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if(!res.ok){
+    let txt=await res.text();
+    throw new Error('Gemini error '+res.status+': '+txt.substring(0,300));
+  }
+  let json=await res.json();
+  try{
+    let txt=json.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    // bersihkan markdown code block
+    txt=txt.replace(/```json/g,'').replace(/```/g,'').trim();
+    let arr=JSON.parse(txt);
+    if(!Array.isArray(arr)) arr=[arr];
+    return arr;
+  }catch(e){
+    console.log('Gemini parse fail',e, json);
+    throw new Error('Gagal parse JSON dari Gemini: '+e.message);
+  }
+}
+
+function showGeminiKeyUI(){
+  const existing=document.getElementById('geminiKeyBox');
+  if(existing) return;
+  const container=document.getElementById('tabContentInput')||document.body;
+  const div=document.createElement('div');
+  div.id='geminiKeyBox';
+  div.style.cssText='background:#0f1f36; border:1px solid #1e3a5f; border-radius:10px; padding:10px; margin:10px 0; font-size:12px;';
+  let currentKey=getGeminiKey();
+  div.innerHTML=`
+    <div style="font-weight:800; color:#7dffb7; margin-bottom:6px;">✨ AI Vision Gratis (Gemini Flash) - Lebih akurat dari OCR</div>
+    <div style="color:#8aa0c6; margin-bottom:6px; line-height:1.4;">Masukkan Gemini API Key gratis (dari aistudio.google.com/app/apikey). Gratis 1500 foto/hari. Key disimpan di HP kamu saja.</div>
+    <div style="display:flex; gap:6px;">
+      <input id="geminiKeyInput" type="password" placeholder="AIza..." value="${currentKey}" style="flex:1; background:#0a1328; border:1px solid #1e3a5f; border-radius:8px; padding:6px 8px; color:#eaf2ff; font-size:12px;">
+      <button id="geminiSaveBtn" style="background:#1e3a5f; border:none; color:#7dffb7; padding:6px 12px; border-radius:8px; font-weight:700;">Simpan</button>
+      <button id="geminiTestBtn" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:6px 10px; border-radius:8px; font-size:11px;">Test</button>
+    </div>
+    <div id="geminiStatus" style="margin-top:6px; font-size:11px; color:#8aa0c6;"></div>
+    <div style="margin-top:6px; font-size:10px; color:#5a7096;">Cara dapat key gratis: buka <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#2b8cff;">aistudio.google.com/app/apikey</a> → Create API Key → copy → paste di sini. 100% gratis.</div>
+  `;
+  container.prepend(div);
+  document.getElementById('geminiSaveBtn').onclick=()=>{
+    let v=document.getElementById('geminiKeyInput').value.trim();
+    setGeminiKey(v);
+    document.getElementById('geminiStatus').innerHTML='✅ Key disimpan. Sekarang upload foto, akan pakai AI Vision dulu.';
+  };
+  document.getElementById('geminiTestBtn').onclick=async()=>{
+    let k=document.getElementById('geminiKeyInput').value.trim()||getGeminiKey();
+    if(!k){ document.getElementById('geminiStatus').innerHTML='❌ Masukkan key dulu'; return; }
+    document.getElementById('geminiStatus').innerHTML='⏳ Test koneksi Gemini...';
+    try{
+      let testUrl=`https://generativelanguage.googleapis.com/v1beta/models?key=${k}`;
+      let r=await fetch(testUrl);
+      if(r.ok) document.getElementById('geminiStatus').innerHTML='✅ Koneksi OK, key valid! Gratis 1500/hari.';
+      else document.getElementById('geminiStatus').innerHTML='❌ Key tidak valid: '+r.status;
+    }catch(e){ document.getElementById('geminiStatus').innerHTML='❌ Error: '+e.message; }
+  };
+}
+
+setTimeout(showGeminiKeyUI, 1000);
+
+fileInput.addEventListener('change', async (e)=>{
     let files=Array.from(e.target.files||[]);
     if(!files.length) return;
     let rawGlobal=(document.getElementById('globalDate')&&document.getElementById('globalDate').value)||'';
