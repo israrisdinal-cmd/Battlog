@@ -33,7 +33,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.24 FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.24.5 FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -163,7 +163,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.5</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -866,6 +866,7 @@ function haversine(lat1,lon1,lat2,lon2){
   return R*c;
 }
 
+
 function buildHotspotByHour(){
   try{
     const badge=document.getElementById('hotspotHourBadge');
@@ -878,39 +879,38 @@ function buildHotspotByHour(){
     const curHStr=String(curH).padStart(2,'0')+':00';
     const fullTimeStr=String(curH).padStart(2,'0')+':'+String(curM).padStart(2,'0');
     badge.innerText='JAM '+fullTimeStr;
-    
     let data=[];
     try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){ data=[]; }
     if(!data.length){
-      list.innerHTML='<div style="background:#0f1f36; border:1px dashed #1e3a5f; border-radius:10px; padding:12px; font-size:12px; color:#5a7096; text-align:center;">Belum ada riwayat order. Selesaikan 1-2 order dulu biar hotspot keisi.</div>';
+      list.innerHTML='<div style="background:#0f1f36; border:1px dashed #1e3a5f; border-radius:10px; padding:12px; font-size:12px; color:#5a7096; text-align:center;">Belum ada riwayat order.</div>';
       return;
     }
-    // filter jam ini +/-1 jam biar data ga kosong
     let filtered=data.filter(it=>{
       if(it.type!=='Pendapatan') return false;
       if(!it.time) return false;
       let h=parseInt((it.time||'00:00').split(':')[0]);
       if(isNaN(h)) return false;
-      let diff=Math.abs(h-curH);
-      if(diff>12) diff=24-diff; // handle midnight
-      return diff<=1; // jam ini +-1
+      let diff=Math.abs(h-curH); if(diff>12) diff=24-diff;
+      return diff<=1;
     });
-    // fallback kalau jam ini sepi, pakai semua data 7 hari terakhir
+    let usedFallback=false;
     if(filtered.length<3){
       let cutoff=new Date(); cutoff.setDate(cutoff.getDate()-14);
-      filtered=data.filter(it=>{
+      let fb=data.filter(it=>{
         if(it.type!=='Pendapatan') return false;
         if(!it.date) return false;
         try{ let d=new Date(it.date); return d>=cutoff; }catch(e){ return false; }
       });
+      if(fb.length>0){ filtered=fb; usedFallback=true; }
     }
-    if(filtered.length===0) filtered=data.filter(it=>it.type==='Pendapatan');
+    if(filtered.length===0){ filtered=data.filter(it=>it.type==='Pendapatan'); usedFallback=true; }
 
     let areaMap={};
     filtered.forEach(it=>{
-      let rawPickup=cleanGojekAddress(it.pickup||it.lokasi_jemput||it.jemput||'');
+      let rawPickup=it.pickup||it.lokasi_jemput||it.jemput||it.destination||it.lokasi_antar||'';
+      if(typeof cleanGojekAddress==='function'){ try{ rawPickup=cleanGojekAddress(rawPickup); }catch(e){} }
       let area=typeof extractAreaSimple==='function'? extractAreaSimple(rawPickup) : (rawPickup.substring(0,22)||'Unknown');
-      if(!area) area='Unknown';
+      if(!area || area.trim()==='') area='Unknown';
       if(!areaMap[area]) areaMap[area]={count:0, income:0, samples:[], lat:null, lon:null};
       areaMap[area].count+=1;
       areaMap[area].income+=Number(it.amount)||0;
@@ -918,27 +918,20 @@ function buildHotspotByHour(){
     });
 
     let ranked=Object.entries(areaMap).map(([area,s])=>({area,...s, avgIncome: s.count? Math.round(s.income/s.count):0})).sort((a,b)=>b.count-a.count).slice(0,6);
-    
-    // restore cached lat/lon
-    ranked.forEach(r=>{
-      if(geocodeCache[r.area] && geocodeCache[r.area].lat){
-        r.lat=geocodeCache[r.area].lat;
-        r.lon=geocodeCache[r.area].lon;
-      }
-    });
-
-    // if GPS available, calculate distance
-    if(lastGpsPos){
+    try{
       ranked.forEach(r=>{
-        if(r.lat && r.lon){
-          r.dist=haversine(lastGpsPos.lat, lastGpsPos.lon, r.lat, r.lon);
-        } else {
-          r.dist=null;
+        if(typeof geocodeCache!=='undefined' && geocodeCache[r.area] && geocodeCache[r.area].lat){
+          r.lat=geocodeCache[r.area].lat; r.lon=geocodeCache[r.area].lon;
         }
       });
-      // sort by distance if we have GPS
+    }catch(e){}
+
+    if(lastGpsPos){
+      ranked.forEach(r=>{
+        if(r.lat && r.lon){ try{ r.dist=haversine(lastGpsPos.lat, lastGpsPos.lon, r.lat, r.lon); }catch(e){ r.dist=null; } } else { r.dist=null; }
+      });
       let withDist=ranked.filter(r=>r.dist!==null);
-      if(withDist.length>=2){
+      if(withDist.length>=1){
         ranked.sort((a,b)=>{
           if(a.dist!==null && b.dist!==null) return a.dist-b.dist;
           if(a.dist!==null) return -1;
@@ -949,44 +942,43 @@ function buildHotspotByHour(){
     }
 
     if(ranked.length===0){
-      list.innerHTML='<div style="font-size:12px; color:#5a7096;">Belum ada lokasi di jam ini.</div>';
+      list.innerHTML='<div style="font-size:12px; color:#5a7096; background:#0f1f36; padding:10px; border-radius:8px;">Belum ada lokasi di jam ini.</div>';
       return;
     }
 
     let html='';
     ranked.forEach((r,i)=>{
       let medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'📍';
-      let distText=r.dist!==null?`${r.dist.toFixed(1)} km dari kamu` : (lastGpsPos ? 'Menghitung jarak...' : '');
+      let distText=r.dist!==null && r.dist!==undefined ? r.dist.toFixed(1)+' km dari kamu' : (lastGpsPos ? 'Menghitung jarak...' : '');
       let isNearest = lastGpsPos && i===0 && r.dist!==null && r.dist<5;
       let borderColor=isNearest?'#00e676':'#1e3a5f';
       let bg=isNearest?'linear-gradient(135deg,#0f2a1e,#102a1e)':'#0f1f36';
+      let sampleTxt=(r.samples[0]||'').substring(0,60);
+      if(r.area==='Unknown') sampleTxt='Alamat jemput kosong - scan OCR biar akurat';
       html+=`<div style="background:${bg}; border:1px solid ${borderColor}; border-radius:12px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
         <div style="flex:1;">
           <div style="display:flex; align-items:center; gap:6px;"><span style="font-size:14px;">${medal}</span><span style="font-size:13px; font-weight:800; color:#eaf2ff;">${r.area}</span>${isNearest?'<span style="background:#00e676; color:#001a0f; font-size:9px; font-weight:900; padding:2px 6px; border-radius:999px; margin-left:6px;">TERDEKAT</span>':''}</div>
-          <div style="font-size:11px; color:#8aa0c6; margin-top:2px;">${r.count} order jam ${curHStr}±1 • Avg Rp ${r.avgIncome.toLocaleString('id-ID')} ${distText? ' • '+distText : ''}</div>
-          <div style="font-size:10px; color:#5a7096; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Contoh: ${r.samples[0]||'-'}</div>
+          <div style="font-size:11px; color:#8aa0c6; margin-top:2px;">${r.count} order ${usedFallback?'(14 hari)':'jam '+curHStr+'±1'} • Avg Rp ${r.avgIncome.toLocaleString('id-ID')} ${distText? ' • '+distText : ''}</div>
+          <div style="font-size:10px; color:#5a7096; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Contoh: ${sampleTxt||'-'}</div>
         </div>
         <button onclick="focusAreaOnMap('${r.area.replace(/'/g, "\'")}')" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:6px 10px; border-radius:10px; font-size:11px; font-weight:700;">Arah</button>
       </div>`;
     });
     list.innerHTML=html;
-
-    // auto geocode top 3 if GPS active and not cached
     if(lastGpsPos){
-      ranked.slice(0,3).forEach(r=>{
-        if(!r.lat) geocodeArea(r.area);
-      });
+      ranked.slice(0,3).forEach(r=>{ if(r.area!=='Unknown' && !r.lat){ try{ geocodeArea(r.area); }catch(e){} } });
     }
-
     if(status && !lastGpsPos){
       status.innerHTML='📊 <b>'+filtered.length+'</b> order terdeteksi di jam <b>'+curHStr+' ±1</b> (sekarang '+fullTimeStr+') dari 14 hari terakhir. Aktifkan GPS untuk urutkan by jarak.';
     }
   }catch(e){
     console.log('hotspot err',e);
+    try{ const list=document.getElementById('hotspotList'); if(list) list.innerHTML='<div style="font-size:11px; color:#ff8a80; background:#2a1212; padding:8px; border-radius:8px;">Error: '+e.message+'</div>'; }catch(_){}
   }
 }
 
 function focusAreaOnMap(area){
+
   try{
     let q=encodeURIComponent(area+' , Indonesia');
     window.open('https://www.google.com/maps/search/?api=1&query='+q,'_blank');
@@ -1047,12 +1039,23 @@ async function triggerGpsHotspot(){
       currentAreaName=rev.label;
       if(status) status.innerHTML=`✅ Kamu di <b>${rev.label}</b> (±${Math.round(pos.coords.accuracy)}m)<br>📊 Mengurutkan lokasi ramai terdekat jam ini...`;
       
-      // simpan lokasi ke battlog lokasi history juga biar sinkron
+      // simpan lokasi ke battlog lokasi history juga biar sinkron (FIX: simpan string agar tidak jadi [object Object] di battlog)
       try{
         let hist=JSON.parse(localStorage.getItem('battlog_lokasi_history')||'[]');
-        hist.unshift({area: rev.label, lat, lon, ts: Date.now(), source:'lapkeu_gps_hotspot'});
-        hist=hist.slice(0,50);
+        // Bersihkan history lama yang mungkin masih object
+        hist=hist.filter(x=>typeof x==='string' || (x && typeof x==='object' && (x.area||x.label))).map(x=> typeof x==='string'? x : (x.area||x.label||'')).filter(Boolean);
+        let areaStr=rev.label||'';
+        if(areaStr){
+          hist=hist.filter(x=> String(x).toLowerCase()!==areaStr.toLowerCase());
+          hist.unshift(areaStr);
+        }
+        hist=hist.slice(0,10);
         localStorage.setItem('battlog_lokasi_history', JSON.stringify(hist));
+        // Simpan detail GPS terpisah biar tidak merusak battlog
+        let gpsDetail=JSON.parse(localStorage.getItem('lapkeu_gps_history')||'[]');
+        gpsDetail.unshift({area: rev.label, lat, lon, ts: Date.now(), source:'lapkeu_gps_hotspot'});
+        gpsDetail=gpsDetail.slice(0,50);
+        localStorage.setItem('lapkeu_gps_history', JSON.stringify(gpsDetail));
       }catch(e){}
 
       buildHotspotByHour();
@@ -1165,7 +1168,7 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
             let h=parseInt((item.time||'00:00').split(':')[0])||0;
             hourMap[h].income+=amt*weight; hourMap[h].hours+=dur*weight; hourMap[h].orders+=1*weight; hourMap[h].score+= (dur>0? (amt/dur)*weight : 0);
             
-            let area = (typeof extractAreaSimple==='function'? extractAreaSimple(item.pickup||'') : (item.pickup||'').substring(0,20)) || 'Unknown';
+            let rawAreaIt=item.pickup||''; if(typeof cleanGojekAddress==='function'){ try{ rawAreaIt=cleanGojekAddress(rawAreaIt); }catch(e){} } let area = (typeof extractAreaSimple==='function'? extractAreaSimple(rawAreaIt) : (rawAreaIt.substring(0,20))) || 'Unknown';
             if(!areaMap[area]) areaMap[area]={income:0, hours:0, orders:0, score:0};
             areaMap[area].income+=amt*weight; areaMap[area].hours+=dur*weight; areaMap[area].orders+=1*weight; areaMap[area].score+= (dur>0? (amt/dur)*weight : 0);
             
@@ -1187,7 +1190,7 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
             for(let i=0;i<sorted.length-1;i++){
                 let gap=getDurationInHours(sorted[i].endTime||sorted[i].time, sorted[i+1].time);
                 if(gap>0.25){
-                    let key=(sorted[i].destination||sorted[i].pickup||'').substring(0,18)+' → '+(sorted[i+1].pickup||'').substring(0,18);
+                    let destClean=typeof cleanGojekAddress==='function'? cleanGojekAddress(sorted[i].destination||sorted[i].pickup||'') : (sorted[i].destination||sorted[i].pickup||''); let pickClean=typeof cleanGojekAddress==='function'? cleanGojekAddress(sorted[i+1].pickup||'') : (sorted[i+1].pickup||''); let key=destClean.substring(0,18)+' → '+pickClean.substring(0,18);
                     if(!deadTrips[key]) deadTrips[key]={totalGap:0, count:0};
                     deadTrips[key].totalGap+=gap; deadTrips[key].count+=1;
                 }
@@ -1202,6 +1205,15 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
     let hoursRanked = Object.entries(stats.hourMap).map(([h,s])=>({h:parseInt(h), ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
     let areasRanked = Object.entries(stats.areaMap).map(([area,s])=>({area, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).sort((a,b)=>b.rpPerJam-a.rpPerJam);
     let servicesRanked = Object.entries(stats.serviceMap).map(([cat,s])=>({cat, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
+
+    
+    try{
+      if(typeof cleanGojekAddress==='function'){
+        if(Array.isArray(areasRanked)) areasRanked.forEach(o=>{ if(o.area) o.area=cleanGojekAddress(o.area); });
+        if(bestArea && bestArea.area) bestArea.area=cleanGojekAddress(bestArea.area);
+        if(worstArea && worstArea.area) worstArea.area=cleanGojekAddress(worstArea.area);
+      }
+    }catch(e){}
 
     let bestHour = hoursRanked[0];
     let worstHour = hoursRanked.length>0? hoursRanked[hoursRanked.length-1] : null;
@@ -1432,7 +1444,7 @@ function loadRekapData(){
                     blockMatch.orderCount++;
                     // heatmap area: pakai pickup sebagai sumber order
                     try{
-                        let areaKey=extractAreaSimple(ord.pickup||ord.destination||'');
+                        let rawTier=ord.pickup||ord.destination||''; if(typeof cleanGojekAddress==='function'){ try{ rawTier=cleanGojekAddress(rawTier); }catch(e){} } let areaKey=extractAreaSimple(rawTier);
                         if(areaKey){
                             blockMatch.areas[areaKey]=(blockMatch.areas[areaKey]||0)+1;
                         }
