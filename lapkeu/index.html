@@ -33,7 +33,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.24.8 FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.24.10 FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -163,7 +163,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.8</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.24.10</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -1422,9 +1422,14 @@ function loadRekapData(){
     function extractAreaSimpleOrig(addr){
         if(!addr) return '';
         addr=addr.replace(/\n/g,' ').trim();
+        // Normalisasi OCR error: JIn, Jin, J1n, Jln kebaca salah
+        addr=addr.replace(/\bJ[Il1][nN]?\.(?=[A-Za-z])/gi, 'Jl. ');
         addr=addr.replace(/\b(Jln|Jl)\.(?=[A-Za-z])/gi, '$1. ');
-        let clean=addr.replace(/\b(Jl\.?|Jln\.?|Jalan|No\.?|RT\.?|RW\.?|Kav\.?|Blok|Gg\.?|Gang)\b/gi,'').replace(/\d+/g,'').trim();
+        // Strip semua varian prefix jalan termasuk hasil OCR salah
+        let clean=addr.replace(/\b(Jl\.?|Jln\.?|Jin\.?|JIn\.?|J1n\.?|Jalan|No\.?|RT\.?|RW\.?|Kav\.?|Blok|Gg\.?|Gang)\b/gi,'').replace(/\d+/g,'').trim();
         clean=clean.replace(/^[.,\s]+/,'').trim();
+        // Jika setelah strip masih ada sisa 'Jin' di awal karena OCR, buang lagi
+        clean=clean.replace(/^Jin\s+/i,'').replace(/^JIn\s+/i,'').trim();
         let parts=clean.split(/[,.]/)[0].split(/\s+/).filter(w=>w.length>2);
         if(parts.length===0) return addr.substring(0,20).trim();
         return parts.slice(0,3).join(' ').substring(0,22).trim();
@@ -2020,9 +2025,15 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    s=s.replace(/\bJln\.(?=\S)/gi, 'Jln. ');
+    // V5.24.10: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // Normalisasi semua varian di awal alamat
+    s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
+    s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
+    s=s.replace(/\bJ[Il1]n\b/gi, 'Jl.');
+    s=s.replace(/\bJln\.(?=\S)/gi, 'Jl. ');
     s=s.replace(/\bJl\.(?=\S)/gi, 'Jl. ');
     s=s.replace(/\bJln\b/gi, 'Jl.');
+    s=s.replace(/\bJin\b/gi, 'Jl.');
     s=s.replace(/\bJalan\b/gi, 'Jl.');
     s=s.replace(/\bJl\.\s*\./gi, 'Jl.');
     s=s.replace(/\s{2,}/g, ' ');
@@ -2033,7 +2044,7 @@ window.onload=function(){
     if(!addr) return 'Unknown';
     let k=cleanGojekAddressDeep(addr);
     k=k.toLowerCase();
-    k=k.replace(/\b(jl\.?|jln\.?|jalan)\b/gi,'');
+    k=k.replace(/\b(jl\.?|jln\.?|jin\.?|jalan)\b/gi,'');
     k=k.replace(/[^a-z0-9 ]/g,' ');
     k=k.replace(/\s+/g,' ').trim();
     let parts=k.split(' ').filter(function(w){ return w.length>2; });
@@ -2075,7 +2086,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.24.8] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.24.10] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
@@ -2180,17 +2191,42 @@ window.onload=function(){
     }
     return results;
   }
-  function isDuplicateById(idTrans){
-    if(!idTrans) return false;
+  function getClarityScore(entry){
+    // Skor kejelasan: amount + alamat
+    // Semakin tinggi = semakin jelas
+    try{
+      let score=0;
+      let amt=Number(entry.amount||entry.amt||0);
+      if(amt>0) score+=1;
+      if(amt>=2000) score+=2;
+      let pick=(entry.pickup||entry.lokasi_jemput||entry.jemput||'').trim();
+      let dest=(entry.destination||entry.lokasi_antar||entry.antar||'').trim();
+      if(pick.length>5) score+=1;
+      if(dest.length>5) score+=1;
+      if(pick.length>10 && !/^e\s+Jl/i.test(pick) && !/^eo\s+/i.test(pick) && !/^Jin\b/i.test(pick) && !/^Unknown/i.test(pick)) score+=2;
+      if(dest.length>10) score+=1;
+      if(pick && dest) score+=1;
+      // penalti kalau masih ada artefak e/eo di awal
+      if(/^e\s+Jl/i.test(pick) || /^eo\s+Jl/i.test(pick)) score-=2;
+      if(pick.includes('[object Object]') || dest.includes('[object Object]')) score-=5;
+      return score;
+    }catch(e){ return 0; }
+  }
+  function findExistingById(idTrans){
+    if(!idTrans) return null;
     try{
       let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
       idTrans=idTrans.toUpperCase();
-      for(let e of data){
-        if(e.idTrans && e.idTrans.toUpperCase()===idTrans) return true;
-        if(e.note && e.note.toUpperCase().includes(idTrans)) return true;
+      for(let i=0;i<data.length;i++){
+        let e=data[i];
+        if(e.idTrans && e.idTrans.toUpperCase()===idTrans) return {entry:e, index:i, dataRef:data};
+        if(e.note && e.note.toUpperCase().includes(idTrans)) return {entry:e, index:i, dataRef:data};
       }
     }catch(e){}
-    return false;
+    return null;
+  }
+  function isDuplicateById(idTrans){
+    return findExistingById(idTrans)!==null;
   }
   async function ocrWithWorker(blob, label){
     let worker=null;
@@ -2252,17 +2288,86 @@ window.onload=function(){
       allParsed=allParsed.concat(r);
     }
     if(!allParsed.length){ statusEl.innerHTML+='<br>❌ Tidak ada data valid'; fileInput.value=''; return; }
-    let unique=[]; let seenId=new Set();
+    let unique=[]; let seenIdMap=new Map();
     let perDateCount={};
+    let replacedCount=0;
+    let siganDataExisting=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
     for(let p of allParsed){
       if(!p.idTrans){ statusEl.innerHTML+='<br>⚠️ Tanpa ID, lewati: Rp'+p.amount+' '+p.start; continue; }
       let idKey=p.idTrans.toUpperCase();
-      if(seenId.has(idKey)){ statusEl.innerHTML+='<br>⏭️ Duplikat batch ID '+idKey; continue; }
-      if(isDuplicateById(idKey)){ statusEl.innerHTML+='<br>⏭️ Duplikat tolak ID '+idKey+' sudah ada'; continue; }
-      seenId.add(idKey);
+      let newScore=getClarityScore(p);
+      // Cek duplikat dalam batch yang sama
+      if(seenIdMap.has(idKey)){
+        let oldP=seenIdMap.get(idKey);
+        let oldScore=getClarityScore(oldP);
+        if(newScore>oldScore){
+          // ganti dengan yang lebih jelas
+          let idx=unique.findIndex(x=>x.idTrans.toUpperCase()===idKey);
+          if(idx>=0) unique[idx]=p;
+          seenIdMap.set(idKey,p);
+          statusEl.innerHTML+='<br>🔄 Duplikat batch ID '+idKey+' - pakai yang lebih jelas (skor '+oldScore+'→'+newScore+')';
+          // update perDateCount
+          if(oldP.date) perDateCount[oldP.date]=Math.max(0,(perDateCount[oldP.date]||1)-1);
+          perDateCount[p.date]=(perDateCount[p.date]||0)+1;
+        } else {
+          statusEl.innerHTML+='<br>⏭️ Duplikat batch ID '+idKey+' tolak (skor lama '+oldScore+' >= baru '+newScore+')';
+        }
+        continue;
+      }
+      // Cek duplikat dengan data lama di localStorage
+      let existing=findExistingById(idKey);
+      if(existing){
+        let oldScore=getClarityScore(existing.entry);
+        if(newScore>oldScore){
+          // REPLACE yang lama dengan yang baru yang lebih jelas
+          try{
+            let oldAmt=existing.entry.amount;
+            let oldPick=existing.entry.pickup||'';
+            existing.dataRef[existing.index]={
+              ...existing.entry,
+              date: p.date||existing.entry.date,
+              time: p.start||existing.entry.time,
+              jam_awal: p.start||existing.entry.jam_awal,
+              jam_akhir: p.end||existing.entry.jam_akhir,
+              endTime: p.end||existing.entry.endTime,
+              amount: p.amount||existing.entry.amount,
+              dist: p.dist||existing.entry.dist,
+              jarak: p.dist||existing.entry.jarak,
+              pickup: p.pickup||existing.entry.pickup,
+              destination: p.destination||existing.entry.destination,
+              lokasi_jemput: p.pickup||existing.entry.lokasi_jemput,
+              lokasi_antar: p.destination||existing.entry.lokasi_antar,
+              note: ('OCR '+p.start+'-'+p.end+' '+p.idTrans+' | '+(p.pickup||'')+' -> '+(p.destination||'')).substring(0,300),
+              source: 'ocr_v5_24_10_replace_clearer'
+            };
+            localStorage.setItem('lapkeuData', JSON.stringify(existing.dataRef));
+            // update lake juga
+            try{
+              let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+              if(lakeRaw){
+                let lake=JSON.parse(lakeRaw);
+                if(lake.sigan) lake.sigan.lapkeuData=existing.dataRef;
+                localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake));
+              }
+            }catch(e){}
+            replacedCount++;
+            statusEl.innerHTML+='<br>♻️ ID '+idKey+' sudah ada tapi buram (skor '+oldScore+') → diganti yang jelas (skor '+newScore+') Rp'+oldAmt+'→Rp'+p.amount;
+          }catch(e){
+            statusEl.innerHTML+='<br>❌ Gagal ganti ID '+idKey+': '+e.message;
+          }
+        } else {
+          statusEl.innerHTML+='<br>⏭️ Duplikat tolak ID '+idKey+' sudah ada & lebih jelas (skor '+oldScore+' >= '+newScore+')';
+        }
+        continue;
+      }
+      seenIdMap.set(idKey,p);
       unique.push(p);
       perDateCount[p.date]=(perDateCount[p.date]||0)+1;
     }
+    if(replacedCount>0){
+      statusEl.innerHTML+='<br>✅ '+replacedCount+' data lama yang buram sudah diganti yang jelas';
+    }
+
     if(unique.length){
       let siganData=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
       let saved=0; let datesAffected=new Set();
