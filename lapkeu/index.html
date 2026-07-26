@@ -59,7 +59,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.32.0 OCR.Space + Tip Support FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.32.1 All Service Badge FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -189,7 +189,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.32.0 OCR.Space + Tip Support</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.32.1 All Service Badge</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -1845,27 +1845,29 @@ function loadRekapData(){
     }
 
     const ratesContainer=document.getElementById('rekapRatesContainer'); ratesContainer.innerHTML="";
-    // sort by Rp/jam tertinggi
+    // sort by Rp/jam tertinggi - FIX V5.32.1: semua layanan ada badge nunggu
     let sortedServices=Object.keys(serviceRates).map(cat=>{
         let r=serviceRates[cat];
         let rpPerJam=r.hours>0?Math.round(r.amt/r.hours):0;
-        // RUMUS BARU SESUAI REQUEST: AVG MURNI dari durasi real per order (jam_awal - jam_akhir) selama periode, tanpa campur speed battlog
-        // contoh: order1 6m + order2 10m + order3 20m = 36m / 3 = 12m avg
         let avgDur=r.durCount>0? (r.hours/r.durCount):0;
-        // Untuk Goride/Gosend, macet/cari alamat tidak dihitung dari speed battlog lagi, jadi waiting 0
-        let avgTravel=avgDur; // jalan = avg itu sendiri
+        // Hitung travel & waiting untuk SEMUA layanan (bukan cuma Gofood)
+        let travelTmp=r.waitingCount>0? (r.travelHours/r.waitingCount):0;
+        let waitTmp=r.waitingCount>0? (r.waitingHours/r.waitingCount):0;
+        let avgTravel=avgDur;
         let avgWaiting=0;
         let waitingPct=0;
-        // Untuk Gofood/Gomart tetap hitung nunggu resto dari selisih travel ideal vs real (opsional, tapi tetap pakai avgDur untuk badge)
-        if(cat==='Gofood' || cat==='Gomart'){
-            // tetap pakai waiting lama kalau ada, tapi kalau travel > hours, anggap 0
-            let travelTmp=r.waitingCount>0? (r.travelHours/r.waitingCount):0;
-            let waitTmp=r.waitingCount>0? (r.waitingHours/r.waitingCount):0;
-            if(waitTmp>0 && waitTmp<avgDur){
-                avgTravel=travelTmp;
-                avgWaiting=waitTmp;
-                waitingPct=r.hours>0? Math.round((r.waitingHours/r.hours)*100):0;
-            }
+        // Jika ada waiting dan masuk akal (< avgDur)
+        if(waitTmp>=0 && waitTmp<avgDur && r.hours>0){
+            avgTravel=travelTmp;
+            avgWaiting=waitTmp;
+            waitingPct=Math.round((r.waitingHours/r.hours)*100);
+        } else if(r.km>0 && r.hours>0){
+            // fallback hitung dari speed
+            let idealHours = r.km / DYNAMIC_CITY_SPEED;
+            let waitHours = Math.max(0, r.hours - idealHours);
+            avgTravel = r.durCount>0 ? (idealHours/r.durCount) : 0;
+            avgWaiting = r.durCount>0 ? (waitHours/r.durCount) : 0;
+            waitingPct = r.hours>0 ? Math.round((waitHours/r.hours)*100) : 0;
         }
         return {cat, r, rpPerJam, avgDur, avgTravel, avgWaiting, waitingPct};
     }).sort((a,b)=>b.rpPerJam-a.rpPerJam);
@@ -1936,15 +1938,15 @@ function loadRekapData(){
         let insightHtml=`<div style="margin-top:10px; font-size:11px; background:#0f1f36; border:1px solid #1e2d4a; border-radius:8px; padding:8px; color:#8aa0c6;">`;
         insightHtml+=`💡 <strong style="color:#7dffb7;">Insight Waktu Koreksi:</strong> ${best.cat} paling cuan <strong style="color:#00e676;">Rp ${best.rpPerJam.toLocaleString('id-ID')}/jam</strong> (avg ${Math.round(best.avgDur*60)}m).<br>`;
         sortedServices.forEach(s=>{
-            if(s.r.totalCount<2) return;
+            if(s.r.totalCount<1) return;
             let cat=s.cat; let pct=s.waitingPct; let wMenit=Math.round(s.avgWaiting*60);
-            if(pct<15) return;
+            if(pct<10) return; // tampilkan kalau >=10%
             if(cat==='Gofood' || cat==='Gomart'){
                 insightHtml+=`⏳ <strong style="color:#ff8a80;">${cat}</strong> ${pct}% waktu habis <strong>nunggu resto</strong> (${wMenit}m/order).<br>`;
             } else if(cat==='Goride'){
-                insightHtml+=`🚦 <strong style="color:#ffcc66;">${cat}</strong> ${pct}% extra time karena <strong>macet jalan</strong> (${wMenit}m/order).<br>`;
+                insightHtml+=`⏳ <strong style="color:#ffcc66;">${cat}</strong> ${pct}% waktu habis <strong>nunggu customer</strong> (${wMenit}m/order).<br>`;
             } else if(cat==='Gosend'){
-                insightHtml+=`🔍 <strong style="color:#8ab4f8;">${cat}</strong> ${pct}% waktu habis <strong>cari alamat jemput/antar</strong> (${wMenit}m/order).<br>`;
+                insightHtml+=`⏳ <strong style="color:#8ab4f8;">${cat}</strong> ${pct}% waktu habis <strong>nunggu penerima</strong> (${wMenit}m/order).<br>`;
             }
         });
         insightHtml+=`</div>`;
@@ -2138,7 +2140,7 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.32.0 OCR.Space + Tip Support: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // V5.32.1 All Service Badge: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
     // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
@@ -2199,7 +2201,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.32.0 OCR.Space + Tip Support] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.32.1 All Service Badge] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
