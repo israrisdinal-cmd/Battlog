@@ -59,7 +59,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.32.4 Abaikan +Tip Button + Badge All Layanan FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.32.5 Bar di Pendapatan + Badge All Layanan FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -189,7 +189,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.32.4 Abaikan +Tip Button + Badge All Layanan</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.32.5 Bar di Pendapatan + Badge All Layanan</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -239,11 +239,13 @@ window.ocrSpaceParse=ocrSpaceParse;
 
         
 
-        <!-- Summary -->
+        <!-- Summary V5.32.5: bar pindah ke Pendapatan -->
         <div class="summary-grid">
             <div class="card" style="text-align:center;">
                 <span class="stat-label">Pendapatan Hari Ini</span>
                 <span class="stat-val" id="valIncome">Rp 0</span>
+                <div class="progress-container"><div id="progressBar" class="progress-bar"></div></div>
+                <div style="font-size:10px; color:var(--muted); margin-top:4px;" id="txtTargetProgress">0% Tercapai</div>
             </div>
             <div class="card" style="text-align:center;">
                 <span class="stat-label">Pengeluaran Hari Ini</span>
@@ -252,8 +254,6 @@ window.ocrSpaceParse=ocrSpaceParse;
             <div class="card" style="text-align:center;">
                 <span class="stat-label">Netto Hari Ini</span>
                 <span class="stat-val" id="valBalance">Rp 0</span>
-                <div class="progress-container"><div id="progressBar" class="progress-bar"></div></div>
-                <div style="font-size:10px; color:var(--muted); margin-top:4px;" id="txtTargetProgress">0% Tercapai</div>
             </div>
             <div class="card" style="text-align:center;">
                 <span class="stat-label">Efisiensi</span>
@@ -2140,7 +2140,7 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.32.4 Abaikan +Tip Button + Badge All Layanan: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // V5.32.5 Bar di Pendapatan + Badge All Layanan: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
     // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
@@ -2201,7 +2201,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.32.4 Abaikan +Tip Button + Badge All Layanan] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.32.5 Bar di Pendapatan + Badge All Layanan] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
