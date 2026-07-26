@@ -59,7 +59,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.32.1 All Service Badge FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.32.2 Fix Badge + Bahasa FIX_ALL_BUGS - 2026-07-23</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -189,7 +189,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.32.1 All Service Badge</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.32.2 Fix Badge + Bahasa</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -1940,13 +1940,13 @@ function loadRekapData(){
         sortedServices.forEach(s=>{
             if(s.r.totalCount<1) return;
             let cat=s.cat; let pct=s.waitingPct; let wMenit=Math.round(s.avgWaiting*60);
-            if(pct<10) return; // tampilkan kalau >=10%
+            if(pct<10) return;
             if(cat==='Gofood' || cat==='Gomart'){
-                insightHtml+=`⏳ <strong style="color:#ff8a80;">${cat}</strong> ${pct}% waktu habis <strong>nunggu resto</strong> (${wMenit}m/order).<br>`;
+                insightHtml+=`⏳ <strong style="color:#ff8a80;">${cat}</strong> ${pct}% waktu habis <strong>dominan nunggu makanan di resto</strong> (${wMenit}m/order).<br>`;
             } else if(cat==='Goride'){
-                insightHtml+=`⏳ <strong style="color:#ffcc66;">${cat}</strong> ${pct}% waktu habis <strong>nunggu customer</strong> (${wMenit}m/order).<br>`;
+                insightHtml+=`🚦 <strong style="color:#ffcc66;">${cat}</strong> ${pct}% waktu habis <strong>sudah pasti gara gara macet</strong> (${wMenit}m/order).<br>`;
             } else if(cat==='Gosend'){
-                insightHtml+=`⏳ <strong style="color:#8ab4f8;">${cat}</strong> ${pct}% waktu habis <strong>nunggu penerima</strong> (${wMenit}m/order).<br>`;
+                insightHtml+=`🔍 <strong style="color:#8ab4f8;">${cat}</strong> ${pct}% waktu habis <strong>dominan lama karna cari alamat</strong> (${wMenit}m/order).<br>`;
             }
         });
         insightHtml+=`</div>`;
@@ -2140,7 +2140,7 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.32.1 All Service Badge: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
+    // V5.32.2 Fix Badge + Bahasa: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
     // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
@@ -2201,7 +2201,7 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.32.1 All Service Badge] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
+        console.log('[FIX V5.32.2 Fix Badge + Bahasa] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
