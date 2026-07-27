@@ -11,33 +11,7 @@ JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
 -->
 <!DOCTYPE html>
 <html lang="id">
-<head><!-- PLAYABLE_TOUCH_PATCH_V1 -->
-<script>
-window.useOcrSpace = localStorage.getItem('useOcrSpace') !== '0'; // default ON for this version
-window.ocrSpaceKey = localStorage.getItem('ocrSpaceKey') || 'helloworld';
-
-function getOcrSpaceKey(){ return localStorage.getItem('ocrSpaceKey') || 'helloworld'; }
-
-async function ocrSpaceParse(blob){
-  let apiKey=getOcrSpaceKey();
-  let form=new FormData();
-  form.append('apikey', apiKey);
-  form.append('language', 'eng');
-  form.append('isOverlayRequired', 'false');
-  form.append('OCREngine', '2');
-  form.append('file', blob, 'gojek.jpg');
-  let res=await fetch('https://api.ocr.space/parse/image', {method:'POST', body:form});
-  let json=await res.json();
-  if(json.OCRExitCode!==1 && json.OCRExitCode!==2){
-    throw new Error(json.ErrorMessage || 'OCR.Space gagal');
-  }
-  let text = json.ParsedResults?.map(r=>r.ParsedText).join('\n') || '';
-  return text;
-}
-window.ocrSpaceParse=ocrSpaceParse;
-</script>
-
-<script>
+<head><!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
 (function() {
   if (window.__playableTouchPatchInstalled) return;
   window.__playableTouchPatchInstalled = true;
@@ -56,10 +30,57 @@ window.ocrSpaceParse=ocrSpaceParse;
     return origAdd.call(this, type, listener, options);
   };
 })();
-</script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+</script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><!-- PLAYABLE_TOUCH_PATCH_V1 - FIXED -->
+<script>
+window.useOcrSpace = localStorage.getItem('useOcrSpace') !== '0';
+window.ocrSpaceKey = localStorage.getItem('ocrSpaceKey') || 'helloworld';
+function getOcrSpaceKey(){ return localStorage.getItem('ocrSpaceKey') || 'helloworld'; }
+async function ocrSpaceParse(blob){
+  let apiKey=getOcrSpaceKey();
+  let form=new FormData();
+  form.append('apikey', apiKey);
+  form.append('language', 'eng');
+  form.append('isOverlayRequired', 'false');
+  form.append('OCREngine', '2');
+  form.append('file', blob, 'gojek.jpg');
+  let res=await fetch('https://api.ocr.space/parse/image', {method:'POST', body:form});
+  let json=await res.json();
+  if(json.OCRExitCode!==1 && json.OCRExitCode!==2){
+    throw new Error(json.ErrorMessage || 'OCR.Space gagal');
+  }
+  let text = json.ParsedResults?.map(r=>r.ParsedText).join('\n') || '';
+  return text;
+}
+window.ocrSpaceParse=ocrSpaceParse;
+</script>
+<script>
+(function() {
+  if (window.__playableTouchPatchInstalled) return;
+  window.__playableTouchPatchInstalled = true;
+  var origAdd = EventTarget.prototype.addEventListener;
+  var blockedTypes = { touchstart: 1, touchmove: 1, wheel: 1 };
+  EventTarget.prototype.addEventListener = function(type, listener, options) {
+    if (blockedTypes[type]) {
+      if (options === undefined || options === null) {
+        options = { passive: true };
+      } else if (typeof options === 'boolean') {
+        options = { capture: options, passive: true };
+      } else {
+        // FIX: jangan paksa passive:true kalau user set false secara eksplisit
+        if(options.passive === undefined) options = Object.assign({}, options, { passive: true });
+      }
+    }
+    return origAdd.call(this, type, listener, options);
+  };
+})();
+</script>
+<script>
+// FIX: jangan timpa native Intl, hanya tambah t jika belum ada
+try{ if(!window.Intl.t) window.Intl.t = function(s){return(window.Intl._locale&&window.Intl._locale[s])||s;}; }catch(e){ window.Intl = {t:function(s){return s;}}; }
+</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiGan V5.32.5 Bar di Pendapatan + Badge All Layanan FIX_ALL_BUGS - 2026-07-23</title>
+    <title>SiGan V5.32.6 FIXED ALL BUGS - 2026-07-27</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -104,6 +125,7 @@ window.ocrSpaceParse=ocrSpaceParse;
     </style>
 </head>
 <body>
+
 <script>
 // === MIGRASI OTOMATIS v1.0 -> v1.1 - BATTLOG & LAPKEU STANDARD ===
 (function(){
@@ -139,18 +161,15 @@ window.ocrSpaceParse=ocrSpaceParse;
       try{
         if(!localStorage.getItem(newKey) && localStorage.getItem(oldKey)){
           localStorage.setItem(newKey, localStorage.getItem(oldKey));
-          console.log('[MIGRASI] '+oldKey+' -> '+newKey);
         }
       }catch(e){}
     }
-    // Migrasi isi lake
     try{
       let lakeRaw = localStorage.getItem('UNIVERSAL_LAKE_V1');
       if(lakeRaw){
         let lake = JSON.parse(lakeRaw); let changed=false;
         if(lake.sigan && !lake.lapkeu){ lake.lapkeu = lake.sigan; changed=true; }
         if(lake.maka && !lake.battlog){ lake.battlog = lake.maka; changed=true; }
-        // cross keys
         if(lake.cross){
           const crossMap = {
             'siganData': 'lapkeuData',
@@ -181,17 +200,15 @@ window.ocrSpaceParse=ocrSpaceParse;
           for(let o in crossMap){ if(lake.cross[o] && !lake.cross[crossMap[o]]){ lake.cross[crossMap[o]] = lake.cross[o]; changed=true; } }
           if(lake.sigan){ for(let o in crossMap){ if(lake.sigan[o] && !lake.sigan[crossMap[o]]){ lake.sigan[crossMap[o]] = lake.sigan[o]; changed=true; } } }
         }
-        if(changed){ localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake)); console.log('[MIGRASI] Lake migrated'); }
+        if(changed){ localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake)); }
       }
     }catch(e){}
-  }catch(e){ console.log('migrasi err',e); }
+  }catch(e){}
 })();
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.32.5 Bar di Pendapatan + Badge All Layanan</span></div>
-
-
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.32.6 FIXED ALL BUGS</span></div>
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
             <div id="sigan-sync-dot" style="width:8px; height:8px; border-radius:50%; background:#555;"></div>
             <span id="sigan-sync-text" style="color:#aaa;">SYNC STANDBY</span>
@@ -207,7 +224,6 @@ window.ocrSpaceParse=ocrSpaceParse;
 
     <!-- TAB INPUT -->
     <div id="tabContentInput">
-        <!-- Global Date & Shift -->
         <div class="card">
             <div style="font-size:12px; font-weight:800; margin-bottom:8px; color:#7dffb7;">📅 Tanggal Operasional & Jam Online</div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
@@ -234,12 +250,9 @@ window.ocrSpaceParse=ocrSpaceParse;
                 </div>
                 <button class="btn-grid-on" style="padding:8px 12px; margin:0;" onclick="pressOnBid()">ON</button>
             </div>
-            <div style="font-size:10px; color:#5a7096; margin-top:6px;">* Jam online akan otomatis terisi dari jam awal order pertama & jam akhir order terakhir saat OCR. Input manual tetap bisa diedit.</div>
+            <div style="font-size:10px; color:#5a7096; margin-top:6px;">* Jam online otomatis dari order pertama-terakhir. Manual hanya hari ini.</div>
         </div>
 
-        
-
-        <!-- Summary V5.32.5: bar pindah ke Pendapatan -->
         <div class="summary-grid">
             <div class="card" style="text-align:center;">
                 <span class="stat-label">Pendapatan Hari Ini</span>
@@ -262,26 +275,19 @@ window.ocrSpaceParse=ocrSpaceParse;
             </div>
         </div>
 
-        
-
-        <!-- OCR Card V5 -->
         <div class="card" style="border:2px dashed #2b8cff; background: linear-gradient(180deg, #111d35, #0f1f36);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div style="font-weight:800;color:#7dffb7">📷 Scan Screenshot Gojek</div>
-            <div style="font-size:10px;color:#8aa0c6">V5.0 FULL • ID Anti Duplikat • Alamat Lengkap</div>
+            <div style="font-size:10px;color:#8aa0c6">V5.32.6 FIXED • ID Anti Duplikat</div>
           </div>
           <label for="ocrFileInput" style="display:block;border:2px dashed #2b8cff;padding:24px;text-align:center;cursor:pointer;border-radius:12px;background:#0f1f36;color:#8ab4f8;font-weight:700">
-            📷 Tap pilih screenshot (bisa banyak)<br><span style="font-size:11px;color:#5a7096">Otomatis ambil: harga, jam awal-akhir, ID, km, alamat jemput & tujuan, tanggal</span>
+            📷 Tap pilih screenshot (bisa banyak)<br><span style="font-size:11px;color:#5a7096">Otomatis ambil: harga, jam awal-akhir, ID, km, alamat</span>
           </label>
           <input type="file" id="ocrFileInput" accept="image/*" multiple style="display:none">
           <div id="ocrStatus" style="margin-top:10px;font-size:12px;color:#8aa0c6"></div>
           <div id="ocrPreview" style="margin-top:8px;max-height:160px;overflow:auto;font-size:11px;background:#0a1328;border-radius:8px;padding:8px;display:none"></div>
-          <div style="margin-top:6px;font-size:10px;color:#5a7096">Aturan V5: RB=Goride, F=Gofood, MT=Gomart, GK=Gosend. Duplikasi cegah HANYA via ID transaksi. Tanggal riwayat ikut tanggal di screenshot jika terdeteksi. Jam online = order pertama - terakhir.</div>
         </div>
 
-        
-
-        <!-- Manual Input Pengeluaran (Pendapatan manual tetap ada tapi tanpa prediksi) -->
         <div class="card">
             <div style="font-weight:800; font-size:13px; margin-bottom:8px;">✍️ Input Manual (Pengeluaran / Koreksi)</div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
@@ -296,14 +302,12 @@ window.ocrSpaceParse=ocrSpaceParse;
             <input type="text" id="note" placeholder="Catatan / alamat jemput -> tujuan / ID" style="margin-top:8px;">
             <button id="btnSubmit" onclick="saveData()" style="width:100%; margin-top:10px;">Rekam Data</button>
             <button id="btnCancelEdit" class="btn-secondary hidden" style="margin-top:8px;" onclick="cancelEdit()">Batal Edit</button>
-            <div style="font-size:10px; color:#5a7096; margin-top:6px;">* Untuk pendapatan sebaiknya via OCR biar lengkap ID, alamat, jam awal-akhir.</div>
+            <div style="font-size:10px; color:#5a7096; margin-top:6px;">* Edit sekarang aman, ID & alamat tidak hilang.</div>
         </div>
 
-        <!-- DEBUG PANEL V5.3 -->
         <div class="card" style="border:1px solid #ff5252; background:#1a1212;">
-            <div style="font-weight:800; color:#ff8a80; font-size:12px; margin-bottom:8px;">🔍 DEBUG - Data Bersembunyi</div>
-            <div style="font-size:10px; color:#8aa0c6; margin-bottom:8px;">Kalau data OCR tidak muncul di riwayat, cek di sini:</div>
-            <button onclick="debugShowAll()" style="width:100%; background:#2a1212; border:1px solid #5a2a2a; color:#ff8a80; padding:8px; border-radius:8px; font-size:11px;">📋 Lihat Semua Tanggal & Jumlah Data</button>
+            <div style="font-weight:800; color:#ff8a80; font-size:12px; margin-bottom:8px;">🔍 DEBUG</div>
+            <button onclick="debugShowAll()" style="width:100%; background:#2a1212; border:1px solid #5a2a2a; color:#ff8a80; padding:8px; border-radius:8px; font-size:11px;">📋 Lihat Semua Tanggal</button>
             <div id="debugOutput" style="margin-top:8px; font-size:10px; background:#0a1328; padding:8px; border-radius:8px; max-height:200px; overflow:auto; display:none; white-space:pre-wrap;"></div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;">
                 <button onclick="clearToday()" style="background:#1a1212; border:1px solid #5a2a2a; color:#ff8a80; padding:6px; border-radius:8px; font-size:10px;">🗑️ Hapus Hari Ini</button>
@@ -318,17 +322,11 @@ window.ocrSpaceParse=ocrSpaceParse;
                 let perDate={};
                 data.forEach(d=>{ perDate[d.date]=(perDate[d.date]||0)+1; });
                 let txt=`Total data: ${data.length} trip\n`;
-                txt+=`Tanggal di HP:\n`;
                 Object.entries(perDate).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([d,c])=>{
                     let sh=shift[d];
-                    let jamInfo=sh?` jam ${sh.start||'-'} - ${sh.end||'-'} ${sh.autoFromOcr?'(auto OCR)':'(manual)'} `:' jam belum set';
+                    let jamInfo=sh?` jam ${sh.start||'-'} - ${sh.end||'-'} ${sh.autoFromOcr?'(auto)':'(manual)'} `:' jam belum set';
                     txt+=`- ${d}: ${c} trip |${jamInfo}\n`;
                 });
-                txt+=`\n5 data terakhir:\n`;
-                data.slice(-5).forEach(d=>{
-                    txt+=`${d.date} ${d.time}-${d.endTime} ${d.idTrans} Rp${d.amount} ${d.dist}km cat:${d.cat||'?'} \n`;
-                });
-                txt+=`\n[Fix] Jam debug dan app sekarang sinkron dari first-last order.\n`;
                 let out=document.getElementById('debugOutput');
                 out.style.display='block';
                 out.textContent=txt;
@@ -345,10 +343,9 @@ window.ocrSpaceParse=ocrSpaceParse;
             delete shift[date];
             localStorage.setItem('lapkeu_shift', JSON.stringify(shift));
             loadData();
-            alert('Data '+date+' dihapus');
         }
         function clearAllDataFull(){
-            if(!confirm('HAPUS SEMUA DATA SIGAN? Ketik OK untuk lanjut')) return;
+            if(!confirm('HAPUS SEMUA DATA?')) return;
             let c=prompt('Ketik HAPUS untuk konfirmasi');
             if(c!=='HAPUS') return;
             localStorage.removeItem('lapkeuData');
@@ -357,37 +354,32 @@ window.ocrSpaceParse=ocrSpaceParse;
             localStorage.removeItem('UNIVERSAL_LAKE_V1');
             localStorage.removeItem('lapkeu_cross_income');
             localStorage.removeItem('lapkeu_cross_km');
-            alert('Semua data dihapus, reload...');
             location.reload();
         }
         </script>
-
     </div>
 
     <div id="tabContentHistory" class="hidden">
-        <!-- NEW: HOTSPOT JAM INI + GPS -->
         <div class="card" style="border-left:5px solid #00e676; background:linear-gradient(135deg,#102a1e 0%,#0f1f36 100%);">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                <div style="font-size:13px; font-weight:900; color:#7dffb7; letter-spacing:0.5px;">📍 LOKASI RAMAI JAM INI</div>
+                <div style="font-size:13px; font-weight:900; color:#7dffb7;">📍 LOKASI RAMAI JAM INI</div>
                 <div style="display:flex; gap:6px; align-items:center;">
                     <span id="hotspotHourBadge" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:800;">JAM --:--</span>
                     <button id="btnGpsHotspot" onclick="triggerGpsHotspot()" style="background:linear-gradient(180deg,#00e676,#00a651); padding:6px 12px; font-size:12px; border-radius:10px; border:none; color:#fff; font-weight:700;">📡 Aktifkan GPS</button>
                 </div>
             </div>
-            <div id="gpsStatus" style="font-size:11px; color:#8aa0c6; margin-top:8px; line-height:1.4;">Tap GPS untuk tau lokasi terdekat yang rame order jam ini. Data diambil dari riwayat jemput kamu.</div>
+            <div id="gpsStatus" style="font-size:11px; color:#8aa0c6; margin-top:8px;">Tap GPS untuk urutkan lokasi terdekat.</div>
             <div id="hotspotList" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
         </div>
         <div id="historyContainer"></div>
-        <button class="btn-secondary" onclick="exportToCSV()">Ekspor Semua Data ke CSV</button>
+        <button class="btn-secondary" onclick="exportToCSV()">Ekspor CSV</button>
     </div>
 
     <div id="tabContentRekap" class="hidden">
         <div class="card" style="border-left:5px solid #ff5252; background:#221818;">
-            <div style="font-size:13px; color:#ff8a80; margin-bottom:12px; font-weight:bold; text-transform:uppercase;">🤖 Insight Presisi V5</div>
+            <div style="font-size:13px; color:#ff8a80; margin-bottom:12px; font-weight:bold;">🤖 Insight Presisi V6 FIXED</div>
             <div id="rekapInsightContainer"></div>
         </div>
-
-        
         <div class="filter-container">
             <select id="rekapPeriod" onchange="handleRekapPeriodChange()">
                 <option value="7">7 Hari Terakhir</option>
@@ -395,62 +387,53 @@ window.ocrSpaceParse=ocrSpaceParse;
                 <option value="30">30 Hari Terakhir</option>
             </select>
         </div>
-        
         <div class="card" style="border-left:5px solid #e040fb;">
-            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Analisis Efisiensi Waktu (Presisi OCR First-Last)</div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:var(--muted)">Total Waktu Online (First-Last Order):</span><span style="font-size:14px; font-weight:bold; color:#fff;" id="rekapTotalHours">0 jam</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:var(--muted)">Rata-rata Durasi / Hari:</span><span style="font-size:14px; font-weight:bold; color:#fff;" id="rekapAvgShift">0 jam/hari</span></div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold;">Analisis Efisiensi Waktu</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:var(--muted)">Total Waktu Online:</span><span style="font-size:14px; font-weight:bold; color:#fff;" id="rekapTotalHours">0 jam</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:var(--muted)">Rata-rata / Hari:</span><span style="font-size:14px; font-weight:bold; color:#fff;" id="rekapAvgShift">0 jam/hari</span></div>
             <div style="display:flex; justify-content:space-between;"><span style="font-size:13px; color:var(--muted)">Rata-rata Netto Rp/Jam:</span><span style="font-size:15px; font-weight:bold; color:#e040fb;" id="rekapAvgRpPerHour">Rp 0 /jam</span></div>
             <div style="font-size:10px; color:#5a7096; margin-top:8px;" id="rekapOnlineDetail"></div>
         </div>
-
         <div class="card" style="border-left:5px solid #ff5252;">
-            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">📊 Jam Gurih Presisi (Berdasarkan Jam Mulai Order)</div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold;">📊 Jam Gurih</div>
             <div id="rekapHourlyContainer"></div>
         </div>
-
         <div class="card">
-            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Kontribusi Layanan (Berdasarkan ID Transaksi RB/F/MT/GK)</div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold;">Kontribusi Layanan</div>
             <div id="rekapBreakdownContainer"></div>
         </div>
-        
         <div class="card" style="border-left:5px solid #40c4ff;">
-            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">💰 Profitabilitas per Layanan (Jam Real) <span id="dynamicSpeedBadge" style="background:#0f1f36; border:1px solid #1e2d4a; padding:2px 6px; border-radius:6px; font-size:10px; color:#40c4ff; margin-left:6px;">⏱️ - km/jam</span></div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold;">💰 Profitabilitas per Layanan <span id="dynamicSpeedBadge" style="background:#0f1f36; border:1px solid #1e2d4a; padding:2px 6px; border-radius:6px; font-size:10px; color:#40c4ff; margin-left:6px;">⏱️ - km/jam</span></div>
             <div id="rekapRatesContainer" style="font-size:13px; color:#fff; display:flex; flex-direction:column; gap:12px;"></div>
         </div>
-
         <div class="card" style="border-left:5px solid #ffb300;">
-            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">📍 Rekomendasi Nongkrong per Waktu (Area)</div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold;">📍 Rekomendasi Nongkrong</div>
             <div id="rekapTiersContainer" style="font-size:13px; color:#fff; display:flex; flex-direction:column; gap:12px;"></div>
         </div>
-
         <div class="card" style="border-left:5px solid #00e676;">
-            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Tren Harian</div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold;">Tren Harian</div>
             <div id="rekapDaysContainer"></div>
         </div>
-        
         <div class="card" style="border-left:5px solid #00e676;">
             <div style="font-size:13px; color:var(--muted)">Total Bruto</div><div style="font-size:18px; font-weight:bold; color:#fff; margin:5px 0;" id="rekapIncome">Rp 0</div>
-            <div style="font-size:13px; color:var(--muted); margin-top:10px;">Total Pengeluaran (Manual + SPKLU)</div><div style="font-size:18px; font-weight:bold; color:#ff5252; margin:5px 0;" id="rekapExpense">Rp 0</div><hr style="border:0; border-top:1px solid #333; margin:10px 0;">
+            <div style="font-size:13px; color:var(--muted); margin-top:10px;">Total Pengeluaran</div><div style="font-size:18px; font-weight:bold; color:#ff5252; margin:5px 0;" id="rekapExpense">Rp 0</div><hr style="border:0; border-top:1px solid #333; margin:10px 0;">
             <div style="font-size:13px; color:var(--muted)">Total Netto</div><div style="font-size:20px; font-weight:bold; color:#00e676; margin:5px 0;" id="rekapBalance">Rp 0</div>
         </div>
-
         <div class="card" style="border-left:5px solid #888;">
             <div style="font-size:13px; color:var(--muted)">Total Jarak Produktif</div><div style="font-size:16px; font-weight:bold; color:#fff; margin:5px 0;" id="rekapKm">0 km</div>
             <div style="font-size:13px; color:var(--muted); margin-top:10px;">Rata-rata Rp/Km</div><div style="font-size:16px; font-weight:bold; color:#40c4ff; margin:5px 0;" id="rekapEfficiency">Rp 0 /km</div>
         </div>
-
-        
     </div>
 
+
 <script>
-// ================= V5 CORE =================
+// ================= V5 CORE FIXED =================
 let editIndex = null;
 let isTimeManuallyLocked = false;
 let clockInterval = null;
 
 const categories = {
-    "Pendapatan": ["Goride", "Gofood", "Gomart", "Gosend"],
+    "Pendapatan": ["Goride", "Gofood", "Gomart", "Gosend", "TIP"],
     "Pengeluaran": ["Bahan bakar", "Makan/minum", "Lain-lain"]
 };
 
@@ -475,15 +458,8 @@ function switchTab(tabName){
     if(tabName==='rekap') loadRekapData();
 }
 function handleRekapPeriodChange(){
-    try{
-        console.log('rekap period change to', document.getElementById('rekapPeriod').value);
-        loadRekapData();
-    }catch(e){
-        console.error('rekap error', e);
-        alert('Error rekap: '+e.message);
-    }
+    try{ loadRekapData(); }catch(e){ console.error(e); }
 }
-
 function updateCategories(){
     const type = document.getElementById('type').value;
     const catSelect = document.getElementById('category');
@@ -491,7 +467,19 @@ function updateCategories(){
     categories[type].forEach(cat=>{ const opt=document.createElement('option'); opt.value=cat; opt.innerHTML=cat; catSelect.appendChild(opt); });
 }
 function formatRupiah(input){ let val=input.value.replace(/[^0-9]/g,''); input.value=val.replace(/\B(?=(\d{3})+(?!\d))/g,"."); }
-function parseDateTime(dateStr,timeStr){ if(!dateStr||!timeStr) return null; try{ return new Date(dateStr+'T'+timeStr+':00'); }catch(e){ return null; } }
+
+// FIXED: parseDateTime pakai konstruktor lokal, bukan ISO T yang bisa jadi UTC
+function parseDateTime(dateStr,timeStr){
+  if(!dateStr||!timeStr) return null;
+  try{
+    const dParts = dateStr.split('-').map(Number);
+    const tParts = timeStr.split(':').map(Number);
+    if(dParts.length!==3 || tParts.length<2) return null;
+    const [y,m,d]=dParts; const [hh,mm]=tParts;
+    if(!y||!m||!d||isNaN(hh)||isNaN(mm)) return null;
+    return new Date(y, m-1, d, hh, mm, 0);
+  }catch(e){ return null; }
+}
 function getPrevDateStr(dateStr){ try{ let d=new Date(dateStr); d.setDate(d.getDate()-1); return d.toLocaleDateString('sv-SE'); }catch(e){ return null; } }
 
 function getDurationInHours(start,end){
@@ -499,28 +487,23 @@ function getDurationInHours(start,end){
     const [sH,sM]=start.split(':').map(Number); const [eH,eM]=end.split(':').map(Number);
     if(isNaN(sH)||isNaN(sM)||isNaN(eH)||isNaN(eM)) return 0;
     let diffMins=(eH*60+eM)-(sH*60+sM);
-    if(diffMins===0) return 0;
+    if(diffMins===0) return 0; // biar fallback estimasi jalan
     if(diffMins<0) diffMins+=24*60;
     return diffMins/60;
 }
-
-
 function handleDateChange(){
     const t=document.getElementById("globalDate").value;
     if(!t) return;
     try{
         const shiftData=JSON.parse(localStorage.getItem("lapkeu_shift")||"{}");
         const dayShift=shiftData[t]||{start:"",end:""};
-        const startEl=document.getElementById("globalStartTime");
-        const endEl=document.getElementById("globalEndTime");
-        if(startEl) startEl.value=dayShift.start||"";
-        if(endEl) endEl.value=dayShift.end||"";
+        document.getElementById("globalStartTime").value=dayShift.start||"";
+        document.getElementById("globalEndTime").value=dayShift.end||"";
         localStorage.setItem("lapkeu_last_date", t);
     }catch(e){}
-    try{ loadData(); }catch(e){ console.log(e); }
+    try{ loadData(); }catch(e){}
     try{ if(typeof checkOnOffLock==='function') checkOnOffLock(); }catch(e){}
 }
-
 function isTodayStr(dateStr){
     try{ const today=new Date().toLocaleDateString('sv-SE'); return dateStr===today; }catch(e){ return false; }
 }
@@ -537,14 +520,13 @@ function checkOnOffLock(){
     if(isToday){
         startEl.disabled=false; endEl.disabled=false;
         startEl.style.opacity='1'; endEl.style.opacity='1';
-        if(onBtn){ onBtn.disabled=false; onBtn.style.opacity='1'; onBtn.style.pointerEvents='auto'; onBtn.innerText='ON'; onBtn.title=''; }
+        if(onBtn){ onBtn.disabled=false; onBtn.style.opacity='1'; onBtn.style.pointerEvents='auto'; onBtn.innerText='ON'; }
     } else {
         startEl.disabled=true; endEl.disabled=true;
         startEl.style.opacity='0.4'; endEl.style.opacity='0.4';
-        if(onBtn){ onBtn.disabled=true; onBtn.style.opacity='0.35'; onBtn.style.pointerEvents='none'; onBtn.innerText='LOCKED'; onBtn.title='Hanya aktif hari ini, tanggal lain auto dari OCR'; }
+        if(onBtn){ onBtn.disabled=true; onBtn.style.opacity='0.35'; onBtn.style.pointerEvents='none'; onBtn.innerText='LOCKED'; }
     }
 }
-
 function getDurationFromShift(shift){
     if(!shift) return 0;
     if(shift.startAt && shift.endAt){
@@ -554,10 +536,8 @@ function getDurationFromShift(shift){
     }
     return getDurationInHours(shift.start, shift.end);
 }
-
 function updateShiftTime(){
-    if(!isTodayStr(document.getElementById("globalDate").value)){ alert("🔒 Terkunci: Jam manual hanya bisa di hari ini.\nTanggal lampau/maju otomatis dari OCR."); checkOnOffLock(); return; }
-
+    if(!isTodayStr(document.getElementById("globalDate").value)){ alert("🔒 Jam manual hanya hari ini."); checkOnOffLock(); return; }
     const targetDate=document.getElementById('globalDate').value;
     if(!targetDate) return;
     const startTime=document.getElementById('globalStartTime').value;
@@ -566,7 +546,6 @@ function updateShiftTime(){
     let startAt=parseDateTime(targetDate,startTime);
     let endAt=parseDateTime(targetDate,endTime);
     if(startAt&&endAt&&endAt<=startAt){ endAt.setDate(endAt.getDate()+1); }
-    // lintas tengah malam early morning logic
     let isEarlyMorning=endTime&&parseInt(endTime.split(':')[0])<6;
     if(isEarlyMorning && (!shiftData[targetDate]||!shiftData[targetDate].start)){
         let prev=getPrevDateStr(targetDate);
@@ -587,21 +566,22 @@ function updateShiftTime(){
     shiftData[targetDate].endAt=endAt?endAt.getTime():null;
     shiftData[targetDate].startDate=targetDate;
     shiftData[targetDate].endDate=endAt?endAt.toLocaleDateString('sv-SE'):targetDate;
+    shiftData[targetDate].autoFromOcr=false; // FIX: tandai manual
     localStorage.setItem('lapkeu_shift',JSON.stringify(shiftData));
     loadData();
 }
 function pressOnBid(){
-    if(!isTodayStr(document.getElementById("globalDate").value)){ alert("🔒 Tombol ON hanya aktif di hari ini.\nTanggal lain jam auto dari OCR."); checkOnOffLock(); return; }
-
+    if(!isTodayStr(document.getElementById("globalDate").value)){ alert("🔒 ON hanya hari ini."); checkOnOffLock(); return; }
     const targetDate=document.getElementById('globalDate').value;
-    if(!targetDate) return alert("Pilih tanggal operasional terlebih dahulu!");
+    if(!targetDate) return alert("Pilih tanggal dulu!");
     const now=new Date(); const hh=String(now.getHours()).padStart(2,'0'); const mm=String(now.getMinutes()).padStart(2,'0'); const currentTime=`${hh}:${mm}`;
     let shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
     if(!shiftData[targetDate]) shiftData[targetDate]={start:'',end:'',isLocked:false};
     shiftData[targetDate].start=currentTime; shiftData[targetDate].startAt=now.getTime(); shiftData[targetDate].startDate=targetDate;
+    shiftData[targetDate].autoFromOcr=false;
     document.getElementById('globalStartTime').value=currentTime;
     localStorage.setItem('lapkeu_shift',JSON.stringify(shiftData));
-    loadData(); alert(`Mulai On-Bid: ${currentTime}`);
+    loadData();
 }
 function updateTarget(){
     let targetVal=Number(document.getElementById('inputTarget').value)||0;
@@ -611,7 +591,7 @@ function updateTarget(){
     loadData();
 }
 
-// ===== BattLog Cas & EV SPKLU (tetap) =====
+// ===== BattLog & EV FIXED =====
 function getIstirahatCasForDate(targetDate){
   try{
     let battEntries=[];
@@ -637,11 +617,9 @@ function getIstirahatCasForDate(targetDate){
             let end=new Date(start); end.setHours(h2,m2,0,0); if(end<start) end.setDate(end.getDate()+1); dur=(end-start)/1000/3600;
           }
         }
+        // FIX: hitung semua cas <12 jam, tanpa filter jam 6-22
         if(dur>0&&dur<12){
-          let jamMulai=0;
-          if(e.jam_mulai_cas) jamMulai=Number(e.jam_mulai_cas.split(':')[0]);
-          else if(e.waktu_dibuat_asli){ jamMulai=new Date(Number(e.waktu_dibuat_asli)).getHours(); }
-          if(jamMulai>=6&&jamMulai<=22){ totalJamCas+=dur; detail.push({jam:e.jam_mulai_cas||'',dur,lokasi:e.lokasi||''}); }
+          totalJamCas+=dur; detail.push({jam:e.jam_mulai_cas||'',dur,lokasi:e.lokasi||''});
         }
       }catch(err){}
     });
@@ -663,7 +641,7 @@ function getEvSpkluCostMap(){
 }
 function getEvSpkluCostForDate(dateStr){ const map=getEvSpkluCostMap(); return map[dateStr]||0; }
 
-// ===== Manual Save (tanpa prediksi) =====
+// ===== FIXED: saveData tidak hapus ID & alamat saat edit =====
 function saveData(){
     const date=document.getElementById('globalDate').value;
     const time=document.getElementById('txTime').value||new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
@@ -677,8 +655,33 @@ function saveData(){
     if(dist<0) return alert("Jarak tidak boleh negatif!");
     if(amount<0) return alert("Nominal tidak boleh negatif!");
     if(amount===0&&dist===0) return alert("Nominal dan Jarak tidak boleh kosong!");
-    const entry={ date, time, type, cat, note, dist, amount, predictedEndTime: time, endTime: time, pickup:'', destination:'', idTrans:'', idPrefix:'', source:'manual' };
     let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
+    let entry;
+    if(editIndex!==null && data[editIndex]){
+        const old = data[editIndex];
+        entry={
+          date, time, type, cat, note, dist, amount,
+          predictedEndTime: old.predictedEndTime || time,
+          endTime: old.endTime || time,
+          pickup: old.pickup || old.lokasi_jemput || '',
+          destination: old.destination || old.lokasi_antar || '',
+          lokasi_jemput: old.lokasi_jemput || old.pickup || '',
+          lokasi_antar: old.lokasi_antar || old.destination || '',
+          jemput: old.jemput || old.pickup || '',
+          antar: old.antar || old.destination || '',
+          idTrans: old.idTrans || '',
+          idPrefix: old.idPrefix || (old.idTrans? old.idTrans.split('-')[0] : ''),
+          jam_awal: old.jam_awal || old.time || time,
+          jam_akhir: old.jam_akhir || old.endTime || time,
+          source: (old.source||'manual') + '_edited'
+        };
+        if(type==='Pendapatan'){
+          entry.time = time;
+          entry.jam_awal = time;
+        }
+    }else{
+        entry={ date, time, type, cat, note, dist, amount, predictedEndTime: time, endTime: time, pickup:'', destination:'', lokasi_jemput:'', lokasi_antar:'', jemput:'', antar:'', idTrans:'', idPrefix:'', jam_awal: time, jam_akhir: time, source:'manual' };
+    }
     if(editIndex!==null){ data[editIndex]=entry; editIndex=null; document.getElementById('btnSubmit').innerText="Rekam Data"; document.getElementById('btnCancelEdit').classList.add('hidden'); } else { data.push(entry); }
     try{
         localStorage.setItem('lapkeuData',JSON.stringify(data));
@@ -705,9 +708,13 @@ function cancelEdit(){ editIndex=null; isTimeManuallyLocked=false; document.getE
 function deleteItem(index){ if(!confirm("Hapus data ini?")) return; let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); data.splice(index,1); localStorage.setItem('lapkeuData',JSON.stringify(data)); if(editIndex===index) cancelEdit(); loadData(); }
 function toggleSub(id){ const el=document.getElementById(id); el.classList.toggle('hidden'); }
 
-// ===== Auto Jam Online dari First-Last Order =====
+// FIXED: jangan overwrite jam manual
 function updateShiftFromOrders(dateStr){
     try{
+        let shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
+        if(shiftData[dateStr] && shiftData[dateStr].autoFromOcr===false && shiftData[dateStr].start && shiftData[dateStr].end){
+            return; // hormati manual hari ini
+        }
         const allData=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
         const orders=allData.filter(x=>x.date===dateStr && x.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
         if(orders.length===0) return;
@@ -716,7 +723,6 @@ function updateShiftFromOrders(dateStr){
         const startTime=first.time||first.startTime||'';
         const endTime=last.endTime||last.predictedEndTime||last.time||'';
         if(!startTime||!endTime) return;
-        let shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
         let startAt=parseDateTime(dateStr,startTime);
         let endAt=parseDateTime(dateStr,endTime);
         if(startAt&&endAt&&endAt<=startAt) endAt.setDate(endAt.getDate()+1);
@@ -729,7 +735,6 @@ function updateShiftFromOrders(dateStr){
         shiftData[dateStr].endDate=endAt?endAt.toLocaleDateString('sv-SE'):dateStr;
         shiftData[dateStr].autoFromOcr=true;
         localStorage.setItem('lapkeu_shift',JSON.stringify(shiftData));
-        // update UI if currently viewing same date
         const curDate=document.getElementById('globalDate').value;
         if(curDate===dateStr){
             document.getElementById('globalStartTime').value=startTime;
@@ -738,7 +743,6 @@ function updateShiftFromOrders(dateStr){
     }catch(e){ console.log('auto shift error',e); }
 }
 function getOnlineHoursFromOrders(dateStr, ordersForDay, shiftForDay){
-    // ordersForDay sorted
     if(ordersForDay&&ordersForDay.length>0){
         const first=ordersForDay[0];
         const last=ordersForDay[ordersForDay.length-1];
@@ -747,7 +751,6 @@ function getOnlineHoursFromOrders(dateStr, ordersForDay, shiftForDay){
         if(s&&ee){
             let dur=getDurationInHours(s,ee);
             if(dur===0){
-                // fallback sum durasi order
                 let sum=0;
                 ordersForDay.forEach(o=>{
                     let d=getDurationInHours(o.time||o.startTime||'', o.endTime||o.predictedEndTime||o.time||'');
@@ -762,21 +765,18 @@ function getOnlineHoursFromOrders(dateStr, ordersForDay, shiftForDay){
     if(shiftForDay) return getDurationFromShift(shiftForDay);
     return 0;
 }
-
-// ===== Load Data Harian =====
 function loadData(){
-    try{ if(typeof migrateCleanOldAddresses==='function'){ migrateCleanOldAddresses(); } }catch(e){}
     const targetDate=document.getElementById('globalDate').value;
     if(!targetDate) return;
     let data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
     const container=document.getElementById('historyContainer');
-    // SYNC JAM: pastikan shiftData sinkron dari order OCR dulu biar jam debug = jam app
     try{
+        let shiftDataCheck=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
         const ordersForSync=data.filter(x=>x.date===targetDate && x.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
         if(ordersForSync.length>0){
-            // jika shift belum ada atau beda dengan first-last order, update
-            if(typeof updateShiftFromOrders==='function'){
-                updateShiftFromOrders(targetDate);
+            const existingShift = shiftDataCheck[targetDate];
+            if(!existingShift || existingShift.autoFromOcr!==false){
+                if(typeof updateShiftFromOrders==='function') updateShiftFromOrders(targetDate);
             }
         }
     }catch(e){}
@@ -788,16 +788,12 @@ function loadData(){
     if(endEl) endEl.value=dayShift.end||'';
     if(typeof checkOnOffLock==='function') checkOnOffLock();
 
-
     let income=0, expense=0, totalIncomeKm=0, manualExpense=0;
     let grouped={};
-
     data.forEach((item,index)=>{
         if(item.date===targetDate){
-            // robust cat fallback biar data tetap nongol walau cat kosong
             let cat = item.cat;
             if(!cat || cat==="undefined" || cat===""){
-                // coba tebak dari ID
                 if(item.idTrans){
                     const up=item.idTrans.toUpperCase();
                     if(up.startsWith('RB')) cat='Goride';
@@ -813,16 +809,13 @@ function loadData(){
             grouped[cat].push({...item,cat,index});
         }
     });
-
     container.innerHTML="";
-    // DEBUG: cek semua tanggal yang ada data
     let allDates = {};
     data.forEach(it=>{ if(it.date) allDates[it.date]=(allDates[it.date]||0)+1; });
     let allDatesList = Object.entries(allDates).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,10).map(([d,c])=>`${d} (${c})`).join(', ');
-    
     if(Object.keys(grouped).length===0){
-        let hint = allDatesList ? `<br><br><div style="font-size:11px; color:#ff8a80; background:#2a1212; padding:8px; border-radius:8px; text-align:left;">Data kamu ada tapi di tanggal lain:<br><strong>${allDatesList}</strong><br><br>Tap tanggal di atas untuk pindah, atau upload foto tadi sudah auto pindah ke tanggal terbaru.</div><div style="margin-top:8px;"><button onclick="document.getElementById('globalDate').value=Object.keys(allDates).sort().reverse()[0]; loadData();" style="background:#1e3a5f; border:1px solid #2b5a9a; padding:6px 12px; border-radius:8px; font-size:11px;">🔍 Loncat ke tanggal ada data</button></div>` : '';
-        container.innerHTML=`<div style="text-align:center; color:#777; padding:20px; font-size:13px;">Tidak ada riwayat pada tanggal ${targetDate}.${hint}</div>`;
+        let hint = allDatesList ? `<br><br><div style="font-size:11px; color:#ff8a80; background:#2a1212; padding:8px; border-radius:8px; text-align:left;">Data ada di tanggal lain:<br><strong>${allDatesList}</strong></div>` : '';
+        container.innerHTML=`<div style="text-align:center; color:#777; padding:20px; font-size:13px;">Tidak ada riwayat pada ${targetDate}.${hint}</div>`;
     }
     for(let cat in grouped){
         grouped[cat].sort((a,b)=>(a.time||'00:00').localeCompare(b.time||'00:00'));
@@ -840,7 +833,6 @@ function loadData(){
         html+=`</div></div>`;
         container.innerHTML+=html;
     }
-
     let evSpkluCostToday=getEvSpkluCostForDate(targetDate);
     let totalExpenseWithEv=expense+evSpkluCostToday;
     let netBalance=income-totalExpenseWithEv;
@@ -848,24 +840,21 @@ function loadData(){
     window._lastManualExpenseToday=manualExpense;
     expense=totalExpenseWithEv;
     let netYieldPerKm=totalIncomeKm>0?Math.round(netBalance/totalIncomeKm):0;
-
     document.getElementById('valIncome').innerText="Rp "+income.toLocaleString('id-ID');
     document.getElementById('valExpense').innerText="Rp "+expense.toLocaleString('id-ID');
     document.getElementById('valBalance').innerText="Rp "+netBalance.toLocaleString('id-ID');
     document.getElementById('valEfficiency').innerText="Rp "+netYieldPerKm.toLocaleString('id-ID')+" /km";
-
     const onlineInfoEl=document.getElementById('valOnlineInfo');
     if(onlineInfoEl){
         const ordersToday=data.filter(x=>x.date===targetDate&&x.type==='Pendapatan').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
         if(ordersToday.length>0){
             const first=ordersToday[0].time||''; const last=ordersToday[ordersToday.length-1].endTime||ordersToday[ordersToday.length-1].predictedEndTime||ordersToday[ordersToday.length-1].time||'';
             const dur=getDurationInHours(first,last);
-            onlineInfoEl.innerText=`Online: ${first} - ${last} (${dur.toFixed(1)} jam) • ${ordersToday.length} order • Auto First-Last`;
+            onlineInfoEl.innerText=`Online: ${first} - ${last} (${dur.toFixed(1)} jam) • ${ordersToday.length} order`;
         } else {
             onlineInfoEl.innerText=dayShift.start&&dayShift.end?`Online manual: ${dayShift.start}-${dayShift.end}`:'Belum ada order';
         }
     }
-
     const globalTarget=Number(localStorage.getItem('lapkeu_global_target'))||200000;
     document.getElementById('inputTarget').value=globalTarget;
     let actualPercent=globalTarget>0?Math.round((income/globalTarget)*100):0;
@@ -875,14 +864,12 @@ function loadData(){
     loadRekapData();
 }
 
-
-// ===== NEW: HOTSPOT JAM INI + GPS V5.24 =====
+// ===== HOTSPOT FIXED =====
 let lastGpsPos = null;
 let currentAreaName = '';
 let geocodeCache = {};
 try{ geocodeCache = JSON.parse(localStorage.getItem('lapkeu_geocode_cache')||'{}'); }catch(e){ geocodeCache={}; }
 function saveGeocodeCache(){ try{ localStorage.setItem('lapkeu_geocode_cache', JSON.stringify(geocodeCache)); }catch(e){} }
-
 function haversine(lat1,lon1,lat2,lon2){
   const R=6371;
   const dLat=(lat2-lat1)*Math.PI/180;
@@ -891,8 +878,6 @@ function haversine(lat1,lon1,lat2,lon2){
   const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   return R*c;
 }
-
-
 function buildHotspotByHour(){
   try{
     const badge=document.getElementById('hotspotHourBadge');
@@ -930,7 +915,6 @@ function buildHotspotByHour(){
       if(fb.length>0){ filtered=fb; usedFallback=true; }
     }
     if(filtered.length===0){ filtered=data.filter(it=>it.type==='Pendapatan'); usedFallback=true; }
-
     let areaMap={};
     let displayNameMap={};
     filtered.forEach(it=>{
@@ -972,7 +956,6 @@ function buildHotspotByHour(){
         }
       });
     }catch(e){}
-
     if(lastGpsPos){
       ranked.forEach(r=>{
         if(r.lat && r.lon){ try{ r.dist=haversine(lastGpsPos.lat, lastGpsPos.lon, r.lat, r.lon); }catch(e){ r.dist=null; } } else { r.dist=null; }
@@ -987,155 +970,103 @@ function buildHotspotByHour(){
         });
       }
     }
-
     if(ranked.length===0){
       list.innerHTML='<div style="font-size:12px; color:#5a7096; background:#0f1f36; padding:10px; border-radius:8px;">Belum ada lokasi di jam ini.</div>';
       return;
     }
-
     let html='';
     ranked.forEach((r,i)=>{
       let medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'📍';
       let distText='';
       if(lastGpsPos){
-        if(r.dist!==null && r.dist!==undefined){
-          distText=r.dist.toFixed(1)+' km dari kamu';
-        } else {
-          // cek apakah geocode pernah gagal
-          let failKey = typeof geocodeFailCount!=='undefined' ? (geocodeFailCount[r.area]||0) : 0;
-          if(failKey>=2) distText='Jarak tidak tersedia';
-          else distText='Menghitung jarak...';
-        }
+        if(r.dist!==null && r.dist!==undefined){ distText=r.dist.toFixed(1)+' km dari kamu'; }
+        else { distText='Menghitung jarak...'; }
       }
       let isNearest = lastGpsPos && i===0 && r.dist!==null && r.dist<5;
       let borderColor=isNearest?'#00e676':'#1e3a5f';
       let bg=isNearest?'linear-gradient(135deg,#0f2a1e,#102a1e)':'#0f1f36';
       let sampleTxt=(r.samples[0]||'').substring(0,60);
       if(r.area==='Unknown') sampleTxt='Alamat jemput kosong - scan OCR biar akurat';
+      // FIXED: pakai data-area + encodeURIComponent untuk hindari XSS / quote break
       html+=`<div style="background:${bg}; border:1px solid ${borderColor}; border-radius:12px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
         <div style="flex:1;">
           <div style="display:flex; align-items:center; gap:6px;"><span style="font-size:14px;">${medal}</span><span style="font-size:13px; font-weight:800; color:#eaf2ff;">${r.area}</span>${isNearest?'<span style="background:#00e676; color:#001a0f; font-size:9px; font-weight:900; padding:2px 6px; border-radius:999px; margin-left:6px;">TERDEKAT</span>':''}</div>
           <div style="font-size:11px; color:#8aa0c6; margin-top:2px;">${r.count} order ${usedFallback?'(14 hari)':'jam '+curHStr+'±1'} • Avg Rp ${r.avgIncome.toLocaleString('id-ID')} ${distText? ' • '+distText : ''}</div>
           <div style="font-size:10px; color:#5a7096; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Contoh: ${sampleTxt||'-'}</div>
         </div>
-        <button onclick="focusAreaOnMap('${r.area.replace(/'/g, "\'")}')" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:6px 10px; border-radius:10px; font-size:11px; font-weight:700;">Arah</button>
+        <button data-area="${encodeURIComponent(r.area)}" onclick="focusAreaOnMap(decodeURIComponent(this.dataset.area))" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:6px 10px; border-radius:10px; font-size:11px; font-weight:700;">Arah</button>
       </div>`;
     });
     list.innerHTML=html;
-
-    // Update tombol GPS UI sesuai status
     try{
       const btn=document.getElementById('btnGpsHotspot');
-      const badgeGps=document.getElementById('hotspotGpsBadge');
       if(btn){
-        if(lastGpsPos){
-          btn.innerText='✅ GPS Aktif';
-          btn.style.background='linear-gradient(180deg,#0f2a1e,#132a1f)';
-          if(badgeGps) badgeGps.style.display='inline-block';
-        } else {
-          btn.innerText='📡 Aktifkan GPS';
-          btn.style.background='';
-          if(badgeGps) badgeGps.style.display='none';
-        }
+        if(lastGpsPos){ btn.innerText='✅ GPS Aktif'; btn.style.background='linear-gradient(180deg,#0f2a1e,#132a1f)'; }
+        else { btn.innerText='📡 Aktifkan GPS'; btn.style.background=''; }
       }
     }catch(e){}
-
     if(lastGpsPos){
-      // geocode top 5 pakai alamat lengkap (sample) + bias GPS Pamulang, delay biar tidak rate limit
       ranked.slice(0,5).forEach((r,idx)=>{
         if(r.area!=='Unknown' && !r.lat){
           let fullSample = (r.samples && r.samples[0]) ? r.samples[0] : r.area;
-          setTimeout(()=>{ try{ geocodeArea(r.area, fullSample); }catch(e){} }, idx*500);
-        }
-      });
-    } else {
-      // tanpa GPS, tetap geocode 1-2 teratas untuk cache awal
-      ranked.slice(0,2).forEach((r,idx)=>{
-        if(r.area!=='Unknown' && !r.lat){
-          let fullSample = (r.samples && r.samples[0]) ? r.samples[0] : r.area;
-          setTimeout(()=>{ try{ geocodeArea(r.area, fullSample); }catch(e){} }, idx*500);
+          setTimeout(()=>{ try{ geocodeArea(r.area, fullSample); }catch(e){} }, idx*600);
         }
       });
     }
     if(status){
       if(!lastGpsPos){
-        status.innerHTML='📊 <b>'+filtered.length+'</b> order terdeteksi di jam <b>'+curHStr+' ±1</b> (sekarang '+fullTimeStr+') dari 14 hari terakhir. Tap <b>Aktifkan GPS</b> untuk urutkan dari yang terdekat.';
+        status.innerHTML='📊 <b>'+filtered.length+'</b> order di jam <b>'+curHStr+' ±1</b>. Tap GPS untuk urutkan terdekat.';
       } else {
-        // jika sudah GPS aktif, jangan overwrite status yang sudah ada (kamu di Pamulang...)
-        if(!status.innerHTML.includes('Kamu di')){
-          status.innerHTML=`✅ GPS Aktif • <b>${filtered.length}</b> lokasi diurutkan terdekat.`;
-        }
+        if(!status.innerHTML.includes('Kamu di')) status.innerHTML=`✅ GPS Aktif • <b>${filtered.length}</b> lokasi diurutkan terdekat.`;
       }
     }
   }catch(e){
     console.log('hotspot err',e);
-    try{ const list=document.getElementById('hotspotList'); if(list) list.innerHTML='<div style="font-size:11px; color:#ff8a80; background:#2a1212; padding:8px; border-radius:8px;">Error: '+e.message+'</div>'; }catch(_){}
   }
 }
-
 function focusAreaOnMap(area){
-
   try{
     let q=encodeURIComponent(area+' , Indonesia');
     window.open('https://www.google.com/maps/search/?api=1&query='+q,'_blank');
   }catch(e){}
 }
-
 let geocodeFailCount={};
+// FIXED: hilangkan bias hardcoded Pamulang
 async function geocodeArea(area, fullSample){
   if(!area || area==='Unknown') return null;
   if(typeof geocodeCache==='undefined') window.geocodeCache={};
-  // cache key pakai area asli biar tetap nyambung
   let cacheKey=area;
   if(geocodeCache[cacheKey] && geocodeCache[cacheKey].lat){
-    // validasi jarak cache lama: kalau jarak >100km dari posisi sekarang, anggap invalid & re-geocode
     if(lastGpsPos && geocodeCache[cacheKey].lat){
       try{
         let d=haversine(lastGpsPos.lat, lastGpsPos.lon, geocodeCache[cacheKey].lat, geocodeCache[cacheKey].lon);
-        if(d>60){
-          console.log('[GEOCODE] cache jarak jauh '+d.toFixed(1)+'km untuk '+area+', re-geocode');
-          delete geocodeCache[cacheKey];
-        } else {
-          return geocodeCache[cacheKey];
-        }
+        if(d>60){ delete geocodeCache[cacheKey]; } else { return geocodeCache[cacheKey]; }
       }catch(e){ return geocodeCache[cacheKey]; }
-    } else {
-      return geocodeCache[cacheKey];
-    }
+    } else { return geocodeCache[cacheKey]; }
   }
   if(geocodeFailCount[cacheKey] && geocodeFailCount[cacheKey]>=3) return null;
-
-  // Siapkan query yang lebih spesifik pakai fullSample (contoh: Jl. Kubis I No 22, Pondok Cabe, Pamulang)
   let baseSample = (fullSample||'').trim();
   let cleanedArea = area;
-  // Bersihkan No No.
   cleanedArea=cleanedArea.replace(/\bNo\.?\s+No\.?\b/gi,'No.').replace(/\bNo\s+No\b/gi,'No.');
-  
+  let biasCity = currentAreaName || '';
   let queries=[];
   if(baseSample){
     queries.push(baseSample + ', Indonesia');
-    queries.push(baseSample + ', Tangerang Selatan, Indonesia');
-    queries.push(baseSample);
+    if(biasCity) queries.push(baseSample + ', ' + biasCity + ', Indonesia');
   }
-  queries.push(cleanedArea + ', Pondok Cabe, Pamulang, Tangerang Selatan, Indonesia');
-  queries.push(cleanedArea + ', Pamulang, Tangerang Selatan, Indonesia');
-  queries.push(cleanedArea + ', Tangerang Selatan, Indonesia');
-  queries.push(cleanedArea + ', Jakarta, Indonesia');
+  if(biasCity) queries.push(cleanedArea + ', ' + biasCity + ', Indonesia');
   queries.push(cleanedArea + ', Indonesia');
-  // deduplicate
-  queries=[...new Set(queries)].filter(q=>q && q.length>5).slice(0,6);
-
-  // Siapkan viewbox bias dari posisi GPS sekarang
+  queries.push(cleanedArea + ', Jakarta, Indonesia');
+  queries=[...new Set(queries)].filter(q=>q && q.length>5).slice(0,5);
   let viewboxParam='';
   if(lastGpsPos){
-    let delta=0.3; // ~33km
+    let delta=0.3;
     let left=lastGpsPos.lon - delta;
     let right=lastGpsPos.lon + delta;
     let top=lastGpsPos.lat + delta;
     let bottom=lastGpsPos.lat - delta;
     viewboxParam=`&viewbox=${left},${top},${right},${bottom}&bounded=0`;
   }
-
   try{
     for(let q of queries){
       try{
@@ -1144,23 +1075,16 @@ async function geocodeArea(area, fullSample){
         if(!res.ok) continue;
         let results=await res.json();
         if(!results || !results.length) continue;
-        // Pilih hasil yang jaraknya paling dekat & <60km
-        let best=null;
-        let bestDist=Infinity;
+        let best=null; let bestDist=Infinity;
         for(let r of results){
           if(!r.lat || !r.lon) continue;
           let lat=parseFloat(r.lat), lon=parseFloat(r.lon);
           if(isNaN(lat)||isNaN(lon)) continue;
           if(lastGpsPos){
             let d=haversine(lastGpsPos.lat, lastGpsPos.lon, lat, lon);
-            // Tolak yang >60km karena pasti nyasar (contoh Jl. Kubis di Sulawesi)
             if(d>60) continue;
             if(d<bestDist){ bestDist=d; best={lat,lon, q:q, dist:d, display_name:r.display_name}; }
-          } else {
-            // tanpa GPS, ambil yang pertama
-            best={lat,lon, q:q, dist:null, display_name:r.display_name};
-            break;
-          }
+          } else { best={lat,lon, q:q, dist:null, display_name:r.display_name}; break; }
         }
         if(best){
           geocodeCache[cacheKey]={lat:best.lat, lon:best.lon, ts:Date.now(), q:best.q, display_name:best.display_name};
@@ -1168,87 +1092,50 @@ async function geocodeArea(area, fullSample){
           buildHotspotByHour();
           return best;
         }
-      }catch(e){ /* try next */ }
-      await new Promise(r=>setTimeout(r,300));
+      }catch(e){}
+      await new Promise(r=>setTimeout(r,400));
     }
-    // Fallback Photon dengan bias lat/lon
-    try{
-      for(let q of queries.slice(0,3)){
-        let url2=`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=3`;
-        if(lastGpsPos) url2+=`&lat=${lastGpsPos.lat}&lon=${lastGpsPos.lon}`;
-        let res2=await fetch(url2);
-        if(!res2.ok) continue;
-        let j2=await res2.json();
-        if(j2 && j2.features){
-          let best=null, bestDist=Infinity;
-          for(let f of j2.features){
-            if(!f.geometry || !f.geometry.coordinates) continue;
-            let lon=f.geometry.coordinates[0], lat=f.geometry.coordinates[1];
-            if(lastGpsPos){
-              let d=haversine(lastGpsPos.lat, lastGpsPos.lon, lat, lon);
-              if(d>60) continue;
-              if(d<bestDist){ bestDist=d; best={lat,lon, q:'photon:'+q}; }
-            } else {
-              best={lat,lon, q:'photon:'+q}; break;
-            }
-          }
-          if(best){
-            geocodeCache[cacheKey]={lat:best.lat, lon:best.lon, ts:Date.now(), q:best.q};
-            try{ if(typeof saveGeocodeCache==='function') saveGeocodeCache(); }catch(e){}
-            buildHotspotByHour();
-            return best;
-          }
-        }
-        await new Promise(r=>setTimeout(r,300));
-      }
-    }catch(e){}
-  }catch(e){ console.log('geocode err',e); }
+  }catch(e){}
   geocodeFailCount[cacheKey]=(geocodeFailCount[cacheKey]||0)+1;
   setTimeout(buildHotspotByHour, 300);
   return null;
 }
-
 async function reverseGeocode(lat,lon){
   try{
     let url=`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=id`;
     let res=await fetch(url);
     let j=await res.json();
     if(j){
-      let locality=j.locality||j.city||j.principalSubdivision||'';
-      let district=j.localityInfo && j.localityInfo.administrative && j.localityInfo.administrative.length? j.localityInfo.administrative[0].name : '';
       let label=[j.locality, j.city, j.principalSubdivision].filter(Boolean).join(', ');
       return {label, raw:j};
     }
   }catch(e){}
   return {label: lat.toFixed(5)+','+lon.toFixed(5)};
 }
-
 async function triggerGpsHotspot(){
   const btn=document.getElementById('btnGpsHotspot');
   const status=document.getElementById('gpsStatus');
   if(!navigator.geolocation){
-    if(status) status.innerHTML='❌ GPS tidak didukung browser ini.';
+    if(status) status.innerHTML='❌ GPS tidak didukung.';
     return;
   }
   if(btn){ btn.innerText='📡 Mencari...'; btn.disabled=true; }
   if(status) status.innerHTML='📡 Meminta lokasi GPS...';
-  
   navigator.geolocation.getCurrentPosition(async (pos)=>{
     try{
       const lat=pos.coords.latitude, lon=pos.coords.longitude;
       lastGpsPos={lat,lon, acc:pos.coords.accuracy};
       try{ localStorage.setItem('lapkeu_last_gps', JSON.stringify({lat,lon, ts:Date.now()})); }catch(e){}
-      if(status) status.innerHTML=`📍 Lokasi kamu: ${lat.toFixed(5)}, ${lon.toFixed(5)} (akurasi ±${Math.round(pos.coords.accuracy)}m)<br>🔍 Mencari nama daerah...`;
-      
+      if(status) status.innerHTML=`📍 Lokasi: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(pos.coords.accuracy)}m)<br>🔍 Mencari nama daerah...`;
       let rev=await reverseGeocode(lat,lon);
       currentAreaName=rev.label;
-      if(status) status.innerHTML=`✅ Kamu di <b>${rev.label}</b> (±${Math.round(pos.coords.accuracy)}m)<br>📊 Mengurutkan lokasi ramai terdekat jam ini...`;
-      
-      // simpan lokasi ke battlog lokasi history juga biar sinkron (FIX: simpan string agar tidak jadi [object Object] di battlog)
+      if(status) status.innerHTML=`✅ Kamu di <b>${rev.label}</b> (±${Math.round(pos.coords.accuracy)}m)<br>📊 Mengurutkan terdekat...`;
       try{
+        // FIXED: chain filter->map->filter benar
         let hist=JSON.parse(localStorage.getItem('battlog_lokasi_history')||'[]');
-        // Bersihkan history lama yang mungkin masih object
-        hist=hist.filter(x=>typeof x==='string' || (x && typeof x==='object' && (x.area||x.label))).map(x=> typeof x==='string'? x : (x.area||x.label||'')).filter(Boolean);
+        hist = hist.filter(x=>typeof x==='string' || (x && typeof x==='object' && (x.area||x.label)))
+                   .map(x=> typeof x==='string'? x : (x.area||x.label||''))
+                   .filter(Boolean);
         let areaStr=rev.label||'';
         if(areaStr){
           hist=hist.filter(x=> String(x).toLowerCase()!==areaStr.toLowerCase());
@@ -1256,31 +1143,23 @@ async function triggerGpsHotspot(){
         }
         hist=hist.slice(0,10);
         localStorage.setItem('battlog_lokasi_history', JSON.stringify(hist));
-        // Simpan detail GPS terpisah biar tidak merusak battlog
         let gpsDetail=JSON.parse(localStorage.getItem('lapkeu_gps_history')||'[]');
         gpsDetail.unshift({area: rev.label, lat, lon, ts: Date.now(), source:'lapkeu_gps_hotspot'});
         gpsDetail=gpsDetail.slice(0,50);
         localStorage.setItem('lapkeu_gps_history', JSON.stringify(gpsDetail));
-      }catch(e){}
-
+      }catch(e){ console.log('gps hist err',e); }
       buildHotspotByHour();
-      
       if(btn){ btn.innerText='✅ GPS Aktif'; btn.style.background='linear-gradient(180deg,#0f2a1e,#132a1f)'; btn.disabled=false; }
-      
-      // auto geocode hotspot areas untuk hitung jarak
       setTimeout(()=>{ buildHotspotByHour(); }, 1500);
     }catch(e){
       if(status) status.innerHTML='❌ Error: '+e.message;
       if(btn){ btn.innerText='📡 Aktifkan GPS'; btn.disabled=false; }
     }
   }, (err)=>{
-    console.log(err);
-    if(status) status.innerHTML='❌ Gagal GPS: '+err.message+'<br>Coba aktifkan Location di HP dan izinkan browser.';
+    if(status) status.innerHTML='❌ Gagal GPS: '+err.message;
     if(btn){ btn.innerText='📡 Aktifkan GPS'; btn.disabled=false; }
   }, {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
 }
-
-// Auto-build saat history dibuka
 (function(){
   const origSwitchTab=window.switchTab;
   window.switchTab=function(tabName){
@@ -1291,46 +1170,25 @@ async function triggerGpsHotspot(){
       for(let k in contents){ if(contents[k]){ if(k===tabName){ contents[k].classList.remove('hidden'); if(buttons[k]) buttons[k].classList.add('active'); } else { contents[k].classList.add('hidden'); if(buttons[k]) buttons[k].classList.remove('active'); } } }
       if(tabName==='rekap' && typeof loadRekapData==='function') loadRekapData();
     }
-    if(tabName==='history'){
-      setTimeout(buildHotspotByHour, 200);
-    }
+    if(tabName==='history'){ setTimeout(buildHotspotByHour, 200); }
   };
-  // build awal & restore GPS
   try{
     let last=JSON.parse(localStorage.getItem('lapkeu_last_gps')||'null');
-    if(last && last.lat && Date.now()- (last.ts||0) < 30*60*1000){
-      lastGpsPos=last;
-    }
+    if(last && last.lat && Date.now()- (last.ts||0) < 30*60*1000){ lastGpsPos=last; }
   }catch(e){}
   document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(buildHotspotByHour, 800); });
 })();
+</script>
 
-// Hook ke loadData biar hotspot refresh tiap data berubah
-(function(){
-  const origLoadData=window.loadData;
-  if(typeof origLoadData==='function'){
-    window.loadData=function(){
-      const r=origLoadData.apply(this, arguments);
-      setTimeout(buildHotspotByHour, 300);
-      return r;
-    };
-  }
-})();
-
-// ===== Rekap Presisi V5 =====
-
-// ====== V6 HELPER - STRATEGI HARI SAMA (TIDAK SENTUH KODE LAIN) ======
-
+<script>
+// ===== FIXED: Strategi Hari Sama tanpa double counting =====
 function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extractAreaSimple, getDurationInHours, categories){
-    // === INSIGHT MAKSIMAL v2 - GABUNGAN 7 HARI + 21 HARI HARI SAMA + SEMUA DATA ===
     let targetWeekday = anchorDate.getDay();
     let targetWeekdayName = dayNames[targetWeekday];
-    
     let anchor = new Date(anchorDate);
     let cutoff7 = new Date(anchor); cutoff7.setDate(anchor.getDate()-7);
     let cutoff21 = new Date(anchor); cutoff21.setDate(anchor.getDate()-21);
     
-    // Filter data
     let data7Hari = data.filter(item=>{
         if(!item.date || item.date===targetDateStr) return false;
         let d=new Date(item.date); d.setHours(0,0,0,0);
@@ -1351,18 +1209,27 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
     });
 
     if(data.length===0){
-        return `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:12px; padding:14px; font-size:12px; color:#8aa0c6;">Belum ada data sama sekali buat bikin strategi.</div>`;
+        return `<div style="background:#0f1f36; border:1px dashed #2b5a9a; border-radius:12px; padding:14px; font-size:12px; color:#8aa0c6;">Belum ada data buat strategi.</div>`;
     }
 
-    // Helper weighted stats
-    function buildWeightedStats(){
-        let hourMap={}; for(let h=0;h<24;h++) hourMap[h]={income:0, hours:0, orders:0, score:0};
+    function buildWeightedStatsFixed(){
+        let hourMap={}; for(let h=0;h<24;h++) hourMap[h]={income:0, hours:0, orders:0, realCount:0, score:0};
         let areaMap={};
-        let serviceMap={}; categories["Pendapatan"].forEach(c=>serviceMap[c]={income:0, hours:0, orders:0, km:0});
+        let serviceMap={}; categories["Pendapatan"].forEach(c=>serviceMap[c]={income:0, hours:0, orders:0, realCount:0, km:0});
         let deadTrips={};
         let byDateMap={};
 
-        function addItem(item, weight){
+        const keyFor = (it)=> it.idTrans ? it.idTrans.toUpperCase() : (it.date+'|'+it.time+'|'+it.amount);
+        const set7 = new Set(data7Hari.map(keyFor));
+        const set21 = new Set(dataSameDay21.map(keyFor));
+
+        const unionMap = new Map();
+        [...data7Hari, ...dataSameDay21, ...dataSameDayAll].forEach(it=>{
+            const k=keyFor(it);
+            if(!unionMap.has(k)) unionMap.set(k,it);
+        });
+
+        function addItemFixed(item, weight){
             if(item.type!=='Pendapatan') return;
             let amt=Number(item.amount)||0;
             let km=Number(item.dist)||0;
@@ -1371,23 +1238,34 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
             if(dur===0) dur=0.25;
             if(dur<0||dur>5) dur=0.3;
             let h=parseInt((item.time||'00:00').split(':')[0])||0;
-            hourMap[h].income+=amt*weight; hourMap[h].hours+=dur*weight; hourMap[h].orders+=1*weight; hourMap[h].score+= (dur>0? (amt/dur)*weight : 0);
-            
-            let rawAreaIt=item.pickup||''; if(typeof cleanGojekAddressDeep==='function'){ try{ rawAreaIt=cleanGojekAddressDeep(rawAreaIt); }catch(e){} } else if(typeof cleanGojekAddress==='function'){ try{ rawAreaIt=cleanGojekAddress(rawAreaIt); }catch(e){} } let area = (typeof extractAreaSimple==='function'? extractAreaSimple(rawAreaIt) : (rawAreaIt.substring(0,20))) || 'Unknown';
-            if(!areaMap[area]) areaMap[area]={income:0, hours:0, orders:0, score:0};
-            areaMap[area].income+=amt*weight; areaMap[area].hours+=dur*weight; areaMap[area].orders+=1*weight; areaMap[area].score+= (dur>0? (amt/dur)*weight : 0);
+            if(hourMap[h]){
+              hourMap[h].income+=amt*weight; hourMap[h].hours+=dur*weight; hourMap[h].orders+=1*weight; hourMap[h].realCount+=1; hourMap[h].score+= (dur>0? (amt/dur)*weight : 0);
+            }
+            let rawAreaIt=item.pickup||''; 
+            if(typeof cleanGojekAddressDeep==='function'){ try{ rawAreaIt=cleanGojekAddressDeep(rawAreaIt); }catch(e){} }
+            let area = (typeof extractAreaSimple==='function'? extractAreaSimple(rawAreaIt) : (rawAreaIt.substring(0,20))) || 'Unknown';
+            if(!areaMap[area]) areaMap[area]={income:0, hours:0, orders:0, realCount:0, score:0};
+            areaMap[area].income+=amt*weight; areaMap[area].hours+=dur*weight; areaMap[area].orders+=1*weight; areaMap[area].realCount+=1; areaMap[area].score+= (dur>0? (amt/dur)*weight : 0);
             
             let cat=item.cat||'Goride';
-            if(!serviceMap[cat]) serviceMap[cat]={income:0, hours:0, orders:0, km:0};
-            serviceMap[cat].income+=amt*weight; serviceMap[cat].hours+=dur*weight; serviceMap[cat].orders+=1*weight; serviceMap[cat].km+=km*weight;
+            if(!serviceMap[cat]) serviceMap[cat]={income:0, hours:0, orders:0, realCount:0, km:0};
+            serviceMap[cat].income+=amt*weight; serviceMap[cat].hours+=dur*weight; serviceMap[cat].orders+=1*weight; serviceMap[cat].realCount+=1; serviceMap[cat].km+=km*weight;
         }
 
-        // Bobot: 7 hari x3, SameDay 21 hari x2, SameDay all x1
-        data7Hari.forEach(it=>{ addItem(it, 3); let d=it.date; if(!byDateMap[d]) byDateMap[d]=[]; byDateMap[d].push(it); });
-        dataSameDay21.forEach(it=>{ addItem(it, 2); });
-        dataSameDayAll.forEach(it=>{ addItem(it, 1); });
+        // FIXED: union tanpa double counting, weight = 3 jika 7 hari, 2 jika same day 21, 1 lainnya
+        unionMap.forEach(it=>{
+            const k=keyFor(it);
+            let w=1;
+            if(set7.has(k)) w=3;
+            else if(set21.has(k)) w=2;
+            // bonus kecil jika masuk kedua kategori
+            if(set7.has(k) && set21.has(k)) w=4;
+            addItemFixed(it, w);
+            if(set7.has(k)){
+                let d=it.date; if(!byDateMap[d]) byDateMap[d]=[]; byDateMap[d].push(it);
+            }
+        });
 
-        // Dead trips dari 7 hari terakhir (paling relevan)
         let sortedByDate={};
         data7Hari.forEach(it=>{ if(!sortedByDate[it.date]) sortedByDate[it.date]=[]; sortedByDate[it.date].push(it); });
         Object.values(sortedByDate).forEach(dayOrders=>{
@@ -1395,101 +1273,50 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
             for(let i=0;i<sorted.length-1;i++){
                 let gap=getDurationInHours(sorted[i].endTime||sorted[i].time, sorted[i+1].time);
                 if(gap>0.25){
-                    let destClean=typeof cleanGojekAddress==='function'? cleanGojekAddress(sorted[i].destination||sorted[i].pickup||'') : (sorted[i].destination||sorted[i].pickup||''); let pickClean=typeof cleanGojekAddress==='function'? cleanGojekAddress(sorted[i+1].pickup||'') : (sorted[i+1].pickup||''); let key=destClean.substring(0,18)+' → '+pickClean.substring(0,18);
+                    let destClean=typeof cleanGojekAddress==='function'? cleanGojekAddress(sorted[i].destination||sorted[i].pickup||'') : (sorted[i].destination||sorted[i].pickup||'');
+                    let pickClean=typeof cleanGojekAddress==='function'? cleanGojekAddress(sorted[i+1].pickup||'') : (sorted[i+1].pickup||'');
+                    let key=destClean.substring(0,18)+' → '+pickClean.substring(0,18);
                     if(!deadTrips[key]) deadTrips[key]={totalGap:0, count:0};
                     deadTrips[key].totalGap+=gap; deadTrips[key].count+=1;
                 }
             }
         });
-
         return {hourMap, areaMap, serviceMap, deadTrips, byDateMap};
     }
 
-    let stats = buildWeightedStats();
-
-    let hoursRanked = Object.entries(stats.hourMap).map(([h,s])=>({h:parseInt(h), ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
+    let stats = buildWeightedStatsFixed();
+    let hoursRanked = Object.entries(stats.hourMap).map(([h,s])=>({h:parseInt(h), ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.realCount>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
     let areasRanked = Object.entries(stats.areaMap).map(([area,s])=>({area, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).sort((a,b)=>b.rpPerJam-a.rpPerJam);
-    let servicesRanked = Object.entries(stats.serviceMap).map(([cat,s])=>({cat, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.orders>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
-
-    
-    try{
-      if(typeof cleanGojekAddress==='function'){
-        if(Array.isArray(areasRanked)) areasRanked.forEach(o=>{ if(o.area) o.area=cleanGojekAddress(o.area); });
-        if(bestArea && bestArea.area) bestArea.area=cleanGojekAddress(bestArea.area);
-        if(worstArea && worstArea.area) worstArea.area=cleanGojekAddress(worstArea.area);
-      }
-    }catch(e){}
+    let servicesRanked = Object.entries(stats.serviceMap).map(([cat,s])=>({cat, ...s, rpPerJam: s.hours>0? s.income/s.hours:0})).filter(s=>s.realCount>0).sort((a,b)=>b.rpPerJam-a.rpPerJam);
 
     let bestHour = hoursRanked[0];
     let worstHour = hoursRanked.length>0? hoursRanked[hoursRanked.length-1] : null;
     let bestArea = areasRanked[0];
     let worstArea = areasRanked.length>1? areasRanked[areasRanked.length-1] : null;
 
-    // Battlog muter info kalau ada
-    let muterInfo='';
-    try{
-        let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
-        if(lakeRaw){
-            let lake=JSON.parse(lakeRaw);
-            let battEntries = lake.maka && lake.maka.maka_log_v1 ? lake.maka.maka_log_v1 : [];
-            if(battEntries.length>0){
-                let last3 = battEntries.slice(0,3);
-                let avgMuter = last3.reduce((a,b)=>{ 
-                    let s=(b.km_akhir||0)-(b.km_awal||0); 
-                    return a + (s>0? 0.4 : 0); 
-                },0)/Math.max(1,last3.length);
-                if(avgMuter>0.35) muterInfo = `⚡ Battlog 3 sesi terakhir muter ${Math.round(avgMuter*100)}%, usahakan jangan nongkrong kejauhan dari area rame.`;
-            }
-        }
-    }catch(e){}
-
     let aiHtml = `<div style="background:linear-gradient(135deg,#111d35 0%,#0f1f36 100%); border:1px solid #1e2d4a; border-radius:12px; padding:14px;">`;
-    aiHtml+=`<div style="font-size:12px; font-weight:800; color:#7dffb7; margin-bottom:10px; letter-spacing:0.5px;">🎯 APA YANG HARUS SAYA LAKUKAN HARI INI - ${targetWeekdayName.toUpperCase()}<br><span style="font-size:10px; color:#8aa0c6; font-weight:600;">Maksimal semua data: 7 hari terakhir (${data7Hari.length} order) + 21 hari ${targetWeekdayName} (${dataSameDay21.length} order) + total ${targetWeekdayName} (${dataSameDayAll.length} order)</span></div>`;
+    aiHtml+=`<div style="font-size:12px; font-weight:800; color:#7dffb7; margin-bottom:10px;">🎯 STRATEGI HARI INI - ${targetWeekdayName.toUpperCase()}<br><span style="font-size:10px; color:#8aa0c6;">7 hari (${data7Hari.length}) + 21 hari ${targetWeekdayName} (${dataSameDay21.length}) • FIXED tanpa double count</span></div>`;
 
     if(bestArea){
-        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#2b8cff; background:rgba(43,140,255,0.15); padding:3px 8px; border-radius:999px;">📍 TOP 3 NONGKRONG HARI INI</span><div style="margin-top:6px;">`;
+        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#2b8cff; background:rgba(43,140,255,0.15); padding:3px 8px; border-radius:999px;">📍 TOP NONGKRONG</span><div style="margin-top:6px;">`;
         areasRanked.slice(0,3).forEach((a,i)=>{
             let medal=i===0?'🥇':i===1?'🥈':'🥉';
-            let jamEmas = hoursRanked.length>0? `${String(hoursRanked[0].h).padStart(2,'0')}:00` : '';
-            aiHtml+=`<div style="display:flex; justify-content:space-between; background:#0f1f36; border-radius:8px; padding:6px 10px; margin-top:4px; font-size:12px;"><span>${medal} ${a.area} - ${Math.round(a.orders)} order</span><span style="color:#7dffb7; font-weight:700;">Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')}/jam</span></div>`;
+            aiHtml+=`<div style="display:flex; justify-content:space-between; background:#0f1f36; border-radius:8px; padding:6px 10px; margin-top:4px; font-size:12px;"><span>${medal} ${a.area} - ${a.realCount} order</span><span style="color:#7dffb7; font-weight:700;">Rp ${Math.round(a.rpPerJam).toLocaleString('id-ID')}/jam</span></div>`;
         });
-        aiHtml+=`</div><div style="font-size:11px; color:#8aa0c6; margin-top:4px;">Fokus utama di <strong style="color:#7dffb7;">${bestArea.area}</strong>, hindari <strong style="color:#ff8a80;">${worstArea?worstArea.area:'area sepi'}</strong> (cuma Rp ${worstArea?Math.round(worstArea.rpPerJam).toLocaleString('id-ID'):''}/jam)</div></div>`;
+        aiHtml+=`</div></div>`;
     }
     if(bestHour){
-        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#ffcc66; background:rgba(255,204,102,0.15); padding:3px 8px; border-radius:999px;">⏰ JAM EMAS vs JAM ISTIRAHAT</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">`;
+        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#ffcc66; background:rgba(255,204,102,0.15); padding:3px 8px; border-radius:999px;">⏰ JAM EMAS</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px; line-height:1.6;">`;
         hoursRanked.slice(0,2).forEach(h=>{
-            aiHtml+=`✅ <strong>${String(h.h).padStart(2,'0')}:00-${String(h.h+1).padStart(2,'0')}:00</strong> = Rp ${Math.round(h.rpPerJam).toLocaleString('id-ID')}/jam (${Math.round(h.orders)} order) - <strong>WAJIB ON</strong><br>`;
+            aiHtml+=`✅ <strong>${String(h.h).padStart(2,'0')}:00</strong> = Rp ${Math.round(h.rpPerJam).toLocaleString('id-ID')}/jam (${h.realCount} order)<br>`;
         });
-        if(worstHour){
-            aiHtml+=`❌ <strong>${String(worstHour.h).padStart(2,'0')}:00-${String(worstHour.h+1).padStart(2,'0')}:00</strong> = Rp ${Math.round(worstHour.rpPerJam).toLocaleString('id-ID')}/jam - <strong>ISTIRAHAT / CAS / SHOLAT</strong><br>`;
-        }
+        if(worstHour) aiHtml+=`❌ <strong>${String(worstHour.h).padStart(2,'0')}:00</strong> = Rp ${Math.round(worstHour.rpPerJam).toLocaleString('id-ID')}/jam - ISTIRAHAT<br>`;
         aiHtml+=`</div></div>`;
     }
     if(servicesRanked.length>0){
         let bestServ=servicesRanked[0];
-        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#00e676; background:rgba(0,230,118,0.15); padding:3px 8px; border-radius:999px;">🏍️ FOKUS LAYANAN HARI INI</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px;">`;
-        aiHtml+=`Hari ini utamakan <strong style="color:#00e676;">${bestServ.cat}</strong> (Rp ${Math.round(bestServ.rpPerJam).toLocaleString('id-ID')}/jam, ${Math.round(bestServ.orders)} order).<br><span style="font-size:11px; color:#8aa0c6;">Urutan: ${servicesRanked.map(s=>`${s.cat} ${Math.round(s.rpPerJam).toLocaleString('id-ID')}`).join(' → ')}</span></div></div>`;
+        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#00e676; background:rgba(0,230,118,0.15); padding:3px 8px; border-radius:999px;">🏍️ FOKUS LAYANAN</span><div style="font-size:12.5px; color:#eaf2ff; margin-top:6px;">Utamakan <strong style="color:#00e676;">${bestServ.cat}</strong> (Rp ${Math.round(bestServ.rpPerJam).toLocaleString('id-ID')}/jam, ${bestServ.realCount} order)</div></div>`;
     }
-    let deadEntries = Object.entries(stats.deadTrips).sort((a,b)=>b[1].count-a[1].count).slice(0,2);
-    if(deadEntries.length>0){
-        aiHtml+=`<div style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#ff8a80; background:rgba(255,138,128,0.15); padding:3px 8px; border-radius:999px;">🚫 JANGAN DIULANG (7 hari terakhir)</span><div style="font-size:12px; color:#eaf2ff; margin-top:6px;">`;
-        deadEntries.forEach(([k,v])=>{
-            aiHtml+=`• Abis drop <strong>${k.split(' → ')[0]}</strong> kosong <strong>${Math.round(v.totalGap/v.count*60)} menit</strong> baru dapet di <strong>${k.split(' → ')[1]}</strong> (${v.count}x)<br>`;
-        });
-        aiHtml+=`<span style="font-size:11px; color:#8aa0c6;">Solusi: langsung geser ke ${bestArea?bestArea.area:'area rame'} jangan nunggu.</span></div></div>`;
-    }
-    if(muterInfo){
-        aiHtml+=`<div style="background:rgba(255,204,102,0.08); border:1px dashed #ffcc66; border-radius:8px; padding:8px; font-size:11px; color:#ffcc66; margin-bottom:12px;">${muterInfo}</div>`;
-    }
-    // Taktik final
-    let totalAvg = (data7Hari.reduce((a,b)=>a+(Number(b.amount)||0),0) / Math.max(1, data7Hari.reduce((a,b)=>{ let d=getDurationInHours(b.time||'', b.endTime||b.time||''); if(d===0) d=0.25; return a+d; },0)) );
-    aiHtml+=`<div style="margin-top:12px; padding-top:10px; border-top:1px dashed #1e2d4a; background:#0a1328; border-radius:8px; padding:10px;"><span style="font-size:11px; font-weight:800; color:#7dffb7;">💡 TAKTIK HARI INI (MAKSIMAL DATA):</span><div style="font-size:12.5px; color:#dbe8ff; margin-top:6px; line-height:1.8;">`;
-    aiHtml+=`Bos, hari ini <strong>${targetWeekdayName}</strong>. Gabungan data bilang:<br>`;
-    if(bestHour) aiHtml+=`1. <strong>Jam ${String(bestHour.h).padStart(2,'0')}:00 wajib ON</strong> di <strong>${bestArea?bestArea.area:'area top'}</strong><br>`;
-    if(servicesRanked[0]) aiHtml+=`2. <strong>Utamakan ${servicesRanked[0].cat}</strong>, matiin yang boncos dulu<br>`;
-    if(worstHour) aiHtml+=`3. <strong>Jam ${String(worstHour.h).padStart(2,'0')}:00 OFF</strong> - cas badan & baterai<br>`;
-    if(bestArea) aiHtml+=`4. Target hari ini: <strong>Rp ${Math.round(totalAvg).toLocaleString('id-ID')}/jam</strong> (avg 7 hari terakhir)<br>`;
-    aiHtml+=`</div></div>`;
     aiHtml+=`</div>`;
     return aiHtml;
 }
@@ -1500,16 +1327,12 @@ function loadRekapData(){
     const shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
     let targetDateStr=document.getElementById('globalDate').value;
     if(!targetDateStr) return;
-    // FIX: jika ada data di masa depan (seperti 11 Juli 2026), anchor pakai tanggal terbaru biar rekap tidak kosong
     try{
         let allDataForAnchor=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
         let maxDateStr=allDataForAnchor.map(d=>d.date).filter(Boolean).sort().reverse()[0];
         if(maxDateStr && maxDateStr > targetDateStr){
-            // jika max date lebih baru dari globalDate dan selisih < 90 hari, pakai max date sebagai anchor
             let diffDays = (new Date(maxDateStr) - new Date(targetDateStr))/1000/3600/24;
-            if(diffDays>0 && diffDays<90){
-                targetDateStr = maxDateStr;
-            }
+            if(diffDays>0 && diffDays<90) targetDateStr = maxDateStr;
         }
     }catch(e){}
     if(!targetDateStr) return;
@@ -1519,13 +1342,11 @@ function loadRekapData(){
     let totalIncome=0, totalExpense=0, totalKm=0;
     let incomeByCat={};
     let serviceRates={};
-    let AVG_CITY_SPEED=30; // akan diisi dinamis dari data Sigan + battlog
-    let DYNAMIC_CITY_SPEED=30;
+    // FIXED: init dinamis untuk semua kategori termasuk TIP
     categories["Pendapatan"].forEach(cat=>{ serviceRates[cat]={amt:0,km:0,totalCount:0,tipCount:0,tipAmt:0,hours:0,durCount:0,travelHours:0,waitingHours:0,waitingCount:0}; });
-
+    let DYNAMIC_CITY_SPEED=30;
     let dayNames=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
     let dayOfWeekData=dayNames.map(name=>({name,net:0,hours:0}));
-
     let hourlyBlocks=[
         {label:"🌅 Subuh - Pagi (05.00 - 10.00)", startH:5, endH:10, net:0, hours:0, orderCount:0, areas:{}},
         {label:"☀️ Siang - Sore (10.00 - 16.00)", startH:10, endH:16, net:0, hours:0, orderCount:0, areas:{}},
@@ -1535,13 +1356,9 @@ function loadRekapData(){
     function extractAreaSimpleOrig(addr){
         if(!addr) return '';
         addr=addr.replace(/\n/g,' ').trim();
-        // Normalisasi OCR error: JIn, Jin, J1n, Jln kebaca salah
         addr=addr.replace(/\bJ[Il1][nN]?\.(?=[A-Za-z])/gi, 'Jl. ');
-        addr=addr.replace(/\b(Jln|Jl)\.(?=[A-Za-z])/gi, '$1. ');
-        // Strip semua varian prefix jalan termasuk hasil OCR salah
         let clean=addr.replace(/\b(Jl\.?|Jln\.?|Jin\.?|JIn\.?|J1n\.?|Jalan|No\.?|RT\.?|RW\.?|Kav\.?|Blok|Gg\.?|Gang)\b/gi,'').replace(/\d+/g,'').trim();
         clean=clean.replace(/^[.,\s]+/,'').trim();
-        // Jika setelah strip masih ada sisa 'Jin' di awal karena OCR, buang lagi
         clean=clean.replace(/^Jin\s+/i,'').replace(/^JIn\s+/i,'').trim();
         let parts=clean.split(/[,.]/)[0].split(/\s+/).filter(w=>w.length>2);
         if(parts.length===0) return addr.substring(0,20).trim();
@@ -1549,9 +1366,7 @@ function loadRekapData(){
     }
     function extractAreaSimple(addr){ if(!addr) return ''; let c=typeof cleanGojekAddress==='function'? cleanGojekAddress(addr) : addr; return extractAreaSimpleOrig(c); }
 
-
     let tiers={ short:{net:0,hours:0,count:0}, ideal:{net:0,hours:0,count:0}, long:{net:0,hours:0,count:0} };
-
     let totalHoursPeriod=0; let daysWithShiftCount=0; let dailyAgg={};
     let tempDate=new Date(cutoffDate);
     while(tempDate<=anchorDate){ let dStr=tempDate.toLocaleDateString('sv-SE'); dailyAgg[dStr]={income:0,expense:0,orders:[],firstTime:null,lastTime:null}; tempDate.setDate(tempDate.getDate()+1); }
@@ -1559,7 +1374,6 @@ function loadRekapData(){
 
     data.forEach(item=>{
         if(item.date){
-            // robust cat fallback biar data tetap nongol
             let cat = item.cat;
             if(!cat || cat==="undefined" || cat===""){
                 if(item.idTrans){
@@ -1580,27 +1394,23 @@ function loadRekapData(){
                 if(item.type==='Pendapatan'){
                     totalIncome+=amt; totalKm+=km; incomeByCat[cat]=(incomeByCat[cat]||0)+amt; dailyAgg[dStr].income+=amt;
                     if(item.time){ let itemHour=parseInt(item.time.split(':')[0]); dailyAgg[dStr].orders.push({hour:itemHour, amount:amt, dist:km, type:'in', time:item.time, endTime:item.endTime||item.predictedEndTime||item.time, pickup:item.pickup||'', destination:item.destination||'', cat:cat}); }
-                    if(serviceRates[cat]!==undefined){
-                        if(km===0){ serviceRates[cat].tipCount++; serviceRates[cat].tipAmt+=amt; }
-                        else { serviceRates[cat].amt+=amt; serviceRates[cat].km+=km; }
-                        serviceRates[cat].totalCount++;
-                        // hitung jam real per order (untuk kecepatan dinamis)
-                        try{
-                            let dur=getDurationInHours(item.time||'', item.endTime||item.predictedEndTime||item.time||'');
-                            if(dur===0 && km>0) dur=(Number(km)*2/60);
-                            if(dur===0) dur=0.25;
-                            if(dur>0 && dur<12){
-                                serviceRates[cat].hours+=dur; serviceRates[cat].durCount++;
-                                // travel & waiting akan dihitung ulang setelah kecepatan dinamis ketemu
-                            }
-                        }catch(e){}
-                    }
+                    // FIXED: init dinamis jika kategori baru seperti TIP
+                    if(!serviceRates[cat]) serviceRates[cat]={amt:0,km:0,totalCount:0,tipCount:0,tipAmt:0,hours:0,durCount:0,travelHours:0,waitingHours:0,waitingCount:0};
+                    if(km===0){ serviceRates[cat].tipCount++; serviceRates[cat].tipAmt+=amt; }
+                    else { serviceRates[cat].amt+=amt; serviceRates[cat].km+=km; }
+                    serviceRates[cat].totalCount++;
+                    try{
+                        let dur=getDurationInHours(item.time||'', item.endTime||item.predictedEndTime||item.time||'');
+                        if(dur===0 && km>0) dur=(Number(km)*2/60);
+                        if(dur===0) dur=0.25;
+                        if(dur>0 && dur<12){
+                            serviceRates[cat].hours+=dur; serviceRates[cat].durCount++;
+                        }
+                    }catch(e){}
                 } else { totalExpense+=amt; dailyAgg[dStr].expense+=amt; dailyExpenseMap[dStr]=(dailyExpenseMap[dStr]||0)+amt; }
             }
         }
     });
-
-    // SPKLU
     let evSpkluMap=getEvSpkluCostMap();
     for(let tgl in evSpkluMap){
         let biayaSpklu=evSpkluMap[tgl]||0; if(biayaSpklu<=0) continue;
@@ -1610,36 +1420,25 @@ function loadRekapData(){
             dailyAgg[tgl].expense+=biayaSpklu; totalExpense+=biayaSpklu; dailyExpenseMap[tgl]=(dailyExpenseMap[tgl]||0)+biayaSpklu;
         }
     }
-    window._lastEvSpkluMap=evSpkluMap;
-
-    // Hitung jam online presisi per hari: first-last order
     for(let dStr in dailyAgg){
         const p=dStr.split('-'); const itemDate=new Date(p[0],p[1]-1,p[2]); const dayIndex=itemDate.getDay();
         let dayNet=dailyAgg[dStr].income-dailyAgg[dStr].expense;
         dayOfWeekData[dayIndex].net+=dayNet;
-
         let s=shiftData[dStr];
         let orders=dailyAgg[dStr].orders.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
         let h=0;
-        if(orders.length>0){
-            h=getOnlineHoursFromOrders(dStr, orders, s);
-        } else if(s&&s.start&&s.end){
-            h=getDurationFromShift(s);
-        }
-
+        if(orders.length>0){ h=getOnlineHoursFromOrders(dStr, orders, s); }
+        else if(s&&s.start&&s.end){ h=getDurationFromShift(s); }
         if(h>0){
             let casInfo=getIstirahatCasForDate(dStr);
             let hEff=Math.max(0,h-casInfo.totalJamCas);
             totalHoursPeriod+=hEff;
             daysWithShiftCount++;
             dayOfWeekData[dayIndex].hours+=hEff;
-
             let hForTier=hEff;
             if(hForTier<5){ tiers.short.net+=dayNet; tiers.short.hours+=hForTier; tiers.short.count++; }
             else if(hForTier<=8){ tiers.ideal.net+=dayNet; tiers.ideal.hours+=hForTier; tiers.ideal.count++; }
             else { tiers.long.net+=dayNet; tiers.long.hours+=hForTier; tiers.long.count++; }
-
-            // Alokasi jam ke blok + heatmap area nongkrong
             orders.forEach(ord=>{
                 let blockMatch=null;
                 hourlyBlocks.forEach(b=>{
@@ -1654,18 +1453,13 @@ function loadRekapData(){
                     if(dur===0) dur=0.25;
                     blockMatch.hours+=dur;
                     blockMatch.orderCount++;
-                    // heatmap area: pakai pickup sebagai sumber order
                     try{
-                        let rawTier=ord.pickup||ord.destination||''; if(typeof cleanGojekAddressDeep==='function'){ try{ rawTier=cleanGojekAddressDeep(rawTier); }catch(e){} } else if(typeof cleanGojekAddress==='function'){ try{ rawTier=cleanGojekAddress(rawTier); }catch(e){} } let areaKey=extractAreaSimple(rawTier);
-                        if(areaKey){
-                            blockMatch.areas[areaKey]=(blockMatch.areas[areaKey]||0)+1;
-                        }
+                        let rawTier=ord.pickup||ord.destination||''; if(typeof cleanGojekAddressDeep==='function'){ try{ rawTier=cleanGojekAddressDeep(rawTier); }catch(e){} } let areaKey=extractAreaSimple(rawTier);
+                        if(areaKey){ blockMatch.areas[areaKey]=(blockMatch.areas[areaKey]||0)+1; }
                     }catch(e){}
                 }
             });
         }
-
-        // Alokasi net per order ke blok (untuk Rp/jam)
         let dayTotalBruto=dailyAgg[dStr].income;
         let dayTotalExpense=dailyAgg[dStr].expense;
         let dayTotalDist=orders.reduce((sum,o)=>sum+Number(o.dist||0),0);
@@ -1683,14 +1477,9 @@ function loadRekapData(){
         });
     }
 
-        // ===== Hitung Kecepatan Dinamis MURNI dari BattLog - V5.21 SIMPLEST =====
-    // Koreksi user: ambil data TERBARU aja, biar battlog yang kelola. Sigan tinggal ambil.
-    // Tidak pakai filter 7/14/30 hari lagi untuk kecepatan.
-    let battLogKm=0;
-    let battLogLatestSpeed=null;
-    let battLogLatestDate='';
+    // FIXED: kecepatan dinamis rata-rata 7 entry terbaru, bukan 1
+    let battLogSpeeds=[];
     let speedSource='fallback';
-    let debugFields=[];
     try{
         let rawBatt=null;
         try{
@@ -1704,120 +1493,58 @@ function loadRekapData(){
         if(rawBatt){
             let arr=JSON.parse(rawBatt);
             if(Array.isArray(arr) && arr.length>0){
-                try{ debugFields=Object.keys(arr[arr.length-1]||{}).slice(0,30); }catch(_){}
-                // Sort by tanggal terbaru dulu (descending) biar ambil yang paling baru
                 let sorted = [...arr].sort((a,b)=>{
                     try{
                         let da = a.tanggal||''; let db = b.tanggal||'';
-                        if(da===db){
-                            // kalau tanggal sama, cek waktu
-                            let ta = a.waktu_dibuat_asli||a.jam_selesai||'';
-                            let tb = b.waktu_dibuat_asli||b.jam_selesai||'';
-                            return String(tb).localeCompare(String(ta));
-                        }
+                        if(da===db) return String(b.waktu_dibuat_asli||'').localeCompare(String(a.waktu_dibuat_asli||''));
                         return String(db).localeCompare(String(da));
                     }catch(_){ return 0; }
                 });
-                // Ambil data terbaru yang punya kecepatan valid
-                for(let i=0;i<sorted.length;i++){
-                    let e=sorted[i];
+                for(let e of sorted){
                     try{
-                        if(!e) continue;
-                        // Cek kecepatan langsung - battlog yang sudah kelola
-                        let directSpeed = e.kecepatan_rata ?? e.avg_speed ?? e.avg_km_per_jam ?? e.kecepatan ?? e.speed ?? e.avg_speed_kmh ?? e.rata_kecepatan ?? e.kecepatan_avg ?? e.avg_kph ?? e.kph ?? e.avg_kmh ?? e.avg ?? e.avg_km_per_hour;
-                        if(e.trip) directSpeed = directSpeed ?? e.trip.kecepatan_rata ?? e.trip.avg_speed ?? e.trip.speed;
-                        // Kadang battlog simpan di summary harian
-                        if(directSpeed==null && e.summary) directSpeed = e.summary.avg_speed ?? e.summary.kecepatan_rata;
-                        
-                        if(directSpeed!=null && Number(directSpeed)>0 && Number(directSpeed)<120){
-                            battLogLatestSpeed=Number(directSpeed);
-                            battLogLatestDate=e.tanggal||'';
-                            let kmVal = Number(e.jarak_km ?? e.km ?? e.distance ?? 0);
-                            if(kmVal>0) battLogKm=kmVal;
-                            break; // ketemu yang terbaru, stop
+                        let directSpeed = e.kecepatan_rata ?? e.avg_speed ?? e.avg_km_per_jam ?? e.kecepatan ?? e.speed;
+                        if(e.trip) directSpeed = directSpeed ?? e.trip.kecepatan_rata ?? e.trip.avg_speed;
+                        if(directSpeed!=null && Number(directSpeed)>5 && Number(directSpeed)<80){
+                            battLogSpeeds.push(Number(directSpeed));
+                        } else {
+                            let kmVal=Number(e.jarak_km ?? e.km ?? 0);
+                            let dur=Number(e.durasi_jam ?? 0) || (Number(e.durasi_menit||0)/60);
+                            if(kmVal>0 && dur>0.05){
+                                let calc=kmVal/dur;
+                                if(calc>5 && calc<80) battLogSpeeds.push(calc);
+                            }
                         }
-                        // Kalau tidak ada field speed, coba hitung dari km & durasi di entry terbaru itu sendiri
-                        let kmVal=0;
-                        if(e.jarak_km!=null) kmVal=Number(e.jarak_km)||0;
-                        else if(e.km!=null) kmVal=Number(e.km)||0;
-                        else if(e.distance!=null) kmVal=Number(e.distance)||0;
-                        let dur=0;
-                        if(e.durasi_jam!=null) dur=Number(e.durasi_jam)||0;
-                        else if(e.durasi_menit!=null) dur=(Number(e.durasi_menit)||0)/60;
-                        else if(e.waktu_tempuh_menit!=null) dur=(Number(e.waktu_tempuh_menit)||0)/60;
-                        else if(e.lama_jalan_menit!=null) dur=(Number(e.lama_jalan_menit)||0)/60;
-                        else if(e.durasi!=null && Number(e.durasi)>0){
-                            let dval=Number(e.durasi); dur = dval>10 ? dval/60 : dval;
-                        } else if(e.jam_mulai_jalan && e.jam_selesai_jalan){
-                            try{ dur=getDurationInHours(e.jam_mulai_jalan, e.jam_selesai_jalan); }catch(_){}
-                        }
-                        if(kmVal>0 && dur>0.05){
-                            battLogLatestSpeed=kmVal/dur;
-                            battLogLatestDate=e.tanggal||'';
-                            battLogKm=kmVal;
-                            break;
-                        }
+                        if(battLogSpeeds.length>=7) break;
                     }catch(_){}
-                }
-                // Fallback kalau tidak ada yang valid di loop terbaru, ambil entry terakhir aja yang punya km
-                if(battLogLatestSpeed==null){
-                    for(let i=0;i<sorted.length;i++){
-                        let e=sorted[i];
-                        let kmVal=Number(e.jarak_km ?? e.km ?? 0);
-                        if(kmVal>0){ battLogKm=kmVal; battLogLatestDate=e.tanggal||''; break; }
-                    }
                 }
             }
         }
-        // Cek juga kalau battlog punya ringkasan khusus avg speed terpisah
-        try{
-            let summaryRaw = localStorage.getItem('battlog_summary') || localStorage.getItem('battlog_avg_speed');
-            if(summaryRaw){
-                let sumObj=JSON.parse(summaryRaw);
-                let avgFromSummary = sumObj.avg_speed ?? sumObj.kecepatan_rata ?? sumObj.avg_km_per_jam ?? sumObj.speed;
-                if(avgFromSummary!=null && Number(avgFromSummary)>0){
-                    battLogLatestSpeed=Number(avgFromSummary);
-                    speedSource=`murni battlog summary: ${battLogLatestSpeed} km/jam`;
-                }
-            }
-        }catch(_){}
     }catch(_){}
-
     let dynamicSpeed=30;
-    if(battLogLatestSpeed!=null && battLogLatestSpeed>0){
-        dynamicSpeed=battLogLatestSpeed;
-        speedSource=`murni battlog TERBARU tgl ${battLogLatestDate} = ${dynamicSpeed.toFixed(1)} km/jam`;
-    } else {
-        speedSource=`fallback 30 km/jam (battlog terbaru tidak ada speed, km terakhir ${battLogKm} )`;
+    if(battLogSpeeds.length>0){
+        dynamicSpeed = battLogSpeeds.reduce((a,b)=>a+b,0)/battLogSpeeds.length;
+        speedSource=`rata-rata ${battLogSpeeds.length} entry terbaru battlog`;
     }
-    try{ console.log('[SiGan] Battlog TERBARU:', {latestDate:battLogLatestDate, latestSpeed:battLogLatestSpeed, latestKm:battLogKm, sampleFields:debugFields, finalSpeed:dynamicSpeed, source:speedSource}); }catch(_){}
     dynamicSpeed=Math.max(5, Math.min(80, dynamicSpeed));
     DYNAMIC_CITY_SPEED=dynamicSpeed;
-    AVG_CITY_SPEED=dynamicSpeed;
 
-    // Hitung ulang travel vs waiting per layanan pakai kecepatan dinamis
     for(let cat in serviceRates){
         let r=serviceRates[cat];
         if(r.km>0 && r.hours>0){
             r.travelHours=r.km / DYNAMIC_CITY_SPEED;
             r.waitingHours=Math.max(0, r.hours - r.travelHours);
             r.waitingCount=r.durCount;
-        } else {
-            r.travelHours=0;
-            r.waitingHours=0;
-            r.waitingCount=0;
         }
     }
 
     let avgEfficiency=totalKm>0?Math.round(totalIncome/totalKm):0;
-    let globalCostPerKm=totalKm>0?totalExpense/totalKm:0;
     let avgShiftDuration=daysWithShiftCount>0?(totalHoursPeriod/daysWithShiftCount):0;
     let avgRpPerHourPeriod=totalHoursPeriod>0?Math.round((totalIncome-totalExpense)/totalHoursPeriod):0;
 
     document.getElementById('rekapTotalHours').innerText=totalHoursPeriod.toFixed(1)+" jam";
     document.getElementById('rekapAvgShift').innerText=avgShiftDuration.toFixed(1)+" jam/hari";
     document.getElementById('rekapAvgRpPerHour').innerText="Rp "+avgRpPerHourPeriod.toLocaleString('id-ID')+" /jam";
-    document.getElementById('rekapOnlineDetail').innerText=`Dihitung dari jam order pertama - terakhir per hari (presisi OCR). ${daysWithShiftCount} hari aktif.`;
+    document.getElementById('rekapOnlineDetail').innerText=`Presisi first-last order, ${daysWithShiftCount} hari aktif. Kecepatan: ${DYNAMIC_CITY_SPEED.toFixed(1)} km/jam (${speedSource})`;
 
     document.getElementById('rekapIncome').innerText="Rp "+totalIncome.toLocaleString('id-ID');
     document.getElementById('rekapExpense').innerText="Rp "+totalExpense.toLocaleString('id-ID');
@@ -1835,34 +1562,30 @@ function loadRekapData(){
     });
 
     const breakdownContainer=document.getElementById('rekapBreakdownContainer'); breakdownContainer.innerHTML="";
-    if(totalIncome===0){ breakdownContainer.innerHTML=`<div style="color:#777; font-size:12px; text-align:center; padding:15px 0;">Tidak ada data.</div>`; }
+    if(totalIncome===0){ breakdownContainer.innerHTML=`<div style="color:#777; font-size:12px; text-align:center;">Tidak ada data.</div>`; }
     else {
         const sortedCats=Object.keys(incomeByCat).sort((a,b)=>incomeByCat[b]-incomeByCat[a]);
         sortedCats.forEach(cat=>{
             const amt=incomeByCat[cat]; const pct=Math.round((amt/totalIncome)*100);
-            breakdownContainer.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label"><span>${cat} <strong>(${pct}%)</strong> - ID ${cat==='Goride'?'RB':cat==='Gofood'?'F':cat==='Gomart'?'MT':'GK'}</span><span>Rp ${amt.toLocaleString('id-ID')}</span></div><div class="breakdown-bg"><div class="breakdown-fill" style="width:${pct}%;"></div></div></div>`;
+            breakdownContainer.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label"><span>${cat} <strong>(${pct}%)</strong></span><span>Rp ${amt.toLocaleString('id-ID')}</span></div><div class="breakdown-bg"><div class="breakdown-fill" style="width:${pct}%;"></div></div></div>`;
         });
     }
 
     const ratesContainer=document.getElementById('rekapRatesContainer'); ratesContainer.innerHTML="";
-    // sort by Rp/jam tertinggi - FIX V5.32.1: semua layanan ada badge nunggu
     let sortedServices=Object.keys(serviceRates).map(cat=>{
         let r=serviceRates[cat];
         let rpPerJam=r.hours>0?Math.round(r.amt/r.hours):0;
         let avgDur=r.durCount>0? (r.hours/r.durCount):0;
-        // Hitung travel & waiting untuk SEMUA layanan (bukan cuma Gofood)
         let travelTmp=r.waitingCount>0? (r.travelHours/r.waitingCount):0;
         let waitTmp=r.waitingCount>0? (r.waitingHours/r.waitingCount):0;
         let avgTravel=avgDur;
         let avgWaiting=0;
         let waitingPct=0;
-        // Jika ada waiting dan masuk akal (< avgDur)
         if(waitTmp>=0 && waitTmp<avgDur && r.hours>0){
             avgTravel=travelTmp;
             avgWaiting=waitTmp;
             waitingPct=Math.round((r.waitingHours/r.hours)*100);
         } else if(r.km>0 && r.hours>0){
-            // fallback hitung dari speed
             let idealHours = r.km / DYNAMIC_CITY_SPEED;
             let waitHours = Math.max(0, r.hours - idealHours);
             avgTravel = r.durCount>0 ? (idealHours/r.durCount) : 0;
@@ -1884,82 +1607,33 @@ function loadRekapData(){
         let waitingMenit=Math.round(s.avgWaiting*60);
         let pct=Math.round((rpPerJam/maxRpPerJamService)*100);
         let barColor=rpPerJam>=30000?'#00e676':rpPerJam>=15000?'#40c4ff':'#ff8a80';
-        let icon=cat==='Goride'?'🏍️':cat==='Gofood'?'🍔':cat==='Gomart'?'🛒':'📦';
-        // Koreksi logika per layanan
+        let icon=cat==='Goride'?'🏍️':cat==='Gofood'?'🍔':cat==='Gomart'?'🛒':cat==='Gosend'?'📦':cat==='TIP'?'💰':'📦';
         let extraLabel='', extraIcon='', badgeColor='';
-        if(cat==='Gofood' || cat==='Gomart'){
-            extraLabel='nunggu resto';
-            extraIcon='⏳';
-            badgeColor=s.waitingPct>40?'#2a1212':'#0f1f36';
-        } else if(cat==='Goride'){
-            extraLabel='macet jalan';
-            extraIcon='🚦';
-            badgeColor='#1a2333';
-        } else if(cat==='Gosend'){
-            extraLabel='cari alamat';
-            extraIcon='🔍';
-            badgeColor='#1f1a33';
-        }
-        // RUMUS BARU: Untuk Goride & Gosend, tampilkan AVG MURNI tanpa embel jalan+macet, biar sesuai request 6m+10m+20m/3
+        if(cat==='Gofood' || cat==='Gomart'){ extraLabel='nunggu resto'; extraIcon='⏳'; badgeColor='#2a1212'; }
+        else if(cat==='Goride'){ extraLabel='macet jalan'; extraIcon='🚦'; badgeColor='#1a2333'; }
+        else if(cat==='Gosend'){ extraLabel='cari alamat'; extraIcon='🔍'; badgeColor='#1f1a33'; }
+        else if(cat==='TIP'){ extraLabel='tip pelanggan'; extraIcon='💰'; badgeColor='#132a1f'; }
         let waitingBadge='';
         let detailText='';
         if(cat==='Gofood' || cat==='Gomart'){
-            if(s.waitingPct>0){
-                detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`;
-                waitingBadge=`<span style="background:${badgeColor}; color:${s.waitingPct>40?'#ff8a80':'#8aa0c6'}; border:1px solid #2a2a4a; padding:2px 6px; border-radius:6px; font-size:9px;">${extraIcon} ${s.waitingPct}% ${extraLabel}</span>`;
-            } else {
-                detailText=`${avgMenit}m avg per order`;
-            }
-        } else {
-            // Goride & Gosend: hanya avg murni
-            detailText=`${avgMenit}m avg per order`;
-            waitingBadge=''; // hilangkan 0% macet / 0% cari alamat biar nggak bingung
-        }
+            if(s.waitingPct>0){ detailText=`jalan ${travelMenit}m + ${extraLabel} ${waitingMenit}m`; waitingBadge=`<span style="background:${badgeColor}; color:#ff8a80; border:1px solid #2a2a4a; padding:2px 6px; border-radius:6px; font-size:9px;">${extraIcon} ${s.waitingPct}% ${extraLabel}</span>`; }
+            else { detailText=`${avgMenit}m avg`; }
+        } else { detailText=`${avgMenit}m avg`; }
         ratesContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:700; color:#eaf2ff;">${icon} ${cat} <span style="font-size:10px; color:var(--muted);">(${r.totalCount} order • ${r.km.toFixed(1)}km)</span></span><span style="font-weight:800; color:${barColor};">Rp ${rpPerJam.toLocaleString('id-ID')}/jam</span></div>
             <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px;"><span>⏱️ Avg ${avgMenit}m (${detailText})</span><span>🕒 ${r.hours.toFixed(1)} jam</span></div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;"><span style="font-size:10px; color:#5a7096;">${r.km>0?`${(r.km/r.totalCount).toFixed(1)}km/order @${AVG_CITY_SPEED}km/jam = ${Math.round((r.km/r.totalCount)/AVG_CITY_SPEED*60)}m ideal`:'-'} </span>${waitingBadge}</div>
             <div class="breakdown-bg" style="margin-top:6px;"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div>
         </div>`;
     }
-    // Update badge kecepatan dinamis MURNI battlog
     try{
         let badge=document.getElementById('dynamicSpeedBadge');
-        if(badge){
-            let srcInfo = (typeof speedSource !== 'undefined' ? speedSource : '');
-            let kmInfo = (typeof battLogKm !== 'undefined' && battLogKm>0) ? ` • ${battLogKm.toFixed(1)} km` : '';
-            badge.innerHTML=`⚡ ${DYNAMIC_CITY_SPEED.toFixed(1)} km/jam TERBARU BATTLOG${kmInfo}`;
-            badge.title=srcInfo;
-        }
+        if(badge){ badge.innerHTML=`⚡ ${DYNAMIC_CITY_SPEED.toFixed(1)} km/jam avg ${battLogSpeeds.length} data`; badge.title=speedSource; }
     }catch(e){}
-    // Insight dinamis dengan koreksi logika layanan
-    if(sortedServices.length>0 && sortedServices[0].r.totalCount>0){
-        let best=sortedServices[0];
-        let insightHtml=`<div style="margin-top:10px; font-size:11px; background:#0f1f36; border:1px solid #1e2d4a; border-radius:8px; padding:8px; color:#8aa0c6;">`;
-        insightHtml+=`💡 <strong style="color:#7dffb7;">Insight Waktu Koreksi:</strong> ${best.cat} paling cuan <strong style="color:#00e676;">Rp ${best.rpPerJam.toLocaleString('id-ID')}/jam</strong> (avg ${Math.round(best.avgDur*60)}m).<br>`;
-        sortedServices.forEach(s=>{
-            if(s.r.totalCount<1) return;
-            let cat=s.cat; let pct=s.waitingPct; let wMenit=Math.round(s.avgWaiting*60);
-            if(pct<10) return;
-            if(cat==='Gofood' || cat==='Gomart'){
-                insightHtml+=`⏳ <strong style="color:#ff8a80;">${cat}</strong> ${pct}% waktu habis <strong>dominan nunggu makanan di resto</strong> (${wMenit}m/order).<br>`;
-            } else if(cat==='Goride'){
-                insightHtml+=`🚦 <strong style="color:#ffcc66;">${cat}</strong> ${pct}% waktu habis <strong>sudah pasti gara gara macet</strong> (${wMenit}m/order).<br>`;
-            } else if(cat==='Gosend'){
-                insightHtml+=`🔍 <strong style="color:#8ab4f8;">${cat}</strong> ${pct}% waktu habis <strong>dominan lama karna cari alamat</strong> (${wMenit}m/order).<br>`;
-            }
-        });
-        insightHtml+=`</div>`;
-        ratesContainer.innerHTML+=insightHtml;
-    }
-
-
 
     const tiersContainer=document.getElementById('rekapTiersContainer'); tiersContainer.innerHTML="";
-    // No.1 Heatmap nongkrong per waktu
     hourlyBlocks.forEach(b=>{
         if(b.orderCount===0){
-            tiersContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;"><div style="font-weight:700; color:#eaf2ff;">${b.label}</div><div style="font-size:11px; color:#5a7096; font-style:italic;">Belum ada data order di jam ini</div></div>`;
+            tiersContainer.innerHTML+=`<div style="border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;"><div style="font-weight:700; color:#eaf2ff;">${b.label}</div><div style="font-size:11px; color:#5a7096;">Belum ada data</div></div>`;
             return;
         }
         let sortedAreas=Object.entries(b.areas||{}).sort((a,b)=>b[1]-a[1]).slice(0,3);
@@ -1974,7 +1648,6 @@ function loadRekapData(){
             ${areaHtml}
         </div>`;
     });
-    
 
     const daysContainer=document.getElementById('rekapDaysContainer'); daysContainer.innerHTML="";
     dayOfWeekData.forEach(d=>{ d.rpPerHour=d.hours>0?Math.round(d.net/d.hours):0; });
@@ -1984,38 +1657,26 @@ function loadRekapData(){
         daysContainer.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label"><span>${d.name} <span style="font-size:10px; color:var(--muted);">(Net: Rp ${d.net.toLocaleString('id-ID')})</span></span><span style="color:${barColor}; font-weight:bold;">Rp ${d.rpPerHour.toLocaleString('id-ID')}/jam</span></div><div class="breakdown-bg"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div><div style="font-size:9px; color:#777; margin-top:2px; text-align:right;">Total: ${d.hours.toFixed(1)} Jam</div></div>`;
     });
 
-    // ===== INSIGHT PRESISI V6 - STRATEGI HARI SAMA (TIDAK SENTUH KODE LAIN, HANYA PANGGIL HELPER) =====
     const insightContainer=document.getElementById('rekapInsightContainer'); insightContainer.innerHTML="";
-    if(totalIncome===0){ 
-        insightContainer.innerHTML=`<div style="color:var(--muted); font-style:italic; font-size:12px;">Belum ada data.</div>`; 
-    } else {
-        try{
-            insightContainer.innerHTML = buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extractAreaSimple, getDurationInHours, categories);
-        }catch(e){
-            console.log('Insight V6 error', e);
-            insightContainer.innerHTML=`<div style="color:#ff8a80; font-size:12px;">AI strategi error: ${e.message}</div>`;
-        }
+    if(totalIncome===0){ insightContainer.innerHTML=`<div style="color:var(--muted); font-style:italic; font-size:12px;">Belum ada data.</div>`; }
+    else {
+        try{ insightContainer.innerHTML = buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extractAreaSimple, getDurationInHours, categories); }catch(e){ insightContainer.innerHTML=`<div style="color:#ff8a80; font-size:12px;">AI error: ${e.message}</div>`; }
     }
 }
-
-function exportToCSV()
-{
+function exportToCSV(){
     const data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
     if(data.length===0) return alert("Belum ada data!");
     const shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
-    let csvContent="Tanggal;Jam Awal;Jam Akhir;Tipe;Kategori;ID Transaksi;ID Prefix;Jarak KM;Nominal;Alamat Jemput;Alamat Tujuan;Jam Mulai Shift;Jam Selesai Shift;Keterangan;Source\n";
+    let csvContent="Tanggal;Jam Awal;Jam Akhir;Tipe;Kategori;ID Transaksi;Jarak KM;Nominal;Alamat Jemput;Alamat Tujuan;Shift;Keterangan\n";
     data.forEach(item=>{
         const dayShift=shiftData[item.date]||{start:'',end:''};
-        let row=[ item.date, item.time||'', item.endTime||item.predictedEndTime||'', item.type, item.cat, item.idTrans||'', item.idPrefix||'', item.dist.toString().replace('.',','), item.amount, `"${(item.pickup||'').replace(/"/g,'""')}"`, `"${(item.destination||'').replace(/"/g,'""')}"`, dayShift.start||'', dayShift.end||'', `"${(item.note||'').replace(/"/g,'""')}"`, item.source||'' ].join(";");
+        let row=[ item.date, item.time||'', item.endTime||'', item.type, item.cat, item.idTrans||'', item.dist.toString().replace('.',','), item.amount, `"${(item.pickup||'').replace(/"/g,'""')}"`, `"${(item.destination||'').replace(/"/g,'""')}"`, dayShift.start||''+'-'+dayShift.end||'', `"${(item.note||'').replace(/"/g,'""')}"` ].join(";");
         csvContent+=row+"\n";
     });
     const blob=new Blob([new Uint8Array([0xEF,0xBB,0xBF]), csvContent],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob); const link=document.createElement("a"); link.setAttribute("href",url); const tglLokal=new Date().toLocaleDateString('sv-SE'); link.setAttribute("download",`sigan_v5_full_${tglLokal}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+    const url=URL.createObjectURL(blob); const link=document.createElement("a"); link.setAttribute("href",url); const tglLokal=new Date().toLocaleDateString('sv-SE'); link.setAttribute("download",`lapkeu_fixed_${tglLokal}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
 }
-
 window.onload=function(){
-    try{ setTimeout(()=>{ let c=migrateCleanOldAddresses(); if(c>0 && typeof loadData==='function'){ setTimeout(loadData, 300); } }, 800); }catch(e){}
-
     const today=new Date().toLocaleDateString('sv-SE');
     document.getElementById('globalDate').value=today;
     if(!localStorage.getItem('lapkeu_global_target')) localStorage.setItem('lapkeu_global_target',200000);
@@ -2023,7 +1684,7 @@ window.onload=function(){
 };
 </script>
 
-<!-- OCR V5.4 ROBUST - FIX TIDAK MAU BACA -->
+<!-- OCR V5.4 FIXED - tanpa bug e/eo, fallback pairing improved -->
 <script>
 (function(){
   const fileInput=document.getElementById('ocrFileInput');
@@ -2048,23 +1709,12 @@ window.onload=function(){
       if(Number(dd)<=31 && Number(mm)<=12) return `${yyyy}-${mm}-${dd}`;
     }
     let m2=txt.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    if(m2){
-      let yyyy=m2[1], mm=m2[2].padStart(2,'0'), dd=m2[3].padStart(2,'0');
-      return `${yyyy}-${mm}-${dd}`;
-    }
+    if(m2){ let yyyy=m2[1], mm=m2[2].padStart(2,'0'), dd=m2[3].padStart(2,'0'); return `${yyyy}-${mm}-${dd}`; }
     const monthMap={ 'januari':'01','februari':'02','maret':'03','april':'04','mei':'05','juni':'06','juli':'07','agustus':'08','september':'09','oktober':'10','november':'11','desember':'12', 'jan':'01','feb':'02','mar':'03','apr':'04','jun':'06','jul':'07','agu':'08','agust':'08','sep':'09','okt':'10','nov':'11','des':'12' };
     let m3=txt.match(/(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember|Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Agust|Sep|Okt|Nov|Des)\s+(\d{4})/i);
-    if(m3){
-      let dd=m3[1].padStart(2,'0'); let mon=m3[2].toLowerCase(); let yyyy=m3[3];
-      let mm=monthMap[mon]||'01';
-      return `${yyyy}-${mm}-${dd}`;
-    }
+    if(m3){ let dd=m3[1].padStart(2,'0'); let mon=m3[2].toLowerCase(); let yyyy=m3[3]; let mm=monthMap[mon]||'01'; return `${yyyy}-${mm}-${dd}`; }
     let m4=txt.match(/(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember|Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Agust|Sep|Okt|Nov|Des)\b/i);
-    if(m4){
-      let dd=m4[1].padStart(2,'0'); let mon=m4[2].toLowerCase(); let mm=monthMap[mon]||'01';
-      let yyyy=new Date().getFullYear();
-      return `${yyyy}-${mm}-${dd}`;
-    }
+    if(m4){ let dd=m4[1].padStart(2,'0'); let mon=m4[2].toLowerCase(); let mm=monthMap[mon]||'01'; let yyyy=new Date().getFullYear(); return `${yyyy}-${mm}-${dd}`; }
     return null;
   }
   function getIdCategory(idTrans){
@@ -2111,28 +1761,20 @@ window.onload=function(){
       img.src=URL.createObjectURL(file);
     });
   }
-  
+  // FIXED: hapus penghapusan 1 huruf bebas yang bikin alamat rusak
   function cleanGojekAddress(raw){
     if(!raw) return '';
     let s=String(raw).trim();
-    // Ultra aggressive cleaning - loop until stable
-    let prev='';
-    let loop=0;
+    let prev=''; let loop=0;
     while(s!==prev && loop<6){
       prev=s;
-      // remove bullets, dashes, spaces
       s=s.replace(/^[\s•·●○·\u2022\u00B7\-\–\—\|]+/, '');
-      // remove leading e, eo, o, ee, oo, etc - various Tesseract misread of blue/yellow dots
       s=s.replace(/^(?:[eEoO]{1,3}|eo|oe|ee|oo|e\s*o|o\s*e)\s+/i, '');
-      // e or eo directly before Jl/Jalan/etc without proper space handling
       s=s.replace(/^[eEoO]+\s*(?=(Jl\.?|Jalan|Gg\.?|Gang|Perum|Komplek|Komp|Desa|Dusun|Kec\.?|Kel\.?|RT|RW|No\.?|Blok|Kav|Jl))/i, '');
-      // single isolated char at start like "e " or "a " before address
-      s=s.replace(/^[a-zA-Z]\s+(?=[A-Z0-9])/,'');
       s=s.replace(/^[eEoO]\s+/i,'');
       s=s.replace(/^[^A-Za-z0-9\u00C0-\u024F]+/, '');
       loop++;
     }
-    // Final safety: if still starts with e + space + Jl, strip again
     s=s.replace(/^(e|eo|o)\s+(?=Jl\.?|Jalan)/i,'');
     return s.trim().substring(0,120);
   }
@@ -2140,8 +1782,6 @@ window.onload=function(){
     if(!raw) return '';
     let s=cleanGojekAddress(raw);
     s=s.replace(/^[eEoO]{1,2}\b\s*/,'');
-    // V5.32.5 Bar di Pendapatan + Badge All Layanan: OCR sering salah baca l -> I atau 1, jadi Jln kebaca JIn/Jin/J1n
-    // Normalisasi semua varian di awal alamat
     s=s.replace(/^\s*J[Il1][nN]?\.?\s+/i, 'Jl. ');
     s=s.replace(/\bJ[Il1][nN]?\.(?=\S)/gi, 'Jl. ');
     s=s.replace(/\bJ[Il1]n\b/gi, 'Jl.');
@@ -2171,16 +1811,11 @@ window.onload=function(){
       let changed=0;
       let cleaner = typeof cleanGojekAddressDeep==='function' ? cleanGojekAddressDeep : cleanGojekAddress;
       for(let it of data){
-        let oldPick=it.pickup||'';
-        let oldDest=it.destination||'';
-        let oldNote=it.note||'';
-        let newPick=cleaner(oldPick);
-        let newDest=cleaner(oldDest);
+        let oldPick=it.pickup||''; let oldDest=it.destination||''; let oldNote=it.note||'';
+        let newPick=cleaner(oldPick); let newDest=cleaner(oldDest);
         let newNote=oldNote;
-        // clean note that contains e Jl...
         if(oldNote){
           newNote=oldNote.replace(/e\s+Jl\./gi,'Jl.').replace(/eo\s+Jl\./gi,'Jl.');
-          // use cleaner on parts after |
           let parts=oldNote.split('|');
           if(parts.length>1){
             let addrPart=parts[1];
@@ -2189,8 +1824,7 @@ window.onload=function(){
           }
         }
         if(newPick!==oldPick || newDest!==oldDest || newNote!==oldNote){
-          it.pickup=newPick;
-          it.destination=newDest;
+          it.pickup=newPick; it.destination=newDest;
           if(it.lokasi_jemput!==undefined) it.lokasi_jemput=newPick;
           if(it.lokasi_antar!==undefined) it.lokasi_antar=newDest;
           if(it.jemput!==undefined) it.jemput=newPick;
@@ -2201,7 +1835,6 @@ window.onload=function(){
       }
       if(changed>0){
         localStorage.setItem('lapkeuData', JSON.stringify(data));
-        console.log('[FIX V5.32.5 Bar di Pendapatan + Badge All Layanan] Cleaned '+changed+' alamat dari artefak titik biru-kuning e/eo di OCR');
         try{
           let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
           if(lakeRaw){
@@ -2212,88 +1845,45 @@ window.onload=function(){
           }
         }catch(e){}
       }
-      // Also clean geocode cache keys that have e/eo
-      try{
-        let cacheRaw=localStorage.getItem('lapkeu_geocode_cache');
-        if(cacheRaw){
-          let cache=JSON.parse(cacheRaw);
-          let newCache={};
-          let cacheChanged=0;
-          for(let k in cache){
-            let newK=cleaner(k);
-            if(newK!==k && newK) cacheChanged++;
-            if(newK) newCache[newK]=cache[k];
-            else newCache[k]=cache[k];
-          }
-          if(cacheChanged>0){
-            localStorage.setItem('lapkeu_geocode_cache', JSON.stringify(newCache));
-            console.log('[FIX] Cleaned geocode cache '+cacheChanged+' keys');
-          }
-        }
-      }catch(e){}
       return changed;
-    }catch(e){ console.log('migrate clean err',e); return 0; }
+    }catch(e){ return 0; }
   }
-  function extractAreaSimpleClean(addr){
-    if(!addr) return '';
-    let cleaned=cleanGojekAddress(addr);
-    return extractAreaSimpleOrig? extractAreaSimpleOrig(cleaned) : cleaned.substring(0,22);
+  function parseTipText(text){
+    let tips=[];
+    try{
+      let cleaned=text.replace(/\+\s*Tip/gi, ' ');
+      let lines=cleaned.split('\n').map(l=>l.trim()).filter(l=>l);
+      for(let i=0;i<lines.length;i++){
+        let line=lines[i];
+        if(/\+\s*Tip/i.test(line)) continue;
+        let rpMatch=line.match(/Rp\s*([\d\.]+)/i);
+        if(!rpMatch) continue;
+        let next2 = lines.slice(i, i+4).join(' ').toLowerCase();
+        if(!next2.includes('tip pelanggan')) continue;
+        let amount = parseInt(rpMatch[1].replace(/\./g,''))||0;
+        if(amount<1000 || amount>100000) continue;
+        let idTrans='';
+        for(let j=i;j<Math.min(i+6, lines.length); j++){
+          let m=lines[j].match(/([FG]K?-?\d+-?\d+|F-\d+|RB-\d+|MT-\d+|GK-\d+-\d+)/i);
+          if(m){ idTrans=m[1].toUpperCase(); break; }
+          let m2=lines[j].match(/ID\s*transaksi\s*:\s*([A-Z0-9-]+)/i);
+          if(m2){ idTrans=m2[1].toUpperCase(); break; }
+        }
+        let time='';
+        for(let j=i;j<Math.min(i+3, lines.length); j++){
+          let tm=lines[j].match(/(\d{1,2}:\d{2})/);
+          if(tm){ time=tm[1]; break; }
+        }
+        if(idTrans){
+          tips.push({ amount, dist:0, start:time, end:time, cat:'TIP', idTrans, pickup:'Tip Pelanggan', destination:idTrans, loc:'Tip '+idTrans, date:null, raw:'TIP:'+idTrans, isTip:true });
+        }
+      }
+    }catch(e){}
+    return tips;
   }
-
-  
-function parseTipText(text){
-  let tips=[];
-  try{
-    // Abaikan +Tip button di Tab Trip
-    let cleaned=text.replace(/\+\s*Tip/gi, ' ');
-    let lines=cleaned.split('\n').map(l=>l.trim()).filter(l=>l);
-    for(let i=0;i<lines.length;i++){
-      let line=lines[i];
-      if(/\+\s*Tip/i.test(line)) continue;
-      let rpMatch=line.match(/Rp\s*([\d\.]+)/i);
-      if(!rpMatch) continue;
-      let next2 = lines.slice(i, i+4).join(' ').toLowerCase();
-      if(!next2.includes('tip pelanggan')) continue; // hanya yang ada tulisan Tip Pelanggan (Tab Tambahan), bukan +Tip button
-      let amount = parseInt(rpMatch[1].replace(/\./g,''))||0;
-      if(amount<1000 || amount>100000) continue;
-      let idTrans='';
-      for(let j=i;j<Math.min(i+6, lines.length); j++){
-        let m=lines[j].match(/([FG]K?-?\d+-?\d+|F-\d+|RB-\d+|MT-\d+|GK-\d+-\d+)/i);
-        if(m){ idTrans=m[1].toUpperCase(); break; }
-        let m2=lines[j].match(/ID\s*transaksi\s*:\s*([A-Z0-9-]+)/i);
-        if(m2){ idTrans=m2[1].toUpperCase(); break; }
-      }
-      let time='';
-      for(let j=i;j<Math.min(i+3, lines.length); j++){
-        let tm=lines[j].match(/(\d{1,2}:\d{2})/);
-        if(tm){ time=tm[1]; break; }
-      }
-      if(idTrans){
-        tips.push({
-          amount: amount,
-          dist: 0,
-          start: time,
-          end: time,
-          cat: 'TIP',
-          idTrans: idTrans,
-          pickup: 'Tip Pelanggan',
-          destination: idTrans,
-          loc: 'Tip Pelanggan ' + idTrans,
-          date: null,
-          raw: 'TIP:'+idTrans+' Rp'+amount,
-          isTip: true
-        });
-      }
-    }
-  }catch(e){ console.log('tip parse error',e); }
-  return tips;
-}
-
-
-function parseGojekText(fullText){
+  function parseGojekText(fullText){
     let txt=fullText.replace(/\r/g,'').replace(/\n+/g,'\n');
-    // FIX V5.32.4: abaikan tulisan +Tip (tombol, bukan pendapatan tip)
-    txt=txt.replace(/\+\s*Tip/gi, ' ').replace(/\bTip\b(?=\s*\n|\s*$)/gi, ' '); // hapus +Tip button
+    txt=txt.replace(/\+\s*Tip/gi, ' ').replace(/\bTip\b(?=\s*\n|\s*$)/gi, ' ');
     txt=txt.replace(/\+Tip/gi, ' ');
     let results=[];
     const tripRegex=/Rp\s*[^\d]{0,3}([\d\.\,]{3,})[\s\S]{0,80}?(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})[^\d]{0,10}([\d]+[\.,]?\d*)\s*km/gi;
@@ -2326,7 +1916,7 @@ function parseGojekText(fullText){
         let candidates=[];
         for(let i=idLineIdx+1;i<lines.length&&candidates.length<4;i++){
           let ln=lines[i];
-          if(/\+\s*Tip/i.test(ln)) continue; // abaikan tombol +Tip
+          if(/\+\s*Tip/i.test(ln)) continue;
           if(/^Tip$/i.test(ln.trim())) continue;
           if(/Rp/i.test(ln)) continue;
           if(/\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/.test(ln)) continue;
@@ -2342,19 +1932,25 @@ function parseGojekText(fullText){
       }
       results.push({amount, dist, start, end, cat, idTrans, pickup, destination, loc: (pickup?pickup:'') + (destination?' -> '+destination:''), raw:m[0].substring(0,80)});
     }
+    // FIXED: fallback pairing by nearest index, bukan min length
     if(results.length===0){
       const am=[...txt.matchAll(/Rp\s*[^\d]{0,3}([\d\.]{3,})/g)];
       const km=[...txt.matchAll(/([\d]+[\.,]?\d*)\s*km/gi)];
       const tm=[...txt.matchAll(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/g)];
       const ids=[...txt.matchAll(/(RB|F-|MT-|GK-)[\d\-]{6,}/gi)];
-      let cnt=Math.min(am.length, km.length, tm.length, ids.length);
-      for(let i=0;i<cnt;i++){
-        let amount=parseInt(am[i][1].replace(/\./g,'').replace(/[^\d]/g,''))||0;
-        let dist=parseFloat(km[i][1].replace(',','.'))||0;
-        if(!km[i][1].includes('.')&&!km[i][1].includes(',')&&dist>100) dist=dist/100;
-        let start=tm[i][1], end=tm[i][2];
-        let idTrans=ids[i]?ids[i][0].toUpperCase():'';
-        if(!idTrans) continue;
+      // pairing by proximity
+      for(let id of ids){
+        let idIdx=id.index||0;
+        let nearestAm = am.reduce((best,curr)=>{ let d=Math.abs((curr.index||0)-idIdx); let bd=best?Math.abs((best.index||0)-idIdx):Infinity; return d<bd?curr:best; }, null);
+        let nearestKm = km.reduce((best,curr)=>{ let d=Math.abs((curr.index||0)-idIdx); let bd=best?Math.abs((best.index||0)-idIdx):Infinity; return d<bd?curr:best; }, null);
+        let nearestTm = tm.reduce((best,curr)=>{ let d=Math.abs((curr.index||0)-idIdx); let bd=best?Math.abs((best.index||0)-idIdx):Infinity; return d<bd?curr:best; }, null);
+        if(!nearestAm||!nearestKm||!nearestTm) continue;
+        if(Math.abs(nearestAm.index-idIdx)>600) continue; // terlalu jauh
+        let amount=parseInt(nearestAm[1].replace(/\./g,'').replace(/[^\d]/g,''))||0;
+        let dist=parseFloat(nearestKm[1].replace(',','.'))||0;
+        if(!nearestKm[1].includes('.')&&!nearestKm[1].includes(',')&&dist>100) dist=dist/100;
+        let start=nearestTm[1], end=nearestTm[2];
+        let idTrans=id[0].toUpperCase();
         let cat=getIdCategory(idTrans);
         results.push({amount, dist, start, end, cat, idTrans, pickup:'', destination:'', loc:'', raw:''});
       }
@@ -2362,21 +1958,18 @@ function parseGojekText(fullText){
     return results;
   }
   function getClarityScore(entry){
-    // Skor kejelasan: amount + alamat
-    // Semakin tinggi = semakin jelas
     try{
       let score=0;
-      let amt=Number(entry.amount||entry.amt||0);
+      let amt=Number(entry.amount||0);
       if(amt>0) score+=1;
       if(amt>=2000) score+=2;
-      let pick=(entry.pickup||entry.lokasi_jemput||entry.jemput||'').trim();
-      let dest=(entry.destination||entry.lokasi_antar||entry.antar||'').trim();
+      let pick=(entry.pickup||'').trim();
+      let dest=(entry.destination||'').trim();
       if(pick.length>5) score+=1;
       if(dest.length>5) score+=1;
       if(pick.length>10 && !/^e\s+Jl/i.test(pick) && !/^eo\s+/i.test(pick) && !/^Jin\b/i.test(pick) && !/^Unknown/i.test(pick)) score+=2;
       if(dest.length>10) score+=1;
       if(pick && dest) score+=1;
-      // penalti kalau masih ada artefak e/eo di awal
       if(/^e\s+Jl/i.test(pick) || /^eo\s+Jl/i.test(pick)) score-=2;
       if(pick.includes('[object Object]') || dest.includes('[object Object]')) score-=5;
       return score;
@@ -2395,9 +1988,6 @@ function parseGojekText(fullText){
     }catch(e){}
     return null;
   }
-  function isDuplicateById(idTrans){
-    return findExistingById(idTrans)!==null;
-  }
   async function ocrWithWorker(blob, label){
     let worker=null;
     try{
@@ -2406,7 +1996,6 @@ function parseGojekText(fullText){
       });
       await worker.loadLanguage('ind+eng');
       await worker.initialize('ind+eng');
-      // V5.25: set PSM 6 = assume uniform block of text (Gojek invoice), OEM 1 = LSTM
       try{
         await worker.setParameters({
           tessedit_pageseg_mode: '6',
@@ -2414,18 +2003,13 @@ function parseGojekText(fullText){
           preserve_interword_spaces: '1',
           tessedit_char_blacklist: '•·●○'
         });
-      }catch(e){ console.log('set params fail',e); }
+      }catch(e){}
       const {data:{text}} = await worker.recognize(blob);
       await worker.terminate();
-      // post-correction dictionary untuk alamat umum Pamulang
       let corrected=text;
       try{
-        // fix common OCR misread
         corrected=corrected.replace(/\bJ[Il1][nN]\b/g,'Jln');
         corrected=corrected.replace(/\bJ[Il1]\b/g,'Jl');
-        corrected=corrected.replace(/Purnawarman/g,'Purnawarman');
-        corrected=corrected.replace(/Kemiri1/g,'Kemiri');
-        corrected=corrected.replace(/Kubis I No No\./gi,'Kubis I No.');
       }catch(e){}
       return corrected;
     }catch(err){
@@ -2437,12 +2021,9 @@ function parseGojekText(fullText){
     statusEl.innerHTML='🔍 Siapkan foto '+file.name+' ...';
     previewEl.style.display='block';
     previewEl.innerHTML='Proses...';
-
-    // 1. OCR.Space (No.1 pilihan kamu)
     if(window.useOcrSpace){
       try{
-        statusEl.innerHTML='🔍 OCR.Space (gratis, online) membaca '+file.name+'...';
-        previewEl.innerHTML='Upload ke OCR.Space...';
+        statusEl.innerHTML='🔍 OCR.Space membaca '+file.name+'...';
         let resizedBlob = await resizeImageForOCR(file, 1400);
         let fullText = await window.ocrSpaceParse(resizedBlob);
         previewEl.innerHTML='<div style="color:#7dffb7;white-space:pre-wrap;max-height:160px;overflow:auto; font-size:11px;">OCR.Space:\n'+fullText.substring(0,1200)+'</div>';
@@ -2460,20 +2041,16 @@ function parseGojekText(fullText){
         if(tips.length) parsed=parsed.concat(tips);
         parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
         if(parsed.length){
-          statusEl.innerHTML='✅ OCR.Space: '+parsed.length+' trip dari '+file.name+' | <strong>TANGGAL: '+ocrDate+'</strong> | '+parsed.map(p=> p.idTrans+' Rp'+p.amount+' '+p.dist+'km').join(', ');
+          statusEl.innerHTML='✅ OCR.Space: '+parsed.length+' trip | TANGGAL: '+ocrDate;
           return parsed;
         }
-        statusEl.innerHTML='⚠️ OCR.Space tidak menemukan trip, fallback Tesseract...';
       }catch(err){
-        console.log('OCR.Space fail',err);
-        statusEl.innerHTML='⚠️ OCR.Space gagal: '+err.message.substring(0,150)+'<br>Fallback Tesseract offline...';
+        statusEl.innerHTML='⚠️ OCR.Space gagal: '+err.message.substring(0,150)+'<br>Fallback Tesseract...';
       }
     }
-
-    // 2. Tesseract offline fallback
     try{
       let resizedBlob = await resizeImageForOCR(file, 1200);
-      statusEl.innerHTML='🔍 Tesseract offline membaca '+file.name+'...';
+      statusEl.innerHTML='🔍 Tesseract membaca '+file.name+'...';
       let fullText = await ocrWithWorker(resizedBlob, 'OCR full');
       previewEl.innerHTML='<div style="color:#8aa0c6;white-space:pre-wrap;max-height:120px;overflow:auto">'+fullText.substring(0,900)+'</div>';
       let ocrDate=parseDateFromOcrText(fullText);
@@ -2489,8 +2066,8 @@ function parseGojekText(fullText){
       let tips=parseTipText(fullText);
       if(tips.length) parsed=parsed.concat(tips);
       parsed=parsed.map(p=>{ p.date=ocrDate; return p; });
-      if(!parsed.length){ statusEl.innerHTML='⚠️ Tidak ada trip/tip di '+file.name; return []; }
-      statusEl.innerHTML='✅ Tesseract: '+parsed.length+' trip | '+parsed.map(p=> p.idTrans+' Rp'+p.amount).join(', ');
+      if(!parsed.length){ statusEl.innerHTML='⚠️ Tidak ada trip di '+file.name; return []; }
+      statusEl.innerHTML='✅ Tesseract: '+parsed.length+' trip';
       return parsed;
     }catch(err){
       statusEl.innerHTML='❌ OCR gagal: '+err.message;
@@ -2498,92 +2075,54 @@ function parseGojekText(fullText){
     }
   }
   function showOcrSpaceToggle(){
-  const container=document.getElementById('tabContentInput');
-  if(!container) return;
-  if(document.getElementById('ocrSpaceBox')) return;
-  
-  let isHidden = localStorage.getItem('hideOcrSpaceCard') === '1';
-  let key=localStorage.getItem('ocrSpaceKey')||'';
-  
-  const div=document.createElement('div');
-  div.id='ocrSpaceBox';
-  div.style.cssText='background:#0f1f36; border:1px solid #1e3a5f; border-radius:10px; padding:10px; margin:10px 0; font-size:12px; position:relative;';
-  
-  let hiddenStyle = isHidden ? 'display:none;' : '';
-  
-  div.innerHTML=`
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-      <div style="font-weight:800; color:#7dffb7;">🔍 OCR.Space (No.1) - Gratis 1000/hari</div>
-      <div style="display:flex; gap:4px;">
-        <button id="hideOcrSpaceBtn" style="background:#1a2a44; border:1px solid #2a3a5a; color:#8aa0c6; padding:3px 8px; border-radius:6px; font-size:10px;">Sembunyikan ▲</button>
+    const container=document.getElementById('tabContentInput');
+    if(!container) return;
+    if(document.getElementById('ocrSpaceBox')) return;
+    let isHidden = localStorage.getItem('hideOcrSpaceCard') === '1';
+    let key=localStorage.getItem('ocrSpaceKey')||'';
+    const div=document.createElement('div');
+    div.id='ocrSpaceBox';
+    div.style.cssText='background:#0f1f36; border:1px solid #1e3a5f; border-radius:10px; padding:10px; margin:10px 0; font-size:12px;';
+    let hiddenStyle = isHidden ? 'display:none;' : '';
+    div.innerHTML=`
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <div style="font-weight:800; color:#7dffb7;">🔍 OCR.Space - FIXED</div>
+        <button id="hideOcrSpaceBtn" style="background:#1a2a44; border:1px solid #2a3a5a; color:#8aa0c6; padding:3px 8px; border-radius:6px; font-size:10px;">Sembunyikan</button>
       </div>
-    </div>
-    <div id="ocrSpaceContent" style="${hiddenStyle}">
-      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
-        <label style="display:flex; align-items:center; gap:4px; background:${window.useOcrSpace?'#132a1f':'#111a2f'}; padding:5px 8px; border-radius:6px; border:1px solid ${window.useOcrSpace?'#1e4a32':'#2a3a5a'};">
-          <input type="checkbox" id="chkOcrSpace" ${window.useOcrSpace?'checked':''}> Aktifkan OCR.Space
-        </label>
-        <span style="font-size:10px; color:#5a7096;">ON = OCR.Space akurat. OFF = Tesseract offline.</span>
+      <div id="ocrSpaceContent" style="${hiddenStyle}">
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
+          <label style="display:flex; align-items:center; gap:4px; background:${window.useOcrSpace?'#132a1f':'#111a2f'}; padding:5px 8px; border-radius:6px; border:1px solid ${window.useOcrSpace?'#1e4a32':'#2a3a5a'};">
+            <input type="checkbox" id="chkOcrSpace" ${window.useOcrSpace?'checked':''}> Aktifkan OCR.Space
+          </label>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <input id="ocrSpaceKeyInput" type="text" placeholder="API Key" value="${key}" style="flex:1; background:#0a1328; border:1px solid #1e3a5f; border-radius:6px; padding:6px 8px; color:#eaf2ff; font-size:11px;">
+          <button id="saveOcrSpaceKey" style="background:#1e3a5f; border:none; color:#7dffb7; padding:6px 10px; border-radius:6px; font-weight:700; font-size:11px;">Simpan</button>
+        </div>
       </div>
-      <div style="display:flex; gap:6px;">
-        <input id="ocrSpaceKeyInput" type="text" placeholder="API Key (helloworld untuk test)" value="${key}" style="flex:1; background:#0a1328; border:1px solid #1e3a5f; border-radius:6px; padding:6px 8px; color:#eaf2ff; font-size:11px;">
-        <button id="saveOcrSpaceKey" style="background:#1e3a5f; border:none; color:#7dffb7; padding:6px 10px; border-radius:6px; font-weight:700; font-size:11px;">Simpan & Sembunyikan</button>
-      </div>
-      <div id="ocrSpaceStatus" style="margin-top:6px; font-size:10px; color:#8aa0c6;">Key demo <b>helloworld</b> bisa dipakai test. Daftar: <a href="https://ocr.space/ocrapi/freekey" target="_blank" style="color:#2b8cff;">ocr.space/ocrapi/freekey</a></div>
-    </div>
-    <div id="ocrSpaceCollapsed" style="${isHidden ? '' : 'display:none;'} display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#5a7096; background:#0a1328; padding:6px 8px; border-radius:6px; margin-top:6px;">
-      <span>✅ OCR.Space aktif | Key: ${key ? key.substring(0,6)+'...' : 'helloworld'} | Klik Tampilkan untuk edit</span>
-      <button id="showOcrSpaceBtn" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:3px 8px; border-radius:6px; font-size:10px;">Tampilkan ▼</button>
-    </div>
-  `;
-  container.prepend(div);
-  
-  const chk = document.getElementById('chkOcrSpace');
-  if(chk) chk.onchange=(e)=>{ window.useOcrSpace=e.target.checked; localStorage.setItem('useOcrSpace', e.target.checked?'1':'0'); };
-  
-  document.getElementById('saveOcrSpaceKey').onclick=()=>{
-    localStorage.setItem('ocrSpaceKey', document.getElementById('ocrSpaceKeyInput').value.trim());
-    localStorage.setItem('hideOcrSpaceCard', '1');
-    document.getElementById('ocrSpaceStatus').innerHTML='✅ Key disimpan & card disembunyikan!';
-    setTimeout(()=>{
-      document.getElementById('ocrSpaceContent').style.display='none';
-      document.getElementById('ocrSpaceCollapsed').style.display='flex';
-      document.getElementById('hideOcrSpaceBtn').innerText='Sembunyikan ▲';
-    },800);
-  };
-  
-  document.getElementById('hideOcrSpaceBtn').onclick=()=>{
-    let content=document.getElementById('ocrSpaceContent');
-    let collapsed=document.getElementById('ocrSpaceCollapsed');
-    if(content.style.display==='none'){
-      content.style.display='block';
-      collapsed.style.display='none';
-      localStorage.setItem('hideOcrSpaceCard', '0');
-      document.getElementById('hideOcrSpaceBtn').innerText='Sembunyikan ▲';
-    } else {
-      content.style.display='none';
-      collapsed.style.display='flex';
+    `;
+    container.prepend(div);
+    const chk = document.getElementById('chkOcrSpace');
+    if(chk) chk.onchange=(e)=>{ window.useOcrSpace=e.target.checked; localStorage.setItem('useOcrSpace', e.target.checked?'1':'0'); };
+    document.getElementById('saveOcrSpaceKey').onclick=()=>{
+      localStorage.setItem('ocrSpaceKey', document.getElementById('ocrSpaceKeyInput').value.trim());
       localStorage.setItem('hideOcrSpaceCard', '1');
-      document.getElementById('hideOcrSpaceBtn').innerText='Tampilkan ▼';
-    }
-  };
-  
-  document.getElementById('showOcrSpaceBtn').onclick=()=>{
-    document.getElementById('ocrSpaceContent').style.display='block';
-    document.getElementById('ocrSpaceCollapsed').style.display='none';
-    localStorage.setItem('hideOcrSpaceCard', '0');
-    document.getElementById('hideOcrSpaceBtn').innerText='Sembunyikan ▲';
-  };
-}
-setTimeout(showOcrSpaceToggle, 800);
+    };
+    document.getElementById('hideOcrSpaceBtn').onclick=()=>{
+      let content=document.getElementById('ocrSpaceContent');
+      if(content.style.display==='none'){ content.style.display='block'; localStorage.setItem('hideOcrSpaceCard', '0'); }
+      else { content.style.display='none'; localStorage.setItem('hideOcrSpaceCard', '1'); }
+    };
+  }
+  setTimeout(showOcrSpaceToggle, 800);
 
-fileInput.addEventListener('change', async (e)=>{
+  fileInput.addEventListener('change', async (e)=>{
     let files=Array.from(e.target.files||[]);
     if(!files.length) return;
     let rawGlobal=(document.getElementById('globalDate')&&document.getElementById('globalDate').value)||'';
     let fallbackDate=normalizeDate(rawGlobal);
-    statusEl.innerHTML='📷 '+files.length+' foto, fallback: <strong>'+fallbackDate+'</strong>. Deteksi tanggal PER FOTO aktif.';
-    if(typeof Tesseract==='undefined'){ statusEl.innerHTML='❌ Tesseract.js belum ke-load, cek internet. Coba reload.'; return; }
+    statusEl.innerHTML='📷 '+files.length+' foto, fallback: <strong>'+fallbackDate+'</strong>';
+    if(typeof Tesseract==='undefined'){ statusEl.innerHTML='❌ Tesseract.js belum load.'; return; }
     let allParsed=[];
     for(let f of files){
       let r=await processFile(f, fallbackDate);
@@ -2593,38 +2132,27 @@ fileInput.addEventListener('change', async (e)=>{
     let unique=[]; let seenIdMap=new Map();
     let perDateCount={};
     let replacedCount=0;
-    let siganDataExisting=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
     for(let p of allParsed){
-      if(!p.idTrans){ statusEl.innerHTML+='<br>⚠️ Tanpa ID, lewati: Rp'+p.amount+' '+p.start; continue; }
+      if(!p.idTrans) continue;
       let idKey=p.idTrans.toUpperCase();
       let newScore=getClarityScore(p);
-      // Cek duplikat dalam batch yang sama
       if(seenIdMap.has(idKey)){
         let oldP=seenIdMap.get(idKey);
         let oldScore=getClarityScore(oldP);
         if(newScore>oldScore){
-          // ganti dengan yang lebih jelas
           let idx=unique.findIndex(x=>x.idTrans.toUpperCase()===idKey);
           if(idx>=0) unique[idx]=p;
           seenIdMap.set(idKey,p);
-          statusEl.innerHTML+='<br>🔄 Duplikat batch ID '+idKey+' - pakai yang lebih jelas (skor '+oldScore+'→'+newScore+')';
-          // update perDateCount
           if(oldP.date) perDateCount[oldP.date]=Math.max(0,(perDateCount[oldP.date]||1)-1);
           perDateCount[p.date]=(perDateCount[p.date]||0)+1;
-        } else {
-          statusEl.innerHTML+='<br>⏭️ Duplikat batch ID '+idKey+' tolak (skor lama '+oldScore+' >= baru '+newScore+')';
         }
         continue;
       }
-      // Cek duplikat dengan data lama di localStorage
       let existing=findExistingById(idKey);
       if(existing){
         let oldScore=getClarityScore(existing.entry);
         if(newScore>oldScore){
-          // REPLACE yang lama dengan yang baru yang lebih jelas
           try{
-            let oldAmt=existing.entry.amount;
-            let oldPick=existing.entry.pickup||'';
             existing.dataRef[existing.index]={
               ...existing.entry,
               date: p.date||existing.entry.date,
@@ -2634,40 +2162,22 @@ fileInput.addEventListener('change', async (e)=>{
               endTime: p.end||existing.entry.endTime,
               amount: p.amount||existing.entry.amount,
               dist: p.dist||existing.entry.dist,
-              jarak: p.dist||existing.entry.jarak,
               pickup: p.pickup||existing.entry.pickup,
               destination: p.destination||existing.entry.destination,
               lokasi_jemput: p.pickup||existing.entry.lokasi_jemput,
               lokasi_antar: p.destination||existing.entry.lokasi_antar,
               note: ('OCR '+p.start+'-'+p.end+' '+p.idTrans+' | '+(p.pickup||'')+' -> '+(p.destination||'')).substring(0,300),
-              source: 'ocr_v5_24_10_replace_clearer'
+              source: 'ocr_fixed_replace_clearer'
             };
             localStorage.setItem('lapkeuData', JSON.stringify(existing.dataRef));
-            // update lake juga
-            try{
-              let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
-              if(lakeRaw){
-                let lake=JSON.parse(lakeRaw);
-                if(lake.sigan) lake.sigan.lapkeuData=existing.dataRef;
-                localStorage.setItem('UNIVERSAL_LAKE_V1', JSON.stringify(lake));
-              }
-            }catch(e){}
             replacedCount++;
-            statusEl.innerHTML+='<br>♻️ ID '+idKey+' sudah ada tapi buram (skor '+oldScore+') → diganti yang jelas (skor '+newScore+') Rp'+oldAmt+'→Rp'+p.amount;
-          }catch(e){
-            statusEl.innerHTML+='<br>❌ Gagal ganti ID '+idKey+': '+e.message;
-          }
-        } else {
-          statusEl.innerHTML+='<br>⏭️ Duplikat tolak ID '+idKey+' sudah ada & lebih jelas (skor '+oldScore+' >= '+newScore+')';
+          }catch(e){}
         }
         continue;
       }
       seenIdMap.set(idKey,p);
       unique.push(p);
       perDateCount[p.date]=(perDateCount[p.date]||0)+1;
-    }
-    if(replacedCount>0){
-      statusEl.innerHTML+='<br>✅ '+replacedCount+' data lama yang buram sudah diganti yang jelas';
     }
 
     if(unique.length){
@@ -2685,10 +2195,7 @@ fileInput.addEventListener('change', async (e)=>{
           type: 'Pendapatan',
           cat: p.cat||'Goride',
           note: ('OCR '+p.start+'-'+p.end+' '+p.idTrans+' | '+(p.pickup||'')+' -> '+(p.destination||'')).substring(0,300),
-          dist: p.dist,
-          jarak: p.dist,
-          jarak_km: p.dist,
-          km: p.dist,
+          dist: p.dist, jarak: p.dist, jarak_km: p.dist, km: p.dist,
           amount: p.amount,
           idTrans: p.idTrans,
           idPrefix: p.idTrans ? p.idTrans.split('-')[0] : '',
@@ -2698,34 +2205,33 @@ fileInput.addEventListener('change', async (e)=>{
           lokasi_antar: p.destination||'',
           jemput: p.pickup||'',
           antar: p.destination||'',
-          source: 'ocr_v5_4_robust_fixed_sync'
+          source: 'ocr_v5_fixed'
         };
         siganData.push(entry);
         saved++; datesAffected.add(entry.date);
       }
       localStorage.setItem('lapkeuData', JSON.stringify(siganData));
       datesAffected.forEach(d=>{ if(window.updateShiftFromOrders) window.updateShiftFromOrders(d); });
-      let perDateTxt=Object.entries(perDateCount).map(([d,c])=>d+': '+c+' trip').join(', ');
-      statusEl.innerHTML+='<br><br>✅ <strong>'+saved+' trip tercatat!</strong><br>📅 '+perDateTxt+'<br>Kalender auto pindah ke tanggal terbaru.';
+      let perDateTxt=Object.entries(perDateCount).map(([d,c])=>d+': '+c).join(', ');
+      statusEl.innerHTML+='<br><br>✅ <strong>'+saved+' trip baru, '+replacedCount+' diganti lebih jelas</strong><br>📅 '+perDateTxt;
       try{
         let latestDate=[...datesAffected].sort().reverse()[0];
         if(latestDate) document.getElementById('globalDate').value=latestDate;
         if(typeof loadData==='function') loadData();
         if(window.buildAndSendSiGan) window.buildAndSendSiGan();
         setTimeout(()=>{ try{ if(typeof switchTab==='function') switchTab('history'); }catch(_){} }, 500);
-      }catch(err){ console.log(err); }
+      }catch(err){}
       setTimeout(()=>{ fileInput.value=''; previewEl.style.display='none'; }, 2500);
     } else {
-      statusEl.innerHTML+='<br>⚠️ Semua duplikat/tanpa ID';
+      if(replacedCount>0) statusEl.innerHTML+='<br>✅ '+replacedCount+' data lama diganti lebih jelas';
+      else statusEl.innerHTML+='<br>⚠️ Semua duplikat';
       fileInput.value='';
     }
   });
 })();
 </script>
 
-
-
-<!-- Sync Lake (tetap) -->
+<!-- Sync Lake FIXED -->
 <script>
 (function(){
   var KEYS_SIGAN=['lapkeuData','lapkeu_shift','lapkeu_global_target'];
@@ -2734,7 +2240,7 @@ fileInput.addEventListener('change', async (e)=>{
   function safeParse(k){ try{ var v=localStorage.getItem(k); if(v==null) return null; try{ return JSON.parse(v); }catch(e){ return v; } }catch(e){ return null; } }
   function getExistingLake(){ try{ var raw=localStorage.getItem(LAKE_KEY); if(!raw) return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; var obj=JSON.parse(raw); obj.sigan=obj.sigan||{}; obj.maka=obj.maka||{}; obj.cross=obj.cross||{}; obj._sources=obj._sources||{}; return obj; }catch(e){ return {_updated:0,_source:'',_sources:{},sigan:{},maka:{},cross:{}}; } }
   try{ window.__siganBC=window.__siganBC||new BroadcastChannel('lapkeu_universal_sync'); }catch(e){}
-  function parseTimeToMinutes(t){
+  function parseTimeToMinutesLocal(t){
     try{
       if(!t) return null;
       t=String(t).trim().replace('.',':');
@@ -2754,10 +2260,9 @@ fileInput.addEventListener('change', async (e)=>{
   }
   function estimateEndTime(startStr, distKm){
     try{
-      var startMin=parseTimeToMinutes(startStr);
+      var startMin=parseTimeToMinutesLocal(startStr);
       if(startMin==null) return '';
       var d=Number(distKm)||0;
-      // estimasi: kecepatan kota 25 km/jam + 3 menit buffer
       var durMin = d>0 ? Math.max(5, Math.round((d/25)*60 + 3)) : 15;
       return minutesToHHMM(startMin+durMin);
     }catch(e){ return ''; }
@@ -2769,7 +2274,6 @@ fileInput.addEventListener('change', async (e)=>{
       for(var i=0;i<KEYS_MAKA.length;i++){ var v2=safeParse(KEYS_MAKA[i]); if(v2!==null) lake.maka[KEYS_MAKA[i]]=v2; }
       var siganData=safeParse('lapkeuData')||[]; 
       var fixedCount=0;
-      // MIGRASI: perbaiki data lama yang jam_akhir kosong / sama dengan jam_awal
       for(var k=0;k<siganData.length;k++){
         var it=siganData[k];
         if(!it) continue;
@@ -2778,32 +2282,21 @@ fileInput.addEventListener('change', async (e)=>{
         if(!isGoride) continue;
         var jamAwal = it.time || it.jam_awal || '';
         var jamAkhir = it.endTime || it.predictedEndTime || it.jam_akhir || '';
-        // normalisasi format
-        var mAwal=parseTimeToMinutes(jamAwal);
-        var mAkhir=parseTimeToMinutes(jamAkhir);
+        var mAwal=parseTimeToMinutesLocal(jamAwal);
+        var mAkhir=parseTimeToMinutesLocal(jamAkhir);
         var needFix=false;
-        if(mAwal==null && jamAwal){
-          jamAwal=String(jamAwal).replace('.',':');
-          mAwal=parseTimeToMinutes(jamAwal);
-        }
-        // FIX V5.24: midnight crossing 23:50->00:15 valid, durasi 25 menit
-        if(mAkhir==null || !jamAkhir || jamAkhir===jamAwal){
-          needFix=true;
-        } else if(mAwal!=null && mAkhir!=null){
+        if(mAkhir==null || !jamAkhir || jamAkhir===jamAwal) needFix=true;
+        else if(mAwal!=null && mAkhir!=null){
           var durTmp=mAkhir-mAwal; if(durTmp<0) durTmp+=1440;
-          if(durTmp<=0 || durTmp>600){ needFix=true; } // >10 jam untuk 1 trip Goride = invalid
+          if(durTmp<=0 || durTmp>600) needFix=true;
         }
         if(needFix){
           var newEnd = estimateEndTime(jamAwal, it.dist||0);
           if(newEnd){
-            it.endTime=newEnd;
-            it.predictedEndTime=newEnd;
-            it.jam_akhir=newEnd;
-            it.jam_awal=jamAwal;
+            it.endTime=newEnd; it.predictedEndTime=newEnd; it.jam_akhir=newEnd; it.jam_awal=jamAwal;
             fixedCount++;
           }
         } else {
-          // pastikan field jam_awal/jam_akhir ada untuk kompatibilitas battlog
           if(!it.jam_awal) it.jam_awal=jamAwal;
           if(!it.jam_akhir) it.jam_akhir=jamAkhir;
         }
@@ -2811,78 +2304,32 @@ fileInput.addEventListener('change', async (e)=>{
       }
       if(fixedCount>0){
         try{ localStorage.setItem('lapkeuData', JSON.stringify(siganData)); lake.sigan['lapkeuData']=siganData; }catch(e){}
-        try{ console.log('[SiGan] Auto-fix jam akhir Goride:', fixedCount, 'trip'); }catch(_){}
       }
       var incomeMap={}, kmMap={}, gorideOrders=[];
-      var seenId={}; // V5.24 FIX: dedup ID transaksi biar income tidak double
+      var seenId={};
       for(var j=0;j<siganData.length;j++){ 
         var it=siganData[j]; 
         if(!it || it.type!=='Pendapatan') continue;
-        // Dedup berdasarkan idTrans
         var idKey = (it.idTrans||'').toString().toUpperCase();
         if(idKey && seenId[idKey]) continue;
         if(idKey) seenId[idKey]=true;
         incomeMap[it.date]=(incomeMap[it.date]||0)+Number(it.amount||0); 
         kmMap[it.date]=(kmMap[it.date]||0)+Number(it.dist||0); 
-        // khusus Goride simpan jam awal & jam akhir untuk battlog - PASTIKAN VALID
         if(it.cat==='Goride' || (idKey && idKey.startsWith('RB'))){
           var ja = it.time || it.jam_awal || '';
           var jb = it.endTime || it.predictedEndTime || it.jam_akhir || '';
-          if(!jb || jb===ja){
-            jb=estimateEndTime(ja, it.dist||0);
-          }
-          var ma=parseTimeToMinutes(ja), mb=parseTimeToMinutes(jb);
-          // V5.24 FIX: midnight crossing support + validasi durasi
+          if(!jb || jb===ja) jb=estimateEndTime(ja, it.dist||0);
+          var ma=parseTimeToMinutesLocal(ja), mb=parseTimeToMinutesLocal(jb);
           if(ma!=null && mb!=null){
             var durMB=mb-ma; if(durMB<0) durMB+=1440;
             if(durMB>0 && durMB<=600){
               gorideOrders.push({
-                date: it.date,
-                tanggal: it.date,
-                jam_awal: minutesToHHMM(ma),
-                jam_akhir: minutesToHHMM(mb),
-                jarak_km: Number(it.dist||0),
-                km: Number(it.dist||0),
-                jarak: Number(it.dist||0),
-                dist: Number(it.dist||0),
-                id_trans: it.idTrans||'',
-                idTrans: it.idTrans||'',
-                pickup: (it.pickup||'').substring(0,80),
-                destination: (it.destination||'').substring(0,80),
-                lokasi_jemput: (it.pickup||'').substring(0,80),
-                lokasi_antar: (it.destination||'').substring(0,80),
-                jemput: (it.pickup||'').substring(0,80),
-                antar: (it.destination||'').substring(0,80),
+                date: it.date, tanggal: it.date,
+                jam_awal: minutesToHHMM(ma), jam_akhir: minutesToHHMM(mb),
+                jarak_km: Number(it.dist||0), km: Number(it.dist||0),
+                idTrans: it.idTrans||'', pickup: (it.pickup||'').substring(0,80), destination: (it.destination||'').substring(0,80),
                 amount: Number(it.amount||0)
               });
-            } else if(durMB<=0 || durMB>600){
-              // coba estimasi ulang
-              var jb2=estimateEndTime(minutesToHHMM(ma), it.dist||0);
-              var mb2=parseTimeToMinutes(jb2);
-              if(mb2!=null){
-                var dur2=mb2-ma; if(dur2<0) dur2+=1440;
-                if(dur2>0 && dur2<=600){
-                  gorideOrders.push({
-                    date: it.date,
-                    tanggal: it.date,
-                    jam_awal: minutesToHHMM(ma),
-                    jam_akhir: jb2,
-                    jarak_km: Number(it.dist||0),
-                    km: Number(it.dist||0),
-                    jarak: Number(it.dist||0),
-                    dist: Number(it.dist||0),
-                    id_trans: it.idTrans||'',
-                    idTrans: it.idTrans||'',
-                    pickup: (it.pickup||'').substring(0,80),
-                    destination: (it.destination||'').substring(0,80),
-                    lokasi_jemput: (it.pickup||'').substring(0,80),
-                    lokasi_antar: (it.destination||'').substring(0,80),
-                    jemput: (it.pickup||'').substring(0,80),
-                    antar: (it.destination||'').substring(0,80),
-                    amount: Number(it.amount||0)
-                  });
-                }
-              }
             }
           }
         }
@@ -2892,7 +2339,6 @@ fileInput.addEventListener('change', async (e)=>{
         localStorage.setItem('lapkeu_cross_km', JSON.stringify(kmMap));
         localStorage.setItem('lapkeu_cross_goride', JSON.stringify(gorideOrders));
         localStorage.setItem('lapkeu_hub_last_update', String(Date.now()));
-        // simpan juga di lake.sigan.siganData yang sudah difix biar battlog baca langsung
         lake.sigan['lapkeuData']=siganData;
         lake.cross['lapkeu_cross_income']=incomeMap; 
         lake.cross['lapkeu_cross_km']=kmMap;
@@ -2907,7 +2353,7 @@ fileInput.addEventListener('change', async (e)=>{
       try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update',from:'sigan',ts:Date.now()}); }catch(e){}
     }catch(e){ console.log('SiGan Sender error', e.message); }
   }
-  function bacaDataEvLog(){ try{ var lake=safeParse(LAKE_KEY)||{}; var riwayatEv=safeParse('battlog_riwayat_harian')||(lake.cross&&lake.cross.sigan_riwayat_harian)||[]; var biayaEv=safeParse('battlog_ev_cost')||(lake.cross&&lake.cross.sigan_cross_ev_cost)||{}; var summaryEv=safeParse('battlog_summary')||(lake.cross&&lake.cross.maka_cross_summary)||{}; var hubData=safeParse('lapkeu_hub_data')||(lake.cross&&lake.cross.sigan_hub_data)||{}; window.__CROSS_EV_RIWAYAT=riwayatEv; window.__CROSS_EV_COST_MAP=biayaEv; window.__CROSS_EV_SUMMARY=summaryEv; window.__CROSS_EV_HUB=hubData; window.__CROSS_EV_LAKE=lake; window.__CROSS_EV_LAST_UPDATE=localStorage.getItem('lapkeu_hub_last_update'); return {riwayat:riwayatEv,biaya:biayaEv,summary:summaryEv}; }catch(e){ return null; } }
+  function bacaDataEvLog(){ try{ var lake=safeParse(LAKE_KEY)||{}; var riwayatEv=safeParse('battlog_riwayat_harian')||(lake.cross&&lake.cross.sigan_riwayat_harian)||[]; var biayaEv=safeParse('battlog_ev_cost')||(lake.cross&&lake.cross.sigan_cross_ev_cost)||{}; var summaryEv=safeParse('battlog_summary')||(lake.cross&&lake.cross.maka_cross_summary)||{}; window.__CROSS_EV_RIWAYAT=riwayatEv; window.__CROSS_EV_COST_MAP=biayaEv; window.__CROSS_EV_SUMMARY=summaryEv; return {riwayat:riwayatEv,biaya:biayaEv,summary:summaryEv}; }catch(e){ return null; } }
   function hookSiGan(){
     if(window.saveData&&!window.saveData.__hooked){ var origSave=window.saveData; window.saveData=function(){ var res=origSave.apply(this,arguments); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },200); return res; }; window.saveData.__hooked=true; }
     if(window.deleteItem&&!window.deleteItem.__hooked){ var origDel=window.deleteItem; window.deleteItem=function(){ var res=origDel.apply(this,arguments); setTimeout(buildAndSendSiGan,200); return res; }; window.deleteItem.__hooked=true; }
@@ -2916,7 +2362,7 @@ fileInput.addEventListener('change', async (e)=>{
   window.addEventListener('storage',function(e){ if(!e) return; if(e.key==='battlog_riwayat_harian'||e.key==='battlog_ev_cost'||e.key==='lapkeu_hub_last_update'||e.key==='UNIVERSAL_LAKE_V1'||e.key==='lapkeu_hub_data'){ setTimeout(bacaDataEvLog,100); } });
   try{ window.__siganBC=window.__siganBC||new BroadcastChannel('lapkeu_universal_sync'); window.__siganBC.onmessage=function(ev){ if(ev.data&&ev.data.type==='lake_update'&&ev.data.from==='maka'){ setTimeout(bacaDataEvLog,80); } }; }catch(e){}
   setTimeout(hookSiGan,600); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },1000); setInterval(function(){ buildAndSendSiGan(); bacaDataEvLog(); },60000);
-  window.kirimSiGanKeEvLog=buildAndSendSiGan; window.bacaDataEvLog=bacaDataEvLog; window.getUniversalLake=window.getUniversalLake||function(){ try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; } }; console.log('SiGan V5 Receiver+Sender aktif: MERGE mode + OCR FULL');
+  window.kirimSiGanKeEvLog=buildAndSendSiGan; window.bacaDataEvLog=bacaDataEvLog; window.getUniversalLake=window.getUniversalLake||function(){ try{ return JSON.parse(localStorage.getItem(LAKE_KEY)||'null'); }catch(e){ return null; } };
 })();
 </script>
 
@@ -2931,7 +2377,6 @@ fileInput.addEventListener('change', async (e)=>{
     else { dot.style.background='#555'; txt.textContent='SYNC STANDBY'; txt.style.color='#aaaaaa'; if(tm) tm.textContent=''; }
   }
   setInterval(cek,3000); setTimeout(cek,800);
-  window.addEventListener('storage', function(e){ if(e.key==='lapkeu_hub_last_update' || e.key==='UNIVERSAL_LAKE_V1'){ var dot=document.getElementById('sigan-sync-dot'); var txt=document.getElementById('sigan-sync-text'); if(dot){ dot.style.background='#00e676'; txt.textContent='BERTUKAR DATA...'; setTimeout(cek,1300); } } });
 })();
 </script>
 
