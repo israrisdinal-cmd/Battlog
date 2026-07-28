@@ -980,7 +980,11 @@ function buildHotspotByHour(){
       let distText='';
       if(lastGpsPos){
         if(r.dist!==null && r.dist!==undefined){ distText=r.dist.toFixed(1)+' km dari kamu'; }
-        else { distText='Menghitung jarak...'; }
+        else {
+          let fail = (typeof geocodeFailCount!=='undefined' && geocodeFailCount[r.area])||0;
+          if(fail>=2) distText='Alamat teks (tap Arah)';
+          else distText='Menghitung jarak...';
+        }
       }
       let isNearest = lastGpsPos && i===0 && r.dist!==null && r.dist<5;
       let borderColor=isNearest?'#00e676':'#1e3a5f';
@@ -1037,69 +1041,104 @@ async function geocodeArea(area, fullSample){
   if(typeof geocodeCache==='undefined') window.geocodeCache={};
   let cacheKey=area;
   if(geocodeCache[cacheKey] && geocodeCache[cacheKey].lat){
-    if(lastGpsPos && geocodeCache[cacheKey].lat){
-      try{
-        let d=haversine(lastGpsPos.lat, lastGpsPos.lon, geocodeCache[cacheKey].lat, geocodeCache[cacheKey].lon);
-        if(d>60){ delete geocodeCache[cacheKey]; } else { return geocodeCache[cacheKey]; }
-      }catch(e){ return geocodeCache[cacheKey]; }
-    } else { return geocodeCache[cacheKey]; }
+    return geocodeCache[cacheKey];
   }
-  if(geocodeFailCount[cacheKey] && geocodeFailCount[cacheKey]>=3) return null;
+  if(geocodeFailCount[cacheKey] && geocodeFailCount[cacheKey]>=4) return null;
   let baseSample = (fullSample||'').trim();
   let cleanedArea = area;
   cleanedArea=cleanedArea.replace(/\bNo\.?\s+No\.?\b/gi,'No.').replace(/\bNo\s+No\b/gi,'No.');
   let biasCity = currentAreaName || '';
+  let cityHint = 'Jakarta';
+  if(/bekasi/i.test(biasCity)) cityHint='Bekasi';
+  else if(/bogor/i.test(biasCity)) cityHint='Bogor';
+  else if(/depok/i.test(biasCity)) cityHint='Depok';
+  else if(/tangerang/i.test(biasCity)) cityHint='Tangerang';
+  else if(/kebayoran|jakarta|selatan|pusat|barat|timur|utara/i.test(biasCity)) cityHint='Jakarta';
+  
   let queries=[];
-  if(baseSample){
-    queries.push(baseSample + ', Indonesia');
-    if(biasCity) queries.push(baseSample + ', ' + biasCity + ', Indonesia');
+  if(baseSample && baseSample.length>8){
+    queries.push(baseSample);
+    queries.push(baseSample + ', ' + cityHint + ', Indonesia');
   }
-  if(biasCity) queries.push(cleanedArea + ', ' + biasCity + ', Indonesia');
+  queries.push(cleanedArea + ', ' + cityHint + ', Indonesia');
   queries.push(cleanedArea + ', Indonesia');
-  queries.push(cleanedArea + ', Jakarta, Indonesia');
-  queries=[...new Set(queries)].filter(q=>q && q.length>5).slice(0,5);
+  queries.push(cleanedArea);
+  queries=[...new Set(queries)].filter(q=>q && q.length>4).slice(0,5);
+  
+  // 1. Photon - paling ramah CORS, support lat/lon bias
+  for(let q of queries){
+    try{
+      let photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=id`;
+      if(lastGpsPos){
+        photonUrl += `&lat=${lastGpsPos.lat}&lon=${lastGpsPos.lon}`;
+      }
+      let res = await fetch(photonUrl);
+      if(!res.ok) continue;
+      let data = await res.json();
+      if(!data.features || !data.features.length) continue;
+      for(let f of data.features){
+        let coords = f.geometry && f.geometry.coordinates;
+        if(!coords) continue;
+        let lon=coords[0], lat=coords[1];
+        if(!lat || !lon) continue;
+        if(lastGpsPos){
+          let d=haversine(lastGpsPos.lat, lastGpsPos.lon, lat, lon);
+          if(d>120) continue;
+        }
+        let best={lat, lon, q, display_name: (f.properties.name||'') + (f.properties.street? ', '+f.properties.street:'') + (f.properties.city? ', '+f.properties.city:'')};
+        geocodeCache[cacheKey]=best;
+        try{ if(typeof saveGeocodeCache==='function') saveGeocodeCache(); }catch(e){}
+        try{ buildHotspotByHour(); }catch(e){}
+        return best;
+      }
+    }catch(e){ console.log('photon err', e.message); }
+    await new Promise(r=>setTimeout(r,350));
+  }
+  
+  // 2. Nominatim fallback
   let viewboxParam='';
   if(lastGpsPos){
-    let delta=0.3;
+    let delta=0.9;
     let left=lastGpsPos.lon - delta;
     let right=lastGpsPos.lon + delta;
     let top=lastGpsPos.lat + delta;
     let bottom=lastGpsPos.lat - delta;
     viewboxParam=`&viewbox=${left},${top},${right},${bottom}&bounded=0`;
   }
-  try{
-    for(let q of queries){
-      try{
-        let url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=id&limit=5${viewboxParam}`;
-        let res=await fetch(url, {headers:{'Accept':'application/json'}});
-        if(!res.ok) continue;
-        let results=await res.json();
-        if(!results || !results.length) continue;
-        let best=null; let bestDist=Infinity;
-        for(let r of results){
-          if(!r.lat || !r.lon) continue;
-          let lat=parseFloat(r.lat), lon=parseFloat(r.lon);
-          if(isNaN(lat)||isNaN(lon)) continue;
-          if(lastGpsPos){
-            let d=haversine(lastGpsPos.lat, lastGpsPos.lon, lat, lon);
-            if(d>60) continue;
-            if(d<bestDist){ bestDist=d; best={lat,lon, q:q, dist:d, display_name:r.display_name}; }
-          } else { best={lat,lon, q:q, dist:null, display_name:r.display_name}; break; }
-        }
-        if(best){
-          geocodeCache[cacheKey]={lat:best.lat, lon:best.lon, ts:Date.now(), q:best.q, display_name:best.display_name};
-          try{ if(typeof saveGeocodeCache==='function') saveGeocodeCache(); }catch(e){}
-          buildHotspotByHour();
-          return best;
-        }
-      }catch(e){}
-      await new Promise(r=>setTimeout(r,400));
-    }
-  }catch(e){}
+  for(let q of queries){
+    try{
+      let url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=id&limit=5${viewboxParam}`;
+      let res=await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!res.ok) continue;
+      let results=await res.json();
+      if(!results || !results.length) continue;
+      let best=null; let bestDist=Infinity;
+      for(let r of results){
+        if(!r.lat || !r.lon) continue;
+        let lat=parseFloat(r.lat), lon=parseFloat(r.lon);
+        if(isNaN(lat)||isNaN(lon)) continue;
+        if(lastGpsPos){
+          let d=haversine(lastGpsPos.lat, lastGpsPos.lon, lat, lon);
+          if(d>120) continue;
+          if(d<bestDist){ bestDist=d; best={lat,lon, q, dist:d, display_name:r.display_name}; }
+        } else { best={lat,lon, q, dist:null, display_name:r.display_name}; break; }
+      }
+      if(best){
+        geocodeCache[cacheKey]={lat:best.lat, lon:best.lon, ts:Date.now(), q:best.q, display_name:best.display_name};
+        try{ if(typeof saveGeocodeCache==='function') saveGeocodeCache(); }catch(e){}
+        try{ buildHotspotByHour(); }catch(e){}
+        return best;
+      }
+    }catch(e){ console.log('nominatim err', e.message); }
+    await new Promise(r=>setTimeout(r,500));
+  }
+  
   geocodeFailCount[cacheKey]=(geocodeFailCount[cacheKey]||0)+1;
-  setTimeout(buildHotspotByHour, 300);
+  setTimeout(()=>{ try{ buildHotspotByHour(); }catch(e){} }, 500);
   return null;
 }
+
+
 async function reverseGeocode(lat,lon){
   try{
     let url=`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=id`;
