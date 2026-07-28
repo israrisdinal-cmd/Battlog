@@ -1,4 +1,8 @@
-<!-- Lapkeu V5.33.0 FIXED ALL - 2026-07-28
+<!-- Lapkeu V5.33.1 FIXED ALL - 2026-07-28
+  CHANGELOG V5.33.1:
+  - FIX: Hotspot menampilkan "Selesai" & "GoPay" sebagai lokasi (teks UI Gojek)
+  - FIX: Blacklist garbage area names + purge geocode cache nyasar
+  - FIX: Jarak >80km tidak ditampilkan (geocode nyasar ribuan km)
   CHANGELOG V5.33.0:
   - FIX: parseTipText missing (ReferenceError saat OCR tip)
   - FIX: parseDateFromOcrText dukung 2-digit year + format tambahan
@@ -69,7 +73,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LapKeu V5.33.0 OCR.Space + Tip Support FIX_ALL - 2026-07-28</title>
+    <title>LapKeu V5.33.1 OCR.Space + Tip + Hotspot FIX - 2026-07-28</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -199,7 +203,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.33.0 OCR.Space + Tip FIX_ALL</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.33.1 Hotspot + Tip FIX</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -905,6 +909,16 @@ let lastGpsPos = null;
 let currentAreaName = '';
 let geocodeCache = {};
 try{ geocodeCache = JSON.parse(localStorage.getItem('lapkeu_geocode_cache')||'{}'); }catch(e){ geocodeCache={}; }
+// V5.33.1: bersihkan cache key garbage (Selesai, GoPay, dll) yang sudah tersimpan
+try{
+  let purged=0;
+  for(let k of Object.keys(geocodeCache)){
+    if(typeof isGarbageAreaName==='function' ? isGarbageAreaName(k) : /^(selesai|gopay|go pay|total|bayar|unknown)$/i.test(String(k).trim())){
+      delete geocodeCache[k]; purged++;
+    }
+  }
+  if(purged>0){ try{ localStorage.setItem('lapkeu_geocode_cache', JSON.stringify(geocodeCache)); console.log('[HOTSPOT] purged',purged,'garbage geocode keys'); }catch(_){} }
+}catch(_){}
 function saveGeocodeCache(){ try{ localStorage.setItem('lapkeu_geocode_cache', JSON.stringify(geocodeCache)); }catch(e){} }
 
 function haversine(lat1,lon1,lat2,lon2){
@@ -916,6 +930,47 @@ function haversine(lat1,lon1,lat2,lon2){
   return R*c;
 }
 
+// ===== V5.33.1: Blacklist teks UI Gojek yang sering lolos ke area hotspot =====
+// Contoh dari screenshot: "Selesai", "GoPay" → geocode ke lokasi ribuan km
+const GARBAGE_AREA_BLACKLIST = new Set([
+  'selesai','gopay','go pay','gopay coins','total','bayar','pembayaran','metode',
+  'detail','rincian','ringkasan','order','pesanan','trip','perjalanan','driver',
+  'penumpang','customer','pelanggan','rating','ulasan','bantuan','help',
+  'batal','cancel','dibatalkan','ongoing','berlangsung','menuju','jemput',
+  'antar','tujuan','destinasi','lokasi','alamat','maps','peta','navigasi',
+  'estimasi','estimate','durasi','waktu','jam','menit','detik',
+  'rp','idr','rupiah','harga','tarif','ongkir','biaya','fee','tip','tips',
+  'promo','diskon','voucher','cashback','poin','point','coins',
+  'goride','gofood','gomart','gosend','gojek','gocar','gobluebird',
+  'unknown','null','undefined','n/a','na','-','—','–',
+  'id transaksi','id order','order id','transaction','transaksi',
+  'lihat','detail order','riwayat','history','home','beranda',
+  'chat','pesan','message','telepon','call','hubungi',
+  'selesai perjalanan','perjalanan selesai','trip selesai',
+  'pembayaran berhasil','berhasil','sukses','success','failed','gagal',
+  'tunai','cash','linkaja','ovo','dana','shopeepay','sakuku'
+]);
+function isGarbageAreaName(name){
+  if(!name) return true;
+  let s=String(name).trim().toLowerCase();
+  if(!s || s.length<3) return true;
+  // exact match blacklist
+  if(GARBAGE_AREA_BLACKLIST.has(s)) return true;
+  // partial: jika seluruh string hanya berisi kata blacklist
+  let words=s.split(/[\s,.\-/]+/).filter(Boolean);
+  if(words.length===0) return true;
+  if(words.every(w=>GARBAGE_AREA_BLACKLIST.has(w) || w.length<=2)) return true;
+  // pola ID transaksi / kode
+  if(/^(rb|f|mt|gk)[-_]?\d/i.test(s)) return true;
+  if(/^id\s*(transaksi|order|pesanan)/i.test(s)) return true;
+  // hanya angka / hanya simbol
+  if(/^[\d\s.,]+$/.test(s)) return true;
+  // "Selesai", "GoPay" case variants sudah tertangkap lowercase set
+  // deteksi UI label pendek tanpa konteks alamat (tidak ada kata jalan/area)
+  const addressHints=/\b(jl|jln|jalan|gg|gang|blok|kav|rt|rw|kel|kec|desa|perum|komplek|mall|ruko|pasar|stasiun|terminal|bandara|tol|flyover|underpass|sekolah|rs|rumah sakit|masjid|gereja|kantor|gedung|tower|apartemen|cluster|residence|townhouse)\b/i;
+  if(s.length<=12 && !addressHints.test(s) && GARBAGE_AREA_BLACKLIST.has(s.split(/\s+/)[0])) return true;
+  return false;
+}
 
 function buildHotspotByHour(){
   try{
@@ -960,10 +1015,14 @@ function buildHotspotByHour(){
     filtered.forEach(it=>{
       let rawPickup=it.pickup||it.lokasi_jemput||it.jemput||it.destination||it.lokasi_antar||'';
       if(typeof cleanGojekAddressDeep==='function'){ try{ rawPickup=cleanGojekAddressDeep(rawPickup); }catch(e){} } else if(typeof cleanGojekAddress==='function'){ try{ rawPickup=cleanGojekAddress(rawPickup); }catch(e){} }
+      // V5.33.1: skip garbage UI labels (Selesai, GoPay, dll)
+      if(isGarbageAreaName(rawPickup)) return;
       let area=typeof extractAreaSimple==='function'? extractAreaSimple(rawPickup) : (rawPickup.substring(0,22)||'Unknown');
       if(!area || area.trim()==='') area='Unknown';
+      if(isGarbageAreaName(area)) return;
       let groupKey = typeof normalizeAreaKeyForGrouping==='function' ? normalizeAreaKeyForGrouping(rawPickup) : area.toLowerCase();
       if(!groupKey || groupKey==='unknown') groupKey=area.toLowerCase();
+      if(isGarbageAreaName(groupKey)) return;
       if(!displayNameMap[groupKey]) displayNameMap[groupKey]=area;
       if(area!== 'Unknown' && displayNameMap[groupKey]==='Unknown') displayNameMap[groupKey]=area;
       if(!areaMap[groupKey]) areaMap[groupKey]={count:0, income:0, samples:[], lat:null, lon:null, displayArea: area};
@@ -978,6 +1037,8 @@ function buildHotspotByHour(){
         let entry=areaMap[k];
         let disp = entry.displayArea || displayNameMap[k] || k;
         if(typeof cleanGojekAddressDeep==='function'){ try{ disp=cleanGojekAddressDeep(disp); }catch(e){} }
+        // V5.33.1: filter lagi di tahap merge display name
+        if(isGarbageAreaName(disp) || isGarbageAreaName(k)) continue;
         if(!newMap[disp]){
           newMap[disp]={count: entry.count, income: entry.income, samples: entry.samples, lat: entry.lat, lon: entry.lon};
         } else {
@@ -988,10 +1049,26 @@ function buildHotspotByHour(){
       }
       areaMap=newMap;
     }
-    let ranked=Object.entries(areaMap).map(([area,s])=>({area,...s, avgIncome: s.count? Math.round(s.income/s.count):0})).sort((a,b)=>b.count-a.count).slice(0,6);
+    let ranked=Object.entries(areaMap)
+      .filter(([area])=>!isGarbageAreaName(area) && area!=='Unknown')
+      .map(([area,s])=>({area,...s, avgIncome: s.count? Math.round(s.income/s.count):0}))
+      .sort((a,b)=>b.count-a.count)
+      .slice(0,6);
     try{
       ranked.forEach(r=>{
         if(typeof geocodeCache!=='undefined' && geocodeCache[r.area] && geocodeCache[r.area].lat){
+          // V5.33.1: buang cache yang jaraknya absurd (>80km dari GPS sekarang)
+          if(lastGpsPos){
+            try{
+              let d=haversine(lastGpsPos.lat, lastGpsPos.lon, geocodeCache[r.area].lat, geocodeCache[r.area].lon);
+              if(d>80){
+                console.log('[HOTSPOT] buang cache jauh', r.area, d.toFixed(1)+'km');
+                delete geocodeCache[r.area];
+                try{ saveGeocodeCache(); }catch(_){}
+                return;
+              }
+            }catch(_){}
+          }
           r.lat=geocodeCache[r.area].lat; r.lon=geocodeCache[r.area].lon;
         }
       });
@@ -1023,7 +1100,13 @@ function buildHotspotByHour(){
       let distText='';
       if(lastGpsPos){
         if(r.dist!==null && r.dist!==undefined){
-          distText=r.dist.toFixed(1)+' km dari kamu';
+          // V5.33.1: jarak >80km dianggap geocode nyasar, jangan tampilkan angka absurd
+          if(r.dist>80){
+            distText='Jarak tidak valid (geocode nyasar)';
+            r.dist=null; // jangan diurutkan sebagai terdekat
+          } else {
+            distText=r.dist.toFixed(1)+' km dari kamu';
+          }
         } else {
           // cek apakah geocode pernah gagal (V5.33 object shape)
           let failRaw = (typeof geocodeFailCount!=='undefined') ? geocodeFailCount[r.area] : null;
@@ -1112,6 +1195,8 @@ try{ geocodeFailCount = JSON.parse(localStorage.getItem('lapkeu_geocode_fail')||
 function saveGeocodeFailCount(){ try{ localStorage.setItem('lapkeu_geocode_fail', JSON.stringify(geocodeFailCount)); }catch(e){} }
 async function geocodeArea(area, fullSample){
   if(!area || area==='Unknown') return null;
+  // V5.33.1: jangan geocode teks UI
+  if(typeof isGarbageAreaName==='function' && isGarbageAreaName(area)) return null;
   if(typeof geocodeCache==='undefined') window.geocodeCache={};
   // cache key pakai area asli biar tetap nyambung
   let cacheKey=area;
@@ -1578,6 +1663,8 @@ function loadRekapData(){
     function extractAreaSimpleOrig(addr){
         if(!addr) return '';
         addr=addr.replace(/\n/g,' ').trim();
+        // V5.33.1: tolak teks UI Gojek
+        if(typeof isGarbageAreaName==='function' && isGarbageAreaName(addr)) return '';
         // Normalisasi OCR error: JIn, Jin, J1n, Jln kebaca salah
         addr=addr.replace(/\bJ[Il1][nN]?\.(?=[A-Za-z])/gi, 'Jl. ');
         addr=addr.replace(/\b(Jln|Jl)\.(?=[A-Za-z])/gi, '$1. ');
@@ -1587,8 +1674,14 @@ function loadRekapData(){
         // Jika setelah strip masih ada sisa 'Jin' di awal karena OCR, buang lagi
         clean=clean.replace(/^Jin\s+/i,'').replace(/^JIn\s+/i,'').trim();
         let parts=clean.split(/[,.]/)[0].split(/\s+/).filter(w=>w.length>2);
-        if(parts.length===0) return addr.substring(0,20).trim();
-        return parts.slice(0,3).join(' ').substring(0,22).trim();
+        if(parts.length===0){
+          let fallback=addr.substring(0,20).trim();
+          if(typeof isGarbageAreaName==='function' && isGarbageAreaName(fallback)) return '';
+          return fallback;
+        }
+        let result=parts.slice(0,3).join(' ').substring(0,22).trim();
+        if(typeof isGarbageAreaName==='function' && isGarbageAreaName(result)) return '';
+        return result;
     }
     function extractAreaSimple(addr){ if(!addr) return ''; let c=typeof cleanGojekAddress==='function'? cleanGojekAddress(addr) : addr; return extractAreaSimpleOrig(c); }
 
@@ -2292,13 +2385,17 @@ window.onload=function(){
   }
   function normalizeAreaKeyForGrouping(addr){
     if(!addr) return 'Unknown';
+    if(typeof isGarbageAreaName==='function' && isGarbageAreaName(addr)) return 'Unknown';
     let k=cleanGojekAddressDeep(addr);
+    if(typeof isGarbageAreaName==='function' && isGarbageAreaName(k)) return 'Unknown';
     k=k.toLowerCase();
     k=k.replace(/\b(jl\.?|jln\.?|jin\.?|jalan)\b/gi,'');
     k=k.replace(/[^a-z0-9 ]/g,' ');
     k=k.replace(/\s+/g,' ').trim();
     let parts=k.split(' ').filter(function(w){ return w.length>2; });
-    return (parts.slice(0,2).join(' ')||k).substring(0,20) || 'unknown';
+    let result=(parts.slice(0,2).join(' ')||k).substring(0,20) || 'unknown';
+    if(typeof isGarbageAreaName==='function' && isGarbageAreaName(result)) return 'Unknown';
+    return result;
   }
   function migrateCleanOldAddresses(){
     try{
