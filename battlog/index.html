@@ -90,6 +90,46 @@ body{background:var(--bg);color:#dbe8ff;margin:0;padding-bottom:100px}
 <div><label class="maka-label">SoH saat itu (%)</label><input type="number" id="f_calib_soh" class="maka-input" step="0.1" min="0" max="100"></div>
 </div>
 </div>
+
+<div style="margin-top:12px;display:flex;gap:8px">
+<button onclick="exportData()" class="pill" style="border-color:#7dffb7;color:#7dffb7">📤 Export JSON</button>
+<button onclick="document.getElementById('importFile').click()" class="pill" style="border-color:#2b8cff;color:#6fb2ff">📥 Import JSON</button>
+<input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
+</div>
+<div id="cloudStatus" style="font-size:10px;color:#5e759e;margin-top:8px"></div>
+<script>
+function exportData(){
+  try{
+    let data={};
+    ['battlog_log_v1','UNIVERSAL_LAKE_V1','lapkeuData','lapkeu_shift','lapkeu_cross_income','lapkeu_cross_km','lapkeu_cross_goride','battlog_factory_cap','battlog_factory_range'].forEach(k=>{ let v=localStorage.getItem(k); if(v) data[k]=v; });
+    let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    let url=URL.createObjectURL(blob);
+    let a=document.createElement('a'); a.href=url; a.download='battlog_backup_'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+    showToast('Backup di-download','success');
+  }catch(e){ showToast('Export gagal: '+e.message,'error'); }
+}
+function importData(ev){
+  let file=ev.target.files[0]; if(!file) return;
+  let reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      let data=JSON.parse(e.target.result);
+      Object.keys(data).forEach(k=>{ localStorage.setItem(k, typeof data[k]==='string'?data[k]:JSON.stringify(data[k])); });
+      showToast('Import berhasil, reload...','success');
+      setTimeout(()=>location.reload(),800);
+    }catch(err){ showToast('Import gagal: '+err.message,'error'); }
+  };
+  reader.readAsText(file);
+}
+setTimeout(()=>{
+  let el=document.getElementById('cloudStatus');
+  if(el){
+    let isTg = !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData);
+    let lsSize = Math.round(JSON.stringify(localStorage).length/1024);
+    el.textContent = (isTg?'Mode: Telegram CloudStorage | ':'Mode: Browser | ') + 'LS: '+lsSize+'KB | Entries: '+entries.length;
+  }
+},1000);
+</script>
 <button onclick="saveFactorySpec()" class="btn-primary" style="margin-top:12px">Simpan Pengaturan</button>
 </div>
 
@@ -207,6 +247,73 @@ body{background:var(--bg);color:#dbe8ff;margin:0;padding-bottom:100px}
 const LS_KEY='battlog_log_v1';const BMS_KEY='battlog_bms_history';const SOH_KEY='battlog_soh_history';
 const MAX_KM_PER_TRIP=300;const MAX_DAILY_KM=600;const MAX_SHIFT_MIN=1080;const MAX_SPEED=60;
 let entries=[];try{let raw=JSON.parse(localStorage.getItem(LS_KEY)||'[]');entries=raw.filter(e=>e.sumber!=='battlog_auto_sync')}catch(e){}
+
+// ===== V1.6.5 TELEGRAM CLOUD STORAGE FIX - BIAR DATA TIDAK HILANG DI TELEGRAM =====
+const IS_TG = !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData);
+let CLOUD_CACHE = {};
+async function tgCloudGet(key){
+  if(!IS_TG || !window.Telegram.WebApp.CloudStorage) return localStorage.getItem(key);
+  return new Promise(res=>{
+    try{
+      window.Telegram.WebApp.CloudStorage.getItem(key, function(err,val){
+        if(err){ res(localStorage.getItem(key)); } else { res(val || localStorage.getItem(key)); }
+      });
+    }catch(e){ res(localStorage.getItem(key)); }
+  });
+}
+async function tgCloudSet(key, val){
+  try{ localStorage.setItem(key, val); }catch(e){}
+  if(IS_TG && window.Telegram.WebApp.CloudStorage){
+    try{ window.Telegram.WebApp.CloudStorage.setItem(key, val, function(){}); }catch(e){}
+  }
+}
+async function tgCloudGetAll(keys){
+  let out={};
+  for(let k of keys){
+    out[k]=await tgCloudGet(k);
+  }
+  return out;
+}
+async function restoreFromCloud(){
+  if(!IS_TG) return;
+  const KEYS=['battlog_log_v1','battlog_bms_history','battlog_soh_history','battlog_factory_cap','battlog_factory_range','battlog_soh_baseline','battlog_lokasi_history','battlog_charger_history','battlog_chat_id','UNIVERSAL_LAKE_V1','lapkeuData','lapkeu_shift','lapkeu_cross_income','lapkeu_cross_km','lapkeu_cross_goride'];
+  try{
+    for(let k of KEYS){
+      let v=await tgCloudGet(k);
+      if(v && !localStorage.getItem(k)){
+        localStorage.setItem(k, v);
+      }
+      if(v) CLOUD_CACHE[k]=v;
+    }
+    // Tampilkan status
+    let el=document.getElementById('user-display');
+    if(el && IS_TG){
+      let chatId = localStorage.getItem('battlog_chat_id')||'TG';
+      el.textContent='User: Telegram ('+chatId+') | Cloud OK';
+      el.style.color='#7dffb7';
+    }
+    console.log('Cloud restore done', Object.keys(CLOUD_CACHE).length);
+  }catch(e){ console.log('cloud restore err',e); }
+}
+// Override localStorage.setItem biar auto sync ke cloud
+(function(){
+  const origSet = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(k,v){
+    origSet(k,v);
+    if(IS_TG && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.CloudStorage){
+      try{ window.Telegram.WebApp.CloudStorage.setItem(k, v, function(){}); }catch(e){}
+    }
+  };
+})();
+// Jalankan restore sebelum render
+restoreFromCloud().then(()=>{
+  try{ 
+    let raw=localStorage.getItem('battlog_log_v1');
+    if(raw){ entries=JSON.parse(raw).filter(e=>e.sumber!=='battlog_auto_sync'); }
+    kalibrasiSohMover(); renderAll(); updateLiveCalc();
+  }catch(e){}
+});
+
 let editId=null;let usageChart=null;
 function escapeHtml(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function isSpklu(e){if(!e)return false;const t=String(e.tarif??'');const l=(e.lokasi||'').toLowerCase();return t==='2466'||l.includes('spklu')||l.includes('spblu')}
