@@ -1166,22 +1166,86 @@ document.getElementById('f_tarif_preset').addEventListener('change',ev=>{ const 
 document.getElementById('f_tarif').addEventListener('input',()=>{ const pre=document.getElementById('f_tarif_preset'); const val=document.getElementById('f_tarif').value; if(pre) pre.value=(val==='1444'||val==='2466'||val==='0')?val:'1444'; updateLiveCalc(); });
 
 (function initFormHelpers(){
-  const input=document.getElementById('f_lokasi'); const box=document.getElementById('lokasi_suggest'); if(input){ let hist=getLokasiHistory(); if(hist.length===0&&entries.length){ const seen=new Set(); entries.forEach(e=>{ const loc=(e.lokasi||'').trim(); if(loc&&!seen.has(loc.toLowerCase())){ seen.add(loc.toLowerCase()); hist.push(loc); } }); if(hist.length) localStorage.setItem(LOKASI_KEY,JSON.stringify(hist)); } hist=getLokasiHistory(); if(!input.value&&hist[0]) input.value=hist[0]; input.addEventListener('focus',()=>renderLokasiSuggest(input.value)); input.addEventListener('input',()=>renderLokasiSuggest(input.value)); document.addEventListener('click',(e)=>{ if(!e.target.closest('#f_lokasi')&&!e.target.closest('#lokasi_suggest')){ if(box) box.style.display='none'; } }); }
-  const hiddenC=document.getElementById('f_charger'); const customV=document.getElementById('f_custom_v'); const customAh=document.getElementById('f_custom_ah'); const chargerBox=document.getElementById('charger_suggest');
+  const input=document.getElementById('f_lokasi'); const box=document.getElementById('lokasi_suggest');
+  if(input){
+    // Bangun history dari entries lama jika history masih kosong
+    let hist=getLokasiHistory();
+    if(hist.length===0 && entries.length){
+      const seen=new Set();
+      entries.forEach(e=>{
+        const loc=(e.lokasi||'').trim();
+        if(loc && !seen.has(loc.toLowerCase())){
+          seen.add(loc.toLowerCase());
+          hist.push(loc);
+        }
+      });
+      if(hist.length) localStorage.setItem(LOKASI_KEY, JSON.stringify(hist));
+    }
+
+    // TIDAK prefill lokasi — selalu mulai kosong (sesuai permintaan user)
+    // Suggestion tetap muncul saat focus / ketik huruf pertama
+    input.addEventListener('focus', () => renderLokasiSuggest(input.value));
+    input.addEventListener('input', () => renderLokasiSuggest(input.value));
+    document.addEventListener('click', (e) => {
+      if(!e.target.closest('#f_lokasi') && !e.target.closest('#lokasi_suggest')){
+        if(box) box.style.display='none';
+      }
+    });
+  }
+
+  const hiddenC=document.getElementById('f_charger');
+  const customV=document.getElementById('f_custom_v');
+  const customAh=document.getElementById('f_custom_ah');
+  const chargerBox=document.getElementById('charger_suggest');
+
   function syncCustom(){
-  const rawV=customV.value.trim(); const rawAh=customAh.value.trim();
-  // support koma 82,6 -> 82.6
-  const v=rawV.replace(',', '.').replace(/[^\d.]/g,'');
-  const ah=rawAh.replace(',', '.').replace(/[^\d.]/g,'');
-  if(v&&ah){ hiddenC.value=`${v}v ${ah}ah`; } else { hiddenC.value=''; }
-  updateLiveCalc();
-}
-  if(customV&&customAh){ customV.addEventListener('input',syncCustom); customAh.addEventListener('input',syncCustom); customV.addEventListener('focus',renderChargerSuggest); customAh.addEventListener('focus',renderChargerSuggest); }
-  document.addEventListener('click',(e)=>{ if(!e.target.closest('#f_custom_v')&&!e.target.closest('#f_custom_ah')&&!e.target.closest('#charger_suggest')){ if(chargerBox) chargerBox.style.display='none'; } });
-  const origSave=saveEntry; saveEntry=async function(){ const v=customV.value.trim(); const ah=customAh.value.trim(); if(v&&ah){ saveChargerToHistory(v,ah); } return origSave.apply(this,arguments); };
-  if(typeof resetForm!=='undefined'){ const _reset=resetForm; resetForm=function(){ const keep=input.value||getLokasiHistory()[0]||''; _reset(); if(keep) input.value=keep; prefillTripStart(true); updateLiveCalc(); }; }
-  document.getElementById('f_custom_v').value=localStorage.getItem('universal_custom_v')||''; document.getElementById('f_custom_ah').value=localStorage.getItem('universal_custom_ah')||''; syncCustom(); renderCapDisplay();
-  setTimeout(()=>{ prefillTripStart(false); updateLiveCalc(); },100);
+    const rawV=customV.value.trim();
+    const rawAh=customAh.value.trim();
+    // support koma 82,6 -> 82.6
+    const v=rawV.replace(',', '.').replace(/[^\d.]/g,'');
+    const ah=rawAh.replace(',', '.').replace(/[^\d.]/g,'');
+    if(v && ah){ hiddenC.value=`${v}v ${ah}ah`; }
+    else { hiddenC.value=''; }
+    updateLiveCalc();
+  }
+
+  if(customV && customAh){
+    customV.addEventListener('input', syncCustom);
+    customAh.addEventListener('input', syncCustom);
+    customV.addEventListener('focus', renderChargerSuggest);
+    customAh.addEventListener('focus', renderChargerSuggest);
+  }
+
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('#f_custom_v') && !e.target.closest('#f_custom_ah') && !e.target.closest('#charger_suggest')){
+      if(chargerBox) chargerBox.style.display='none';
+    }
+  });
+
+  const origSave=saveEntry;
+  saveEntry = async function(){
+    const v=customV.value.trim();
+    const ah=customAh.value.trim();
+    if(v && ah){ saveChargerToHistory(v, ah); }
+    return origSave.apply(this, arguments);
+  };
+
+  // Reset form: lokasi SELALU dikosongkan (tidak di-prefill lagi)
+  if(typeof resetForm !== 'undefined'){
+    const _reset = resetForm;
+    resetForm = function(){
+      _reset();
+      if(input) input.value = '';           // pastikan lokasi kosong
+      prefillTripStart(true);
+      updateLiveCalc();
+    };
+  }
+
+  document.getElementById('f_custom_v').value = localStorage.getItem('universal_custom_v') || '';
+  document.getElementById('f_custom_ah').value = localStorage.getItem('universal_custom_ah') || '';
+  syncCustom();
+  renderCapDisplay();
+  setTimeout(()=>{ prefillTripStart(false); updateLiveCalc(); }, 100);
 })();
 
 try{ migrateLokasiHistoryObjects(); }catch(e){}
