@@ -19,6 +19,12 @@ STATUS: HARDENED - siap pakai ulang
   var blockedTypes = { touchstart: 1, touchmove: 1, wheel: 1 };
   EventTarget.prototype.addEventListener = function(type, listener, options) {
     if (blockedTypes[type]) {
+      try{
+        var el=this;
+        if(el && el.closest && el.closest('#battlogMap, .leaflet-container, .leaflet-control')){
+          return origAdd.call(this, type, listener, options);
+        }
+      }catch(_){}
       if (options === undefined || options === null) {
         options = { passive: true };
       } else if (typeof options === 'boolean') {
@@ -38,14 +44,18 @@ STATUS: HARDENED - siap pakai ulang
 const SIGAN_HUB_KEY = 'sigan_hub_data';
 const SiganData = {
     save: (key, value) => {
-        const data = JSON.parse(localStorage.getItem(SIGAN_HUB_KEY) || '{}');
-        data[key] = value;
-        localStorage.setItem(SIGAN_HUB_KEY, JSON.stringify(data));
-        console.log(`SiGan: Menyimpan ${key} ke Hub`);
+        try{
+            const data = JSON.parse(localStorage.getItem(SIGAN_HUB_KEY) || '{}');
+            data[key] = value;
+            try{ localStorage.setItem(SIGAN_HUB_KEY, JSON.stringify(data)); }catch(e){ console.warn('[SiGan Hub] quota penuh', e.message); }
+            console.log(`SiGan: Menyimpan ${key} ke Hub`);
+        }catch(e){ console.warn('[SiGan Hub] save fail', e.message); }
     },
     get: (key) => {
-        const data = JSON.parse(localStorage.getItem(SIGAN_HUB_KEY) || '{}');
-        return data[key];
+        try{
+            const data = JSON.parse(localStorage.getItem(SIGAN_HUB_KEY) || '{}');
+            return data[key];
+        }catch(e){ return undefined; }
     }
 };
 
@@ -58,22 +68,36 @@ function kirimDataBaterai(nilaiPersen) {
 
 function simpanKeRiwayatHarianHub(entry, calc) {
     try {
-        const RIWAYAT_HUB_KEY = 'sigan_riwayat_harian';
-        let riwayatHub = JSON.parse(localStorage.getItem(RIWAYAT_HUB_KEY) || '[]');
+        // FIX V1.5.2: tulis ke key baru (battlog_riwayat_harian) pakai safeSetItem, key lama tetap ditulis untuk kompatibilitas Lapkeu lama
         const dataBaru = {
             id: entry.id,
             date: entry.tanggal,
+            tanggal: entry.tanggal,
             km_awal: entry.km_awal,
             km_akhir: entry.km_akhir,
             dist: calc.jarak,
+            jarak: calc.jarak,
             batt_used: (entry.batt_awal - entry.batt_akhir),
             wh_per_km: calc.wh_per_km,
             amount: calc.biaya,
+            biaya: calc.biaya,
             note: `BattLog: ${entry.lokasi || 'Jalan'} (${entry.batt_awal}% ke ${entry.batt_akhir}%)`
         };
-        riwayatHub = riwayatHub.filter(item => item.id !== entry.id);
-        riwayatHub.unshift(dataBaru);
-        localStorage.setItem(RIWAYAT_HUB_KEY, JSON.stringify(riwayatHub));
+        // key baru - via safe
+        try{
+            let baru = JSON.parse(localStorage.getItem('battlog_riwayat_harian') || '[]');
+            baru = baru.filter(item => item.id !== entry.id);
+            baru.unshift(dataBaru);
+            if(typeof safeSetItem==='function') safeSetItem('battlog_riwayat_harian', JSON.stringify(baru));
+            else localStorage.setItem('battlog_riwayat_harian', JSON.stringify(baru));
+        }catch(e){ console.warn('hub baru fail', e.message); }
+        // key lama - kompatibilitas
+        try{
+            let lama = JSON.parse(localStorage.getItem('sigan_riwayat_harian') || '[]');
+            lama = lama.filter(item => item.id !== entry.id);
+            lama.unshift(dataBaru);
+            localStorage.setItem('sigan_riwayat_harian', JSON.stringify(lama));
+        }catch(e){}
         console.log("SiGan: Riwayat harian tersinkronisasi ke Hub", dataBaru);
     } catch (e) {
         console.error("SiGan: Gagal menyinkronkan riwayat ke Hub", e);
@@ -576,7 +600,7 @@ function safeSetItem(key, value) {
         // Trim entries jika terlalu banyak
         if (entries && entries.length > BATTLOG_CONFIG.maxHistoryItems) {
           entries = entries.slice(0, BATTLOG_CONFIG.maxHistoryItems);
-          safeSetItem(LS_KEY, JSON.stringify(entries));
+          try{ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }catch(_){}
         }
         localStorage.setItem(key, value);
         if (typeof showToast === 'function') showToast('Storage penuh - data lama dibersihkan', 'warning');
@@ -591,6 +615,25 @@ function safeSetItem(key, value) {
     return false;
   }
 }
+
+// === FIX V1.5.2: Atomic lake merge biar tidak tabrakan dengan Lapkeu ===
+function battlogAtomicLakeMerge(section, key, value){
+  try{
+    const LAKE_KEY='UNIVERSAL_LAKE_V1';
+    let raw=localStorage.getItem(LAKE_KEY);
+    let lake=raw?JSON.parse(raw):{_updated:0,_sources:{},sigan:{},maka:{},cross:{},sigan:{},lapkeu:{},battlog:{}};
+    lake.sigan=lake.sigan||{}; lake.maka=lake.maka||{}; lake.cross=lake.cross||{}; lake._sources=lake._sources||{};
+    lake.battlog=lake.battlog||lake.maka||{};
+    lake.lapkeu=lake.lapkeu||lake.sigan||{};
+    if(!lake[section]) lake[section]={};
+    lake[section][key]=value;
+    lake._updated=Date.now();
+    lake._sources['battlog_v1_5_2']=Date.now();
+    lake._source=Object.keys(lake._sources).join('+');
+    try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); return true; }catch(e){ console.warn('[BattLog Lake] quota', e.message); return false; }
+  }catch(e){ console.warn('[BattLog Lake] merge fail', e.message); return false; }
+}
+
 function safeGetItem(key, fallback = null) {
   try {
     return localStorage.getItem(key) ?? fallback;
@@ -888,6 +931,8 @@ function updateLiveCalc(){
 
 async function saveEntry(){
   const e=readForm(); if(e.km_akhir<e.km_awal){ showToast('Km Akhir harus >= Km Awal','error'); return; }
+  if(e.batt_awal<=e.batt_akhir){ showToast('Batt Awal harus > Batt Akhir','error'); return; }
+  if(e.batt_awal<0||e.batt_awal>100||e.batt_akhir<0||e.batt_akhir>100){ showToast('Baterai harus 0-100%','error'); return; }
   // RESTORED: Pemicu Update Baterai ke Pusat
   try{ kirimDataBaterai(e.batt_akhir); }catch(err){}
 
@@ -900,7 +945,7 @@ async function saveEntry(){
   // simpan ke hub SiGan (existing)
   try{ const k='battlog_riwayat_harian'; let hub=JSON.parse(localStorage.getItem(k)||'[]'); const dataBaru={id:entryData.id,date:entryData.tanggal,km_awal:entryData.km_awal,km_akhir:entryData.km_akhir,dist:calc.jarak,batt_used:(entryData.batt_awal-entryData.batt_akhir),wh_per_km:calc.wh_per_km,amount:calc.biaya,note:`BattLog: ${entryData.lokasi||'Jalan'} (${entryData.batt_awal}% ke ${entryData.batt_akhir}%)`}; hub=hub.filter(it=>it.id!==entryData.id); hub.unshift(dataBaru); localStorage.setItem(k,JSON.stringify(hub)); }catch(err){}
   if(editId){ const i=entries.findIndex(x=>x.id===editId); if(i>=0){ if(entries[i].waktu_selesai_riil) entryData.waktu_selesai_riil=entries[i].waktu_selesai_riil; entries[i]=entryData; } editId=null; document.getElementById('saveBtn').textContent='Simpan Catatan'; document.getElementById('cancelEditBtn').style.display='none'; showToast('Catatan diperbarui!','success'); } else { entries.unshift(entryData); showToast('Catatan disimpan!','success'); }
-  safeSetItem(LS_KEY, JSON.stringify(entries)); kalibrasiSohMover();
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }catch(_){} kalibrasiSohMover();
   let jamKirim=null; if(e.charger&&e.batt_akhir<calc.targetCas){ const regex=/([\d.,]+)\s*v\s*([\d.,]+)\s*ah/i; const m=e.charger.match(regex); if(m){ const volt=Number(m[1])||0, amp=Number(m[2])||0, sisa=Math.max(0,calc.targetCas-e.batt_akhir), needWh=sisa*((e.cap_kwh*1000)/100), watt=volt*amp; if(watt>0){ let f=getCalibratedBmsFactor(e.charger)||((e.cap_kwh>=10)?1.1:(amp>10?1.4:1.15)); const h=(needWh/watt)*f; const totM=Math.round(h*60); const targetExec=Number(waktuAsli)+(totM*60*1000); const now=new Date(Number(waktuAsli)); now.setMinutes(now.getMinutes()+totM); jamKirim=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+' ke '+calc.targetCas+'%'; if(e.notif_status){ fetch(API_BASE+'/schedule-remind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:API_CHAT_ID,waktuEksekusi:targetExec,pesan:`⚡ Pengisian Baterai Selesai!\n\nPengisian dari ${e.batt_akhir}% ke ${calc.targetCas}% telah selesai Silakan cabut charger!!`,batt_akhir:e.batt_akhir,batt_setelah:calc.targetCas,jam_selesai:jamKirim})}).then(r=>r.text().then(t=>{ console.log('[NOTIF] Worker response:', t); })).catch(err=>{ console.error('[NOTIF] Gagal:', err); }); } } } }
   resetForm(); renderAll(); switchView('dasbor'); 
   // RESTORED: apiPost ke worker /api/log
@@ -912,7 +957,7 @@ async function saveEntry(){
 function resetForm(){ document.getElementById('entryForm').reset(); document.getElementById('f_tanggal').value=new Date().toISOString().slice(0,10); document.getElementById('f_tarif').value=1444; document.getElementById('f_tarif_preset').value='1444'; document.getElementById('f_custom_v').value=localStorage.getItem('universal_custom_v')||''; document.getElementById('f_custom_ah').value=localStorage.getItem('universal_custom_ah')||''; renderCapDisplay(); if(document.getElementById('f_notif_status')) document.getElementById('f_notif_status').checked=true; const v=document.getElementById('f_custom_v').value, ah=document.getElementById('f_custom_ah').value; document.getElementById('f_charger').value=(v&&ah)?`${v}v ${ah}ah`:''; editId=null; document.getElementById('saveBtn').textContent='Simpan Catatan'; document.getElementById('cancelEditBtn').style.display='none'; updateLiveCalc(); }
 function startEdit(id){ const e=entries.find(x=>x.id===id); if(!e) return; editId=id; const s=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v??''; }; s('f_tanggal',e.tanggal); s('f_km_awal',e.km_awal); s('f_km_akhir',e.km_akhir); s('f_batt_awal',e.batt_awal); s('f_batt_akhir',e.batt_akhir); s('f_batt_setelah',e.batt_setelah); const t=e.tarif??1444; s('f_tarif',t); const pre=document.getElementById('f_tarif_preset'); if(pre) pre.value=(t===1444?'1444':(t===2466?'2466':(t===0?'0':'1444'))); s('f_biaya',e.biaya??''); s('f_lokasi',e.lokasi); renderCapDisplay(e.cap_kwh||4.0); if(document.getElementById('f_notif_status')) document.getElementById('f_notif_status').checked=e.notif_status!==false; const hc=document.getElementById('f_charger'); if(hc){ const val=e.charger||''; hc.value=val; const m=val.match(/([\d.,]+)\s*v\s*([\d.,]+)\s*ah/i); if(m){ s('f_custom_v',m[1]); s('f_custom_ah',m[2]); } else { s('f_custom_v',''); s('f_custom_ah',''); } } document.getElementById('saveBtn').textContent='Update Catatan'; document.getElementById('cancelEditBtn').style.display='block'; switchView('catat'); updateLiveCalc(); }
 function cancelEdit(){ editId=null; resetForm(); }
-function deleteEntry(id){ if(!confirm('Hapus catatan ini?')) return; entries=entries.filter(x=>x.id!==id); safeSetItem(LS_KEY, JSON.stringify(entries)); kalibrasiSohMover(); renderAll(); prefillTripStart(true); showToast('Catatan dihapus','success'); }
+function deleteEntry(id){ if(!confirm('Hapus catatan ini?')) return; entries=entries.filter(x=>x.id!==id); try{ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }catch(_){} kalibrasiSohMover(); renderAll(); prefillTripStart(true); showToast('Catatan dihapus','success'); }
 
 function simpanKoreksiBms(id){
   const inputEl=document.getElementById(`time_riil_${id}`); if(!inputEl) return; const jamRiil=inputEl.value; if(!jamRiil){ showToast('Isi waktu selesai cas dulu!','error'); return; }
@@ -922,7 +967,7 @@ function simpanKoreksiBms(id){
   const idealMenit=(needWh/watt)*60; const [hS,mS]=jamRiil.split(':').map(Number); let faktorLama=getCalibratedBmsFactor(e.charger)||((e.cap_kwh>=10)?1.1:(amp>10?1.38:1.15)); const predMenit=Math.round((needWh/watt)*faktorLama*60);
   const logDate=new Date(Number(e.waktu_dibuat_asli||e.id)); const realObj=new Date(logDate.getTime()); realObj.setHours(hS,mS,0,0); if(realObj<logDate) realObj.setDate(realObj.getDate()+1); let realMenit=Math.round((realObj-logDate)/(1000*60)); if(realMenit<=0||realMenit>1440) realMenit=predMenit;
   const faktorAktual=realMenit/idealMenit; if(faktorAktual<0.8||faktorAktual>2.5){ showToast('Koreksi diabaikan: selisih tidak sinkron.','error'); return; }
-  entries[idx].waktu_selesai_riil=jamRiil; safeSetItem(LS_KEY, JSON.stringify(entries));
+  entries[idx].waktu_selesai_riil=jamRiil; try{ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }catch(_){}
   const key=e.charger.toLowerCase().replace(/\s+/g,''); let map={}; try{ const d=localStorage.getItem(BMS_KEY); if(d){ const p=JSON.parse(d); if(!Array.isArray(p)) map=p; } }catch(e){}
   const faktorAI=(faktorLama*0.7)+(faktorAktual*0.3); let hist=map[key]||[]; hist.unshift(faktorAI); hist=hist.slice(0,5); map[key]=hist; localStorage.setItem(BMS_KEY,JSON.stringify(map));
   showToast(`AI Belajar! Faktor baru ${e.charger.toUpperCase()}: ${faktorAI.toFixed(2)}`,'success'); renderList(); updateLiveCalc();
