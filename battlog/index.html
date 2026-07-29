@@ -68,36 +68,22 @@ function kirimDataBaterai(nilaiPersen) {
 
 function simpanKeRiwayatHarianHub(entry, calc) {
     try {
-        // FIX V1.5.2: tulis ke key baru (battlog_riwayat_harian) pakai safeSetItem, key lama tetap ditulis untuk kompatibilitas Lapkeu lama
+        const RIWAYAT_HUB_KEY = 'sigan_riwayat_harian';
+        let riwayatHub = JSON.parse(localStorage.getItem(RIWAYAT_HUB_KEY) || '[]');
         const dataBaru = {
             id: entry.id,
             date: entry.tanggal,
-            tanggal: entry.tanggal,
             km_awal: entry.km_awal,
             km_akhir: entry.km_akhir,
             dist: calc.jarak,
-            jarak: calc.jarak,
             batt_used: (entry.batt_awal - entry.batt_akhir),
             wh_per_km: calc.wh_per_km,
             amount: calc.biaya,
-            biaya: calc.biaya,
             note: `BattLog: ${entry.lokasi || 'Jalan'} (${entry.batt_awal}% ke ${entry.batt_akhir}%)`
         };
-        // key baru - via safe
-        try{
-            let baru = JSON.parse(localStorage.getItem('battlog_riwayat_harian') || '[]');
-            baru = baru.filter(item => item.id !== entry.id);
-            baru.unshift(dataBaru);
-            if(typeof safeSetItem==='function') safeSetItem('battlog_riwayat_harian', JSON.stringify(baru));
-            else localStorage.setItem('battlog_riwayat_harian', JSON.stringify(baru));
-        }catch(e){ console.warn('hub baru fail', e.message); }
-        // key lama - kompatibilitas
-        try{
-            let lama = JSON.parse(localStorage.getItem('sigan_riwayat_harian') || '[]');
-            lama = lama.filter(item => item.id !== entry.id);
-            lama.unshift(dataBaru);
-            localStorage.setItem('sigan_riwayat_harian', JSON.stringify(lama));
-        }catch(e){}
+        riwayatHub = riwayatHub.filter(item => item.id !== entry.id);
+        riwayatHub.unshift(dataBaru);
+        localStorage.setItem(RIWAYAT_HUB_KEY, JSON.stringify(riwayatHub));
         console.log("SiGan: Riwayat harian tersinkronisasi ke Hub", dataBaru);
     } catch (e) {
         console.error("SiGan: Gagal menyinkronkan riwayat ke Hub", e);
@@ -1701,5 +1687,89 @@ function renderBateraiRuteBaru(){
 const _origRenderDasbor=renderDasbor; renderDasbor=function(){ _origRenderDasbor.apply(this,arguments); setTimeout(renderBateraiRuteBaru,120); };
 setTimeout(renderBateraiRuteBaru,800);
 </script>
+
+<!-- AUTO-SCROLL-KEYBOARD-FIX V1.5.3 - tanpa ubah layout -->
+<style>
+  .bottom-nav.keyboard-open{ transform: translateY(110%) !important; opacity:0 !important; pointer-events:none !important; }
+  .bottom-nav{ transition: transform 0.22s ease, opacity 0.22s ease; }
+  /* biar input tidak ketutup pas keyboard buka */
+  #view-catat, #view-riwayat, #view-dasbor, #tabContentInput{ scroll-padding-bottom: 50vh; }
+</style>
+<script>
+// AUTO-SCROLL-KEYBOARD-FIX
+(function(){
+  let nav = document.querySelector('.bottom-nav, nav.bottom-nav');
+  function isInput(el){ return el && (el.tagName==='INPUT' || el.tagName==='SELECT' || el.tagName==='TEXTAREA'); }
+
+  // pas focus input, scroll ke tengah + sembunyikan nav
+  document.addEventListener('focusin', function(e){
+    let t=e.target;
+    if(!isInput(t)) return;
+    if(nav) nav.classList.add('keyboard-open');
+    // delay 300ms nunggu keyboard muncul
+    setTimeout(()=>{
+      try{
+        t.scrollIntoView({behavior:'smooth', block:'center', inline:'nearest'});
+        // extra scroll buat form catat
+        let view=t.closest('.view, #tabContentInput');
+        if(view){
+          let rect=t.getBoundingClientRect();
+          if(rect.bottom > window.innerHeight - 120){
+            window.scrollBy({top: rect.bottom - window.innerHeight + 160, behavior:'smooth'});
+          }
+        }
+      }catch(_){}
+    }, 320);
+  });
+
+  document.addEventListener('focusout', function(){
+    setTimeout(()=>{
+      let a=document.activeElement;
+      if(!isInput(a)){
+        if(nav) nav.classList.remove('keyboard-open');
+        document.body.style.paddingBottom='';
+      }
+    }, 150);
+  });
+
+  // deteksi keyboard lewat visualViewport (Android Chrome/WebView)
+  if(window.visualViewport){
+    let lastH=window.visualViewport.height;
+    window.visualViewport.addEventListener('resize', ()=>{
+      let cur=window.visualViewport.height;
+      let diff = window.innerHeight - cur;
+      let active=document.activeElement;
+      if(diff > 120 && isInput(active)){
+        // keyboard buka
+        if(nav) nav.classList.add('keyboard-open');
+        document.body.style.paddingBottom = diff + 'px';
+        setTimeout(()=>{ try{ active.scrollIntoView({block:'center', behavior:'smooth'}); }catch(_){} }, 120);
+      } else if(diff < 80){
+        // keyboard tutup
+        document.body.style.paddingBottom='';
+        if(!isInput(active) && nav) nav.classList.remove('keyboard-open');
+      }
+      lastH=cur;
+    });
+  }
+
+  // handle tombol panah / next di Gboard (keydown Enter/Tab/ArrowDown)
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Enter' || e.key==='ArrowDown'){
+      let active=document.activeElement;
+      if(isInput(active) && active.type!=='date'){
+        // biar browser pindah focus dulu, baru scroll
+        setTimeout(()=>{
+          let next=document.activeElement;
+          if(isInput(next)){
+            try{ next.scrollIntoView({block:'center', behavior:'smooth'}); }catch(_){}
+          }
+        }, 50);
+      }
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
