@@ -128,7 +128,18 @@ window.addEventListener('storage', (event) => {
 <meta name="theme-color" content="#0a1328">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  #battlogMap { height: 220px; border-radius: 12px; border: 1px solid #1e2d4a; z-index: 1; background: #0d1526; }
+  .leaflet-container { background: #0d1526; font: 12px/1.5 Inter, system-ui, sans-serif; }
+  .leaflet-popup-content-wrapper { background: #111d35; color: #dbe8ff; border-radius: 10px; border: 1px solid #1e2d4a; }
+  .leaflet-popup-tip { background: #111d35; }
+  .leaflet-control-zoom a { background: #111d35 !important; color: #8aa0c6 !important; border-color: #1e2d4a !important; }
+  .map-legend { display:flex; gap:10px; margin-top:8px; font-size:10px; color:#8aa0c6; flex-wrap:wrap; }
+  .map-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
+</style>
 <style>
   :root{--bg:#0a1328;--card:#111d35;--line:#1e2d4a;--blue:#2b8cff;--green:#7dffb7}
   *{font-family:'Inter',system-ui,sans-serif;box-sizing:border-box}
@@ -355,12 +366,17 @@ window.addEventListener('storage', (event) => {
         <div><div style="font-size:10px; color:#8aa0c6; text-transform:uppercase;">Efisiensi Rute</div><div id="stat_eff_rute" style="font-size:18px; font-weight:800; color:#7dffb7;">–</div><div id="stat_eff_rute_sub" style="font-size:10px; color:#5e759e; margin-top:2px;"></div></div>
       </div>
       <div style="margin-top:12px; padding:10px; background:rgba(10,19,40,0.6); border:1px solid #1e2d4a; border-radius:12px;">
-        <div style="font-size:11px; font-weight:700; color:#6fb2ff; margin-bottom:6px;">📍 Wh/km per Koridor</div>
-        <div id="stat_koridor_list" style="font-size:11px; color:#8aa0c6; line-height:1.6;">Menunggu data SiGan...</div>
-      </div>
-      <div style="margin-top:10px; padding:10px; background:rgba(10,19,40,0.6); border:1px solid #1e2d4a; border-radius:12px;">
-        <div style="font-size:11px; font-weight:700; color:#6fb2ff; margin-bottom:6px;">⏰ Efisiensi vs Jam</div>
-        <div id="stat_eff_jam" style="font-size:11px; color:#8aa0c6;">Menunggu data...</div>
+        <div style="font-size:11px; font-weight:700; color:#6fb2ff; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+          <span>🗺️ Peta Rute</span>
+          <span style="font-size:9px; color:#5e759e; font-weight:600;">OSRM gratis</span>
+        </div>
+        <div id="battlogMap"></div>
+        <div class="map-legend">
+          <span><i style="background:#ff6b6b"></i>Boros ≥37</span>
+          <span><i style="background:#ffdd53"></i>Sedang</span>
+          <span><i style="background:#7dffb7"></i>Irit ≤32</span>
+        </div>
+        <div id="stat_koridor_list" style="font-size:11px; color:#8aa0c6; line-height:1.5; margin-top:10px;">Menunggu data rute...</div>
       </div>
       <div id="stat_anomali" style="font-size:11px; color:#8aa0c6; margin-top:10px; line-height:1.5; background:rgba(255,77,77,0.06); border:1px dashed rgba(255,77,77,0.2); border-radius:10px; padding:8px 10px;">🔍 Deteksi anomali baterai: menunggu data...</div>
     </div>
@@ -1425,18 +1441,217 @@ function getSiganOrdersForBattlog(){ try{
     };
   }).filter(o=>o.tanggal||o.date);
 }catch(e){ return []; } }
+let _battlogMap = null;
+let _battlogMapLayers = [];
+
+// Perkiraan koordinat area Tangerang Selatan (gratis, tanpa API berbayar)
+const AREA_COORDS = {
+  'bintaro': [-6.2820, 106.7300],
+  'pondok betung': [-6.2745, 106.7450],
+  'menjangan': [-6.2680, 106.7520],
+  'southcity': [-6.3010, 106.7100],
+  'ternate': [-6.2950, 106.7180],
+  'martadinata': [-6.2550, 106.7600],
+  'legoso': [-6.2480, 106.7680],
+  'cirendeu': [-6.2900, 106.7400],
+  'nerada': [-6.2830, 106.7480],
+  'pamulang': [-6.3430, 106.7380],
+  'ciputat': [-6.3110, 106.7600],
+  'serpong': [-6.3190, 106.6640],
+  'bsd': [-6.3015, 106.6530],
+  'alam sutera': [-6.2450, 106.6550],
+  'sudirman': [-6.2088, 106.8456],
+  'dukuh atas': [-6.2030, 106.8220],
+  'scbd': [-6.2270, 106.8090],
+  'senayan': [-6.2275, 106.7990]
+};
+
+function guessCoord(name) {
+  if (!name) return null;
+  const s = String(name).toLowerCase();
+  for (const key in AREA_COORDS) {
+    if (s.includes(key)) return AREA_COORDS[key];
+  }
+  return null;
+}
+
+function getWhColor(wh) {
+  if (wh >= 37) return '#ff6b6b';
+  if (wh >= 33) return '#ffdd53';
+  return '#7dffb7';
+}
+
+async function osrmRoute(from, to) {
+  try {
+    const url = 'https://router.project-osrm.org/route/v1/driving/' +
+      from[1] + ',' + from[0] + ';' + to[1] + ',' + to[0] +
+      '?overview=full&geometries=geojson';
+    const res = await fetch(url);
+    if (!res.ok) return [from, to];
+    const data = await res.json();
+    if (!data.routes || !data.routes[0]) return [from, to];
+    return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+  } catch (e) {
+    return [from, to];
+  }
+}
+
+function ensureBattlogMap() {
+  const el = document.getElementById('battlogMap');
+  if (!el || typeof L === 'undefined') return null;
+  if (_battlogMap) {
+    _battlogMap.invalidateSize();
+    return _battlogMap;
+  }
+  _battlogMap = L.map(el, { zoomControl: false, attributionControl: false }).setView([-6.275, 106.745], 12);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(_battlogMap);
+  L.control.zoom({ position: 'topright' }).addTo(_battlogMap);
+  return _battlogMap;
+}
+
+function clearMapLayers() {
+  _battlogMapLayers.forEach(l => { try { _battlogMap.removeLayer(l); } catch(e){} });
+  _battlogMapLayers = [];
+}
+
+async function drawRoutesOnMap(routeList) {
+  const map = ensureBattlogMap();
+  if (!map) return;
+  clearMapLayers();
+  const bounds = [];
+  // batasi max 6 rute biar tidak lambat / rate-limit
+  const max = Math.min(routeList.length, 6);
+  for (let i = 0; i < max; i++) {
+    const r = routeList[i];
+    const from = guessCoord(r.jem);
+    const to = guessCoord(r.ant);
+    if (!from || !to) continue;
+    let latlngs;
+    try {
+      latlngs = await osrmRoute(from, to);
+    } catch (e) {
+      latlngs = [from, to];
+    }
+    const color = getWhColor(r.avg);
+    const line = L.polyline(latlngs, { color, weight: 4, opacity: 0.9, lineCap: 'round' })
+      .addTo(map)
+      .bindPopup('<b>' + r.k + '</b><br>' + Math.round(r.avg) + ' Wh/km');
+    const m1 = L.circleMarker(from, { radius: 5, fillColor: '#ff6b6b', color: '#fff', weight: 1, fillOpacity: 0.95 }).addTo(map);
+    const m2 = L.circleMarker(to, { radius: 5, fillColor: '#7dffb7', color: '#fff', weight: 1, fillOpacity: 0.95 }).addTo(map);
+    _battlogMapLayers.push(line, m1, m2);
+    bounds.push(from, to);
+    await new Promise(r => setTimeout(r, 280));
+  }
+  if (bounds.length) {
+    try { map.fitBounds(bounds, { padding: [28, 28] }); } catch(e){}
+  }
+  setTimeout(() => { try { map.invalidateSize(); } catch(e){} }, 200);
+}
+
 function renderBateraiRuteBaru(){
   try{
-    let orders=getSiganOrdersForBattlog(); let whByDate={}, whCount={}; let allWh=[];
-    if(typeof entries!=='undefined'&&typeof calcEntry==='function'){ entries.forEach(e=>{ try{ let c=calcEntry(e); if(c.wh_per_km>0&&c.wh_per_km<250){ let t=e.tanggal; if(!whByDate[t]){whByDate[t]=0; whCount[t]=0;} whByDate[t]+=c.wh_per_km; whCount[t]++; allWh.push(c.wh_per_km); } }catch(err){} }); for(let t in whByDate) whByDate[t]=whByDate[t]/Math.max(1,whCount[t]); }
-    let korMap={}; orders.forEach(o=>{ let t=o.tanggal||o.date; if(!t) return; let jem=(o.lokasi_jemput||o.jemput||'Jemput').toString().trim(); let ant=(o.lokasi_antar||o.antar||'Antar').toString().trim(); let key=jem.substring(0,20)+' → '+ant.substring(0,20); let wh=whByDate[t]||0; if(wh<=0) return; if(!korMap[key]) korMap[key]={total:0,count:0}; korMap[key].total+=wh; korMap[key].count++; });
-    let list=Object.keys(korMap).map(k=>({k,avg:korMap[k].total/korMap[k].count,count:korMap[k].count})).sort((a,b)=>b.avg-a.avg);
-    let elKor=document.getElementById('stat_koridor_list'); if(elKor){ if(!list.length) elKor.innerHTML='Belum ada koridor. Isi SiGan dengan lokasi jemput-antar.'; else { let boros=list.slice(0,3); let irit=[...list].sort((a,b)=>a.avg-b.avg).slice(0,3); let html='<div style="margin-bottom:6px;color:#ff8a80;font-weight:700;">🔥 Boros:</div>'; boros.forEach(it=>{ html+=`<div style="display:flex;justify-content:space-between;gap:8px;"><span style="overflow:hidden;text-overflow:ellipsis;max-width:60%;">${it.k} (${it.count}x)</span><span style="color:#ff8a80;font-weight:700;">${Math.round(it.avg)} Wh/km</span></div>`; }); html+='<div style="margin-top:8px;margin-bottom:6px;color:#7dffb7;font-weight:700;">🍃 Irit:</div>'; irit.forEach(it=>{ html+=`<div style="display:flex;justify-content:space-between;gap:8px;"><span style="overflow:hidden;text-overflow:ellipsis;max-width:60%;">${it.k} (${it.count}x)</span><span style="color:#7dffb7;font-weight:700;">${Math.round(it.avg)} Wh/km</span></div>`; }); elKor.innerHTML=html; } }
-    let bucket={'06-10 Pagi':{total:0,count:0},'10-14 Siang':{total:0,count:0},'14-18 Sore':{total:0,count:0},'18-22 Malam':{total:0,count:0},'22-06 Tengah Malam':{total:0,count:0}};
-    if(typeof entries!=='undefined'){ entries.forEach(e=>{ try{ let c=calcEntry(e); if(!(c.wh_per_km>0&&c.wh_per_km<250)) return; let hour=new Date(Number(e.waktu_dibuat_asli||e.id)).getHours(); if(isNaN(hour)) hour=12; let key=''; if(hour>=6&&hour<10) key='06-10 Pagi'; else if(hour>=10&&hour<14) key='10-14 Siang'; else if(hour>=14&&hour<18) key='14-18 Sore'; else if(hour>=18&&hour<22) key='18-22 Malam'; else key='22-06 Tengah Malam'; bucket[key].total+=c.wh_per_km; bucket[key].count++; }catch(err){} }); }
-    let elJam=document.getElementById('stat_eff_jam'); if(elJam){ let html='<div class="grid grid-cols-3 gap-2">'; for(let k in bucket){ let b=bucket[k]; let avg=b.count?Math.round(b.total/b.count):0; let col=avg>=42?'#ff8a80':avg>=36?'#ffdd53':'#7dffb7'; html+=`<div style="background:#0f1f36;border:1px solid #1e2d4a;border-radius:8px;padding:6px 8px;text-align:center;"><div style="font-size:9px;color:#8aa0c6;">${k}</div><div style="font-size:14px;font-weight:800;color:${col};">${avg?avg+' Wh/km':'–'}</div><div style="font-size:9px;color:#5e759e;">${b.count?b.count+' sesi':''}</div></div>`; } html+='</div>'; elJam.innerHTML=html; }
-    let elAnom=document.getElementById('stat_anomali'); if(elAnom&&allWh.length>=3){ let avgAll=allWh.reduce((a,b)=>a+b,0)/allWh.length; let recent=entries.slice(0,6); let anoms=[]; recent.forEach(e=>{ try{ let c=calcEntry(e); if(c.wh_per_km>avgAll*1.25&&c.wh_per_km>38) anoms.push({tgl:e.tanggal,wh:Math.round(c.wh_per_km),km:e.km_awal+'→'+e.km_akhir}); }catch(err){} }); if(!anoms.length){ elAnom.style.background='rgba(125,255,183,0.06)'; elAnom.style.borderColor='rgba(125,255,183,0.15)'; elAnom.innerHTML=`✅ <strong style="color:#7dffb7;">Baterai normal:</strong> Rata-rata ${Math.round(avgAll)} Wh/km. Tidak ada lonjakan di 6 sesi terakhir.`; } else { elAnom.style.background='rgba(255,77,77,0.08)'; elAnom.style.borderColor='rgba(255,77,77,0.2)'; let html=`⚠️ <strong style="color:#ff8a80;">Anomali terdeteksi:</strong><br/>`; anoms.forEach(a=>{ html+=`• ${a.tgl} ${a.km} = <strong>${a.wh} Wh/km</strong> (avg ${Math.round(avgAll)}). Cek ban/rem/beban.<br/>`; }); elAnom.innerHTML=html; } }
-  }catch(e){ console.log('rute err',e.message); }
+    let orders = getSiganOrdersForBattlog();
+    let whByDate = {}, whCount = {}, allWh = [];
+    if (typeof entries !== 'undefined' && typeof calcEntry === 'function') {
+      entries.forEach(e => {
+        try {
+          let c = calcEntry(e);
+          if (c.wh_per_km > 0 && c.wh_per_km < 250) {
+            let t = e.tanggal;
+            if (!whByDate[t]) { whByDate[t] = 0; whCount[t] = 0; }
+            whByDate[t] += c.wh_per_km;
+            whCount[t]++;
+            allWh.push(c.wh_per_km);
+          }
+        } catch (err) {}
+      });
+      for (let t in whByDate) whByDate[t] = whByDate[t] / Math.max(1, whCount[t]);
+    }
+
+    let korMap = {};
+    orders.forEach(o => {
+      let t = o.tanggal || o.date;
+      if (!t) return;
+      let jem = (o.lokasi_jemput || o.jemput || 'Jemput').toString().trim();
+      let ant = (o.lokasi_antar || o.antar || 'Antar').toString().trim();
+      let key = jem.substring(0, 22) + ' → ' + ant.substring(0, 22);
+      let wh = whByDate[t] || 0;
+      if (wh <= 0) return;
+      if (!korMap[key]) korMap[key] = { total: 0, count: 0, jem, ant };
+      korMap[key].total += wh;
+      korMap[key].count++;
+    });
+
+    let list = Object.keys(korMap).map(k => ({
+      k,
+      avg: korMap[k].total / korMap[k].count,
+      count: korMap[k].count,
+      jem: korMap[k].jem,
+      ant: korMap[k].ant
+    })).sort((a, b) => b.avg - a.avg);
+
+    // List ringkas di bawah peta
+    let elKor = document.getElementById('stat_koridor_list');
+    if (elKor) {
+      if (!list.length) {
+        elKor.innerHTML = 'Belum ada data rute. Isi lokasi jemput–antar di SiGan.';
+      } else {
+        let boros = list.slice(0, 2);
+        let irit = [...list].sort((a, b) => a.avg - b.avg).slice(0, 2);
+        let html = '';
+        if (boros.length) {
+          html += '<div style="margin-bottom:4px;color:#ff8a80;font-weight:700;font-size:10px;">🔥 Terboros</div>';
+          boros.forEach(it => {
+            html += '<div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:2px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%;">' + it.k + '</span><span style="color:#ff8a80;font-weight:700;">' + Math.round(it.avg) + '</span></div>';
+          });
+        }
+        if (irit.length) {
+          html += '<div style="margin-top:8px;margin-bottom:4px;color:#7dffb7;font-weight:700;font-size:10px;">🍃 Teririt</div>';
+          irit.forEach(it => {
+            html += '<div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:2px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%;">' + it.k + '</span><span style="color:#7dffb7;font-weight:700;">' + Math.round(it.avg) + '</span></div>';
+          });
+        }
+        elKor.innerHTML = html;
+      }
+    }
+
+    // Gambar peta (async)
+    if (list.length) {
+      drawRoutesOnMap(list);
+    } else {
+      ensureBattlogMap();
+    }
+
+    // Anomali (tetap)
+    let elAnom = document.getElementById('stat_anomali');
+    if (elAnom && allWh.length >= 3) {
+      let avgAll = allWh.reduce((a, b) => a + b, 0) / allWh.length;
+      let recent = entries.slice(0, 6);
+      let anoms = [];
+      recent.forEach(e => {
+        try {
+          let c = calcEntry(e);
+          if (c.wh_per_km > avgAll * 1.25 && c.wh_per_km > 38)
+            anoms.push({ tgl: e.tanggal, wh: Math.round(c.wh_per_km), km: e.km_awal + '→' + e.km_akhir });
+        } catch (err) {}
+      });
+      if (!anoms.length) {
+        elAnom.style.background = 'rgba(125,255,183,0.06)';
+        elAnom.style.borderColor = 'rgba(125,255,183,0.15)';
+        elAnom.innerHTML = '✅ <strong style="color:#7dffb7;">Baterai normal:</strong> Rata-rata ' + Math.round(avgAll) + ' Wh/km. Tidak ada lonjakan di 6 sesi terakhir.';
+      } else {
+        elAnom.style.background = 'rgba(255,77,77,0.08)';
+        elAnom.style.borderColor = 'rgba(255,77,77,0.2)';
+        let html = '⚠️ <strong style="color:#ff8a80;">Anomali terdeteksi:</strong><br/>';
+        anoms.forEach(a => {
+          html += '• ' + a.tgl + ' ' + a.km + ' = <strong>' + a.wh + ' Wh/km</strong> (avg ' + Math.round(avgAll) + '). Cek ban/rem/beban.<br/>';
+        });
+        elAnom.innerHTML = html;
+      }
+    }
+  } catch (e) {
+    console.log('rute err', e.message);
+  }
 }
 const _origRenderDasbor=renderDasbor; renderDasbor=function(){ _origRenderDasbor.apply(this,arguments); setTimeout(renderBateraiRuteBaru,120); };
 setTimeout(renderBateraiRuteBaru,800);
