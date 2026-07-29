@@ -63,6 +63,12 @@ window.ocrSpaceParse=ocrSpaceParse;
   var blockedTypes = { touchstart: 1, touchmove: 1, wheel: 1 };
   EventTarget.prototype.addEventListener = function(type, listener, options) {
     if (blockedTypes[type]) {
+      try{
+        var el=this;
+        if(el && el.closest && el.closest('input, textarea, select, [contenteditable]')){
+          return origAdd.call(this, type, listener, options);
+        }
+      }catch(_){}
       if (options === undefined || options === null) {
         options = { passive: true };
       } else if (typeof options === 'boolean') {
@@ -77,7 +83,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LapKeu V5.33.2 GPS Window ±30m - 2026-07-29</title>
+    <title>LapKeu V5.33.3 Fixed Atomic Sync - 2026-07-29</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -1417,13 +1423,16 @@ async function triggerGpsHotspot(){
   navigator.geolocation.getCurrentPosition(async (pos)=>{
     try{
       const lat=pos.coords.latitude, lon=pos.coords.longitude;
-      // V5.33.2: kunci jam aktivasi GPS — hotspot hanya ±30 menit dari sini
       const actNow=new Date();
       const actH=actNow.getHours(), actM=actNow.getMinutes();
       gpsActivatedMinutes = actH*60+actM;
       gpsActivatedLabel = String(actH).padStart(2,'0')+':'+String(actM).padStart(2,'0');
       lastGpsPos={lat, lon, acc:pos.coords.accuracy, activatedMinutes:gpsActivatedMinutes, activatedLabel:gpsActivatedLabel, ts:Date.now()};
-      try{ localStorage.setItem('lapkeu_last_gps', JSON.stringify(lastGpsPos)); }catch(e){}
+      try{
+        localStorage.setItem('lapkeu_last_gps', JSON.stringify(lastGpsPos));
+        localStorage.setItem('lapkeu_gps_activated_mins', String(gpsActivatedMinutes));
+        localStorage.setItem('lapkeu_gps_activated_label', gpsActivatedLabel);
+      }catch(e){}
       if(status) status.innerHTML=`📍 Lokasi kamu: ${lat.toFixed(5)}, ${lon.toFixed(5)} (akurasi ±${Math.round(pos.coords.accuracy)}m)<br>🔍 Mencari nama daerah...`;
       
       let rev=await reverseGeocode(lat,lon);
@@ -2977,6 +2986,51 @@ fileInput.addEventListener('change', async (e)=>{
 <!-- Sync Lake (tetap) -->
 <script>
 (function(){
+  
+// FIX V5.33.3 - Atomic Lake Merge + GPS Persist tanpa ubah layout
+window.lapkeuAtomicLakeMerge = window.lapkeuAtomicLakeMerge || function(section, key, value){
+  try{
+    const LAKE_KEY='UNIVERSAL_LAKE_V1';
+    // baca terbaru langsung sebelum tulis
+    let raw=localStorage.getItem(LAKE_KEY);
+    let lake=raw?JSON.parse(raw):{_updated:0,_sources:{},sigan:{},maka:{},cross:{},lapkeu:{},battlog:{}};
+    lake.sigan=lake.sigan||{}; lake.maka=lake.maka||{}; lake.cross=lake.cross||{}; lake._sources=lake._sources||{};
+    lake.lapkeu=lake.lapkeu||lake.sigan||{}; lake.battlog=lake.battlog||lake.maka||{};
+    if(!lake[section]) lake[section]={};
+    lake[section][key]=value;
+    lake._updated=Date.now();
+    lake._sources['lapkeu_v5_33_3']=Date.now();
+    lake._source=Object.keys(lake._sources).join('+');
+    localStorage.setItem(LAKE_KEY, JSON.stringify(lake));
+    try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update',from:'sigan',ts:Date.now()}); }catch(e){}
+    return true;
+  }catch(e){ console.warn('[Lapkeu Patch] lake merge fail', e.message); return false; }
+};
+// FIX GPS persist
+(function(){
+  try{
+    let savedMins=localStorage.getItem('lapkeu_gps_activated_mins');
+    let savedLabel=localStorage.getItem('lapkeu_gps_activated_label');
+    let lastGps=JSON.parse(localStorage.getItem('lapkeu_last_gps')||'null');
+    if(savedMins && (typeof gpsActivatedMinutes==='undefined' || gpsActivatedMinutes==null)){
+      window.gpsActivatedMinutes=parseInt(savedMins,10);
+      window.gpsActivatedLabel=savedLabel||'';
+      if(lastGps){
+        lastGps.activatedMinutes=window.gpsActivatedMinutes;
+        lastGps.activatedLabel=window.gpsActivatedLabel;
+        localStorage.setItem('lapkeu_last_gps', JSON.stringify(lastGps));
+      }
+    }
+    // clean geocode cache >7 hari
+    let cRaw=localStorage.getItem('lapkeu_geocode_cache');
+    if(cRaw){
+      let c=JSON.parse(cRaw); let now=Date.now(); let ch=false;
+      for(let k in c){ let e=c[k]; if(e && e.ts && (now-e.ts)>7*24*60*60*1000){ delete c[k]; ch=true; } }
+      if(ch) localStorage.setItem('lapkeu_geocode_cache', JSON.stringify(c));
+    }
+  }catch(e){}
+})();
+
   var KEYS_SIGAN=['lapkeuData','lapkeu_shift','lapkeu_global_target'];
   var KEYS_MAKA=['battlog_log_v1','battlog_bms_history','battlog_soh_history','factory_cap_kwh','factory_range_km','battlog_soh_baseline','battlog_soh_baseline_is_fallback','battlog_soh_total_samples','battlog_lokasi_history','battlog_charger_history','universal_custom_v','universal_custom_ah','battlog_chat_id','lapkeu_hub_data','battlog_riwayat_harian','battlog_ev_cost','battlog_summary'];
   var LAKE_KEY='UNIVERSAL_LAKE_V1';
@@ -3151,12 +3205,27 @@ fileInput.addEventListener('change', async (e)=>{
       var biayaEv=safeParse('battlog_ev_cost'); var summaryEv=safeParse('battlog_summary'); if(biayaEv) lake.cross['battlog_ev_cost']=biayaEv; if(summaryEv) lake.cross['battlog_summary']=summaryEv;
       var riwayatEv=safeParse('battlog_riwayat_harian'); if(riwayatEv) lake.cross['battlog_riwayat_harian']=riwayatEv;
       try{ localStorage.setItem('lapkeu_hub_from_lapkeu', JSON.stringify({siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()})); }catch(e){}
-      lake._updated=Date.now(); lake._sources['lapkeu_sempurna']=Date.now(); lake._source=Object.keys(lake._sources).join('+');
-      try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e){}
+      // FIX V5.33.3: atomic merge, jangan timpa section battlog/maka yang baru saja ditulis BattLog
+      try{
+        // baca lake terbaru lagi untuk hindari race
+        let latestRaw=localStorage.getItem(LAKE_KEY);
+        let latest=latestRaw?JSON.parse(latestRaw):{_updated:0,_sources:{},sigan:{},maka:{},cross:{},lapkeu:{},battlog:{}};
+        latest.sigan=latest.sigan||{}; latest.maka=latest.maka||{}; latest.cross=latest.cross||{}; latest._sources=latest._sources||{};
+        // merge hanya sigan & cross lapkeu, preserve maka/battlog
+        for(let k in lake.sigan) latest.sigan[k]=lake.sigan[k];
+        for(let k in lake.cross){
+          if(k.startsWith('lapkeu_') || k==='lapkeu_hub_from_lapkeu') latest.cross[k]=lake.cross[k];
+        }
+        latest._updated=Date.now(); latest._sources['lapkeu_sempurna']=Date.now(); latest._sources['lapkeu_v5_33_3']=Date.now();
+        latest._source=Object.keys(latest._sources).join('+');
+        localStorage.setItem(LAKE_KEY, JSON.stringify(latest));
+      }catch(e){
+        try{ localStorage.setItem(LAKE_KEY, JSON.stringify(lake)); }catch(e2){}
+      }
       try{ if(window.__siganBC) window.__siganBC.postMessage({type:'lake_update',from:'sigan',ts:Date.now()}); }catch(e){}
     }catch(e){ console.log('SiGan Sender error', e.message); }
   }
-  function bacaDataEvLog(){ try{ var lake=safeParse(LAKE_KEY)||{}; var riwayatEv=safeParse('battlog_riwayat_harian')||(lake.cross&&lake.cross.sigan_riwayat_harian)||[]; var biayaEv=safeParse('battlog_ev_cost')||(lake.cross&&lake.cross.sigan_cross_ev_cost)||{}; var summaryEv=safeParse('battlog_summary')||(lake.cross&&lake.cross.maka_cross_summary)||{}; var hubData=safeParse('lapkeu_hub_data')||(lake.cross&&lake.cross.sigan_hub_data)||{}; window.__CROSS_EV_RIWAYAT=riwayatEv; window.__CROSS_EV_COST_MAP=biayaEv; window.__CROSS_EV_SUMMARY=summaryEv; window.__CROSS_EV_HUB=hubData; window.__CROSS_EV_LAKE=lake; window.__CROSS_EV_LAST_UPDATE=localStorage.getItem('lapkeu_hub_last_update'); return {riwayat:riwayatEv,biaya:biayaEv,summary:summaryEv}; }catch(e){ return null; } }
+  function bacaDataEvLog(){ try{ var lake=safeParse(LAKE_KEY)||{}; var riwayatEv=safeParse('battlog_riwayat_harian')||(lake.cross&&lake.cross.battlog_riwayat_harian)||(lake.cross&&lake.cross.sigan_riwayat_harian)||[]; var biayaEv=safeParse('battlog_ev_cost')||(lake.cross&&lake.cross.sigan_cross_ev_cost)||{}; var summaryEv=safeParse('battlog_summary')||(lake.cross&&lake.cross.maka_cross_summary)||{}; var hubData=safeParse('lapkeu_hub_data')||(lake.cross&&lake.cross.sigan_hub_data)||{}; window.__CROSS_EV_RIWAYAT=riwayatEv; window.__CROSS_EV_COST_MAP=biayaEv; window.__CROSS_EV_SUMMARY=summaryEv; window.__CROSS_EV_HUB=hubData; window.__CROSS_EV_LAKE=lake; window.__CROSS_EV_LAST_UPDATE=localStorage.getItem('lapkeu_hub_last_update'); return {riwayat:riwayatEv,biaya:biayaEv,summary:summaryEv}; }catch(e){ return null; } }
   function hookSiGan(){
     if(window.saveData&&!window.saveData.__hooked){ var origSave=window.saveData; window.saveData=function(){ var res=origSave.apply(this,arguments); setTimeout(function(){ buildAndSendSiGan(); bacaDataEvLog(); },200); return res; }; window.saveData.__hooked=true; }
     if(window.deleteItem&&!window.deleteItem.__hooked){ var origDel=window.deleteItem; window.deleteItem=function(){ var res=origDel.apply(this,arguments); setTimeout(buildAndSendSiGan,200); return res; }; window.deleteItem.__hooked=true; }
