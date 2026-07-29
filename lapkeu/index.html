@@ -1,4 +1,8 @@
-<!-- Lapkeu V5.33.1 FIXED ALL - 2026-07-28
+<!-- Lapkeu V5.33.2 FIXED ALL - 2026-07-29
+  CHANGELOG V5.33.2:
+  - FIX: Hotspot hanya ±30 menit dari jam AKTIVASI GPS (bukan jam sistem bergeser)
+  - FIX: Tanpa GPS → tidak tampil ranking (wajib aktifkan GPS)
+  - FIX: Hapus fallback "semua jam / 14 hari tanpa filter jam"
   CHANGELOG V5.33.1:
   - FIX: Hotspot menampilkan "Selesai" & "GoPay" sebagai lokasi (teks UI Gojek)
   - FIX: Blacklist garbage area names + purge geocode cache nyasar
@@ -73,7 +77,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LapKeu V5.33.1 OCR.Space + Tip + Hotspot FIX - 2026-07-28</title>
+    <title>LapKeu V5.33.2 GPS Window ±30m - 2026-07-29</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -203,7 +207,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.33.1 Hotspot + Tip FIX</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V5.33.2 GPS Window ±30m</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -904,9 +908,12 @@ function loadData(){
 }
 
 
-// ===== NEW: HOTSPOT JAM INI + GPS V5.24 =====
+// ===== NEW: HOTSPOT JAM INI + GPS V5.24 / V5.33.2 =====
 let lastGpsPos = null;
 let currentAreaName = '';
+// V5.33.2: jam aktivasi GPS (menit dari 00:00) — hotspot hanya ±30 menit dari ini
+let gpsActivatedMinutes = null; // 0..1439
+let gpsActivatedLabel = '';     // "18:12"
 let geocodeCache = {};
 try{ geocodeCache = JSON.parse(localStorage.getItem('lapkeu_geocode_cache')||'{}'); }catch(e){ geocodeCache={}; }
 // V5.33.1: bersihkan cache key garbage (Selesai, GoPay, dll) yang sudah tersimpan
@@ -972,6 +979,27 @@ function isGarbageAreaName(name){
   return false;
 }
 
+function parseTimeToMinutesOfDay(timeStr){
+  try{
+    if(!timeStr) return null;
+    let p=String(timeStr).trim().replace('.',':').split(':');
+    let h=parseInt(p[0],10), m=parseInt(p[1]||'0',10);
+    if(isNaN(h)||isNaN(m)||h<0||h>23||m<0||m>59) return null;
+    return h*60+m;
+  }catch(e){ return null; }
+}
+function minutesDiffWrap(a,b){
+  // selisih menit terkecil di lingkaran 24 jam (0..720)
+  let d=Math.abs(a-b);
+  if(d>720) d=1440-d;
+  return d;
+}
+function minutesToHHMMLabel(mins){
+  mins=((mins%1440)+1440)%1440;
+  let h=Math.floor(mins/60), m=mins%60;
+  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+}
+
 function buildHotspotByHour(){
   try{
     const badge=document.getElementById('hotspotHourBadge');
@@ -981,34 +1009,57 @@ function buildHotspotByHour(){
     const now=new Date();
     const curH=now.getHours();
     const curM=now.getMinutes();
-    const curHStr=String(curH).padStart(2,'0')+':00';
     const fullTimeStr=String(curH).padStart(2,'0')+':'+String(curM).padStart(2,'0');
-    badge.innerText='JAM '+fullTimeStr;
+
+    // V5.33.2: anchor = jam aktivasi GPS (±30 menit). Tanpa GPS → minta aktifkan.
+    const TOLERANCE_MIN = 30;
+    let anchorMin = gpsActivatedMinutes;
+    let windowLabel = '';
+    if(anchorMin==null && lastGpsPos && lastGpsPos.activatedMinutes!=null){
+      anchorMin = lastGpsPos.activatedMinutes;
+      gpsActivatedMinutes = anchorMin;
+      gpsActivatedLabel = lastGpsPos.activatedLabel || minutesToHHMMLabel(anchorMin);
+    }
+    if(anchorMin!=null){
+      let fromL = minutesToHHMMLabel(anchorMin - TOLERANCE_MIN);
+      let toL = minutesToHHMMLabel(anchorMin + TOLERANCE_MIN);
+      windowLabel = fromL+'–'+toL;
+      badge.innerText='GPS '+ (gpsActivatedLabel||minutesToHHMMLabel(anchorMin)) +' ±30m';
+    } else {
+      badge.innerText='JAM '+fullTimeStr;
+    }
+
     let data=[];
     try{ data=JSON.parse(localStorage.getItem('lapkeuData')||'[]'); }catch(e){ data=[]; }
     if(!data.length){
       list.innerHTML='<div style="background:#0f1f36; border:1px dashed #1e3a5f; border-radius:10px; padding:12px; font-size:12px; color:#5a7096; text-align:center;">Belum ada riwayat order.</div>';
       return;
     }
+
+    // V5.33.2: WAJIB GPS aktif + window ±30 menit dari jam aktivasi. Tanpa GPS = tidak tampilkan ranking.
+    if(anchorMin==null || !lastGpsPos){
+      list.innerHTML='<div style="background:#0f1f36; border:1px dashed #1e3a5f; border-radius:10px; padding:12px; font-size:12px; color:#8aa0c6; text-align:center; line-height:1.5;">📡 Aktifkan GPS dulu.<br><span style="font-size:11px; color:#5a7096;">Lokasi ramai hanya dihitung dari jam saat GPS diaktifkan (±30 menit).</span></div>';
+      if(status && !status.innerHTML.includes('Kamu di') && !status.innerHTML.includes('GPS Aktif')){
+        status.innerHTML='Tap <b>Aktifkan GPS</b> untuk lihat lokasi ramai di sekitar jam aktivasi (±30 menit).';
+      }
+      return;
+    }
+
+    // Ambil order 14 hari terakhir YANG jam-nya dalam window ±30 menit dari jam aktivasi GPS
+    let cutoff=new Date(); cutoff.setDate(cutoff.getDate()-14);
     let filtered=data.filter(it=>{
       if(it.type!=='Pendapatan') return false;
       if(!it.time) return false;
-      let h=parseInt((it.time||'00:00').split(':')[0]);
-      if(isNaN(h)) return false;
-      let diff=Math.abs(h-curH); if(diff>12) diff=24-diff;
-      return diff<=1;
+      if(it.isTip || (Number(it.dist||0)===0 && (it.time==='00:00'||!it.time))) return false;
+      // tanggal dalam 14 hari
+      if(it.date){
+        try{ let d=new Date(it.date); if(d<cutoff) return false; }catch(e){ return false; }
+      }
+      let orderMin=parseTimeToMinutesOfDay(it.time);
+      if(orderMin==null) return false;
+      return minutesDiffWrap(orderMin, anchorMin) <= TOLERANCE_MIN;
     });
-    let usedFallback=false;
-    if(filtered.length<3){
-      let cutoff=new Date(); cutoff.setDate(cutoff.getDate()-14);
-      let fb=data.filter(it=>{
-        if(it.type!=='Pendapatan') return false;
-        if(!it.date) return false;
-        try{ let d=new Date(it.date); return d>=cutoff; }catch(e){ return false; }
-      });
-      if(fb.length>0){ filtered=fb; usedFallback=true; }
-    }
-    if(filtered.length===0){ filtered=data.filter(it=>it.type==='Pendapatan'); usedFallback=true; }
+    let usedFallback=false; // tidak ada fallback diluar window — sesuai request user
 
     let areaMap={};
     let displayNameMap={};
@@ -1090,7 +1141,7 @@ function buildHotspotByHour(){
     }
 
     if(ranked.length===0){
-      list.innerHTML='<div style="font-size:12px; color:#5a7096; background:#0f1f36; padding:10px; border-radius:8px;">Belum ada lokasi di jam ini.</div>';
+      list.innerHTML=`<div style="font-size:12px; color:#5a7096; background:#0f1f36; padding:12px; border-radius:8px; text-align:center; line-height:1.5;">Tidak ada order di window <b style="color:#7dffb7;">${windowLabel||'±30 menit'}</b> (14 hari terakhir).<br><span style="font-size:11px;">Coba aktifkan GPS di jam yang lebih sering dapat order.</span></div>`;
       return;
     }
 
@@ -1123,7 +1174,7 @@ function buildHotspotByHour(){
       html+=`<div style="background:${bg}; border:1px solid ${borderColor}; border-radius:12px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
         <div style="flex:1;">
           <div style="display:flex; align-items:center; gap:6px;"><span style="font-size:14px;">${medal}</span><span style="font-size:13px; font-weight:800; color:#eaf2ff;">${r.area}</span>${isNearest?'<span style="background:#00e676; color:#001a0f; font-size:9px; font-weight:900; padding:2px 6px; border-radius:999px; margin-left:6px;">TERDEKAT</span>':''}</div>
-          <div style="font-size:11px; color:#8aa0c6; margin-top:2px;">${r.count} order ${usedFallback?'(14 hari)':'jam '+curHStr+'±1'} • Avg Rp ${r.avgIncome.toLocaleString('id-ID')} ${distText? ' • '+distText : ''}</div>
+          <div style="font-size:11px; color:#8aa0c6; margin-top:2px;">${r.count} order • window ${windowLabel||'±30m'} • Avg Rp ${r.avgIncome.toLocaleString('id-ID')}${distText? ' • '+distText : ''}</div>
           <div style="font-size:10px; color:#5a7096; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Contoh: ${sampleTxt||'-'}</div>
         </div>
         <button onclick="focusAreaOnMap('${r.area.replace(/'/g, "\'")}')" style="background:#132a1f; border:1px solid #1e4a32; color:#7dffb7; padding:6px 10px; border-radius:10px; font-size:11px; font-weight:700;">Arah</button>
@@ -1166,12 +1217,14 @@ function buildHotspotByHour(){
       });
     }
     if(status){
-      if(!lastGpsPos){
-        status.innerHTML='📊 <b>'+filtered.length+'</b> order terdeteksi di jam <b>'+curHStr+' ±1</b> (sekarang '+fullTimeStr+') dari 14 hari terakhir. Tap <b>Aktifkan GPS</b> untuk urutkan dari yang terdekat.';
+      if(!lastGpsPos || anchorMin==null){
+        status.innerHTML='Tap <b>Aktifkan GPS</b> — lokasi ramai dihitung dari jam aktivasi GPS (±30 menit).';
       } else {
-        // jika sudah GPS aktif, jangan overwrite status yang sudah ada (kamu di Pamulang...)
+        // jangan overwrite status yang sudah ada (Kamu di ...)
         if(!status.innerHTML.includes('Kamu di')){
-          status.innerHTML=`✅ GPS Aktif • <b>${filtered.length}</b> lokasi diurutkan terdekat.`;
+          status.innerHTML=`✅ GPS Aktif • window <b>${windowLabel}</b> • <b>${filtered.length}</b> order (14 hari) diurutkan terdekat.`;
+        } else if(!status.innerHTML.includes('window')){
+          status.innerHTML = status.innerHTML + `<br>📊 Window <b>${windowLabel}</b> • ${filtered.length} order · diurutkan terdekat.`;
         }
       }
     }
@@ -1364,13 +1417,20 @@ async function triggerGpsHotspot(){
   navigator.geolocation.getCurrentPosition(async (pos)=>{
     try{
       const lat=pos.coords.latitude, lon=pos.coords.longitude;
-      lastGpsPos={lat,lon, acc:pos.coords.accuracy};
-      try{ localStorage.setItem('lapkeu_last_gps', JSON.stringify({lat,lon, ts:Date.now()})); }catch(e){}
+      // V5.33.2: kunci jam aktivasi GPS — hotspot hanya ±30 menit dari sini
+      const actNow=new Date();
+      const actH=actNow.getHours(), actM=actNow.getMinutes();
+      gpsActivatedMinutes = actH*60+actM;
+      gpsActivatedLabel = String(actH).padStart(2,'0')+':'+String(actM).padStart(2,'0');
+      lastGpsPos={lat, lon, acc:pos.coords.accuracy, activatedMinutes:gpsActivatedMinutes, activatedLabel:gpsActivatedLabel, ts:Date.now()};
+      try{ localStorage.setItem('lapkeu_last_gps', JSON.stringify(lastGpsPos)); }catch(e){}
       if(status) status.innerHTML=`📍 Lokasi kamu: ${lat.toFixed(5)}, ${lon.toFixed(5)} (akurasi ±${Math.round(pos.coords.accuracy)}m)<br>🔍 Mencari nama daerah...`;
       
       let rev=await reverseGeocode(lat,lon);
       currentAreaName=rev.label;
-      if(status) status.innerHTML=`✅ Kamu di <b>${rev.label}</b> (±${Math.round(pos.coords.accuracy)}m)<br>📊 Mengurutkan lokasi ramai terdekat jam ini...`;
+      let winFrom=minutesToHHMMLabel(gpsActivatedMinutes-30);
+      let winTo=minutesToHHMMLabel(gpsActivatedMinutes+30);
+      if(status) status.innerHTML=`✅ Kamu di <b>${rev.label}</b> (±${Math.round(pos.coords.accuracy)}m)<br>📊 Window jam GPS <b>${gpsActivatedLabel}</b> (${winFrom}–${winTo}) · mengurutkan terdekat...`;
       
       // simpan lokasi ke battlog lokasi history juga biar sinkron (FIX: simpan string agar tidak jadi [object Object] di battlog)
       try{
@@ -1423,11 +1483,23 @@ async function triggerGpsHotspot(){
       setTimeout(buildHotspotByHour, 200);
     }
   };
-  // build awal & restore GPS
+  // build awal & restore GPS + jam aktivasi (V5.33.2)
   try{
     let last=JSON.parse(localStorage.getItem('lapkeu_last_gps')||'null');
-    if(last && last.lat && Date.now()- (last.ts||0) < 30*60*1000){
+    // GPS session valid 2 jam (bukan 30 menit) agar window jam aktivasi tetap dipakai
+    if(last && last.lat && Date.now()- (last.ts||0) < 2*60*60*1000){
       lastGpsPos=last;
+      if(last.activatedMinutes!=null){
+        gpsActivatedMinutes=last.activatedMinutes;
+        gpsActivatedLabel=last.activatedLabel||minutesToHHMMLabel(last.activatedMinutes);
+      } else if(last.ts){
+        // legacy: pakai jam dari timestamp simpan GPS
+        let d=new Date(last.ts);
+        gpsActivatedMinutes=d.getHours()*60+d.getMinutes();
+        gpsActivatedLabel=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+        lastGpsPos.activatedMinutes=gpsActivatedMinutes;
+        lastGpsPos.activatedLabel=gpsActivatedLabel;
+      }
     }
   }catch(e){}
   document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(buildHotspotByHour, 800); });
