@@ -370,12 +370,13 @@ window.addEventListener('storage', (event) => {
     </div>
 
     
-    <div class="maka-card" style="border:1px solid rgba(125,255,183,0.25); background: linear-gradient(180deg, #0d1e2a 0%, #0b1424 100%); margin-bottom:12px; position:relative; overflow:hidden;">
-      <div style="font-size:11px; font-weight:800; color:#7dffb7; letter-spacing:0.08em; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;"><span>⚔️ HEAD-TO-HEAD • HEMAT (Real 55 km/L)</span><span style="font-size:10px; color:#6b7fa2; font-weight:600;">19-25 Agu 2024</span></div>
+    
+    <div class="maka-card" id="head2head-card" style="border:1px solid rgba(125,255,183,0.25); background: linear-gradient(180deg, #0d1e2a 0%, #0b1424 100%); margin-bottom:12px; position:relative; overflow:hidden;">
+      <div style="font-size:11px; font-weight:800; color:#7dffb7; letter-spacing:0.08em; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;"><span>⚔️ HEAD-TO-HEAD • HEMAT (Real 55 km/L)</span><span id="h2h_periode_label" style="font-size:10px; color:#6b7fa2; font-weight:600;">Hari Ini</span></div>
       
       <div style="background: linear-gradient(135deg, #0f2a1e 0%, #143d2b 100%); border:1px solid rgba(125,255,183,0.25); border-radius:12px; padding:10px 12px; text-align:center; margin-bottom:14px;">
-        <div style="font-size:13px; color:#7dffb7; font-weight:800;">🎉 Kamu hemat Rp 66.000 minggu ini</div>
-        <div style="font-size:10px; color:#8aa0c6; margin-top:2px;">Hemat 76% dibanding Honda Beat • Pertalite 10k • Real 55.4 km/L</div>
+        <div id="h2h_hemat_banner" style="font-size:13px; color:#7dffb7; font-weight:800;">🎉 Kamu hemat Rp 0 minggu ini</div>
+        <div id="h2h_hemat_sub" style="font-size:10px; color:#8aa0c6; margin-top:2px;">Hemat 0% dibanding Honda Beat • Pertalite 10k • Real 55.4 km/L</div>
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 36px 1fr; gap:8px; align-items:center;">
@@ -385,9 +386,9 @@ window.addEventListener('storage', (event) => {
             <img id="img-maka-white" src="" loading="lazy" style="max-width:100%; max-height:78px; object-fit:contain;" alt="Maka White">
           </div>
           <div style="font-size:10px; color:#8aa0c6; font-weight:600;">Listrik Baterai</div>
-          <div style="font-size:20px; font-weight:900; color:#7dffb7; line-height:1;">Rp 21.000</div>
-          <div style="font-size:9px; color:#5e759e; margin-top:2px;">Biaya minggu ini</div>
-          <div style="margin-top:8px; background: rgba(125,255,183,0.15); border:1px solid rgba(125,255,183,0.2); color:#7dffb7; font-size:9px; font-weight:800; padding:4px 8px; border-radius:999px; display:inline-block;">76% lebih murah</div>
+          <div id="h2h_biaya_listrik" style="font-size:20px; font-weight:900; color:#7dffb7; line-height:1;">Rp 0</div>
+          <div style="font-size:9px; color:#5e759e; margin-top:2px;">Biaya <span class="h2h_periode_text">periode ini</span></div>
+          <div id="h2h_persen" style="margin-top:8px; background: rgba(125,255,183,0.15); border:1px solid rgba(125,255,183,0.2); color:#7dffb7; font-size:9px; font-weight:800; padding:4px 8px; border-radius:999px; display:inline-block;">0% lebih murah</div>
         </div>
 
         <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
@@ -400,26 +401,27 @@ window.addEventListener('storage', (event) => {
             <img id="img-beat-brown" src="" loading="lazy" style="max-width:100%; max-height:78px; object-fit:contain; transform: scaleX(-1);" alt="Beat Brown">
           </div>
           <div style="font-size:10px; color:#c49a6b; font-weight:600;">Pertalite Rp 10.000 / L</div>
-          <div style="font-size:20px; font-weight:900; color:#ffb86b; line-height:1;">Rp 87.000</div>
-          <div style="font-size:9px; color:#5e759e; margin-top:2px;">Biaya minggu ini</div>
-          <div style="margin-top:8px; background: rgba(255,184,107,0.15); border:1px solid rgba(255,184,107,0.2); color:#ffb86b; font-size:9px; font-weight:800; padding:4px 8px; border-radius:999px; display:inline-block;">2.2L • 55 km/L Real</div>
+          <div id="h2h_biaya_bensin" style="font-size:20px; font-weight:900; color:#ffb86b; line-height:1;">Rp 0</div>
+          <div style="font-size:9px; color:#5e759e; margin-top:2px;">Biaya <span class="h2h_periode_text">periode ini</span></div>
+          <div id="h2h_liter" style="margin-top:8px; background: rgba(255,184,107,0.15); border:1px solid rgba(255,184,107,0.2); color:#ffb86b; font-size:9px; font-weight:800; padding:4px 8px; border-radius:999px; display:inline-block;">0L • 55 km/L Real</div>
         </div>
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px;">
         <div style="background: rgba(10,19,40,0.7); border:1px solid #1e2d4a; border-radius:12px; padding:10px; text-align:center;">
           <div style="font-size:9px; color:#8aa0c6;">🌱 Penghematan CO2</div>
-          <div style="font-size:18px; font-weight:900; color:#7dffb7;">-4.2 kg</div>
-          <div style="font-size:9px; color:#5e759e;">minggu ini • 48-59 km/L</div>
+          <div id="h2h_co2" style="font-size:18px; font-weight:900; color:#7dffb7;">-0 kg</div>
+          <div style="font-size:9px; color:#5e759e;"><span class="h2h_periode_text">periode ini</span> • 48-59 km/L</div>
         </div>
         <div style="background: rgba(10,19,40,0.7); border:1px solid #1e2d4a; border-radius:12px; padding:10px; text-align:center;">
-          <div style="font-size:9px; color:#8aa0c6;">⚡ Efisiensi</div>
-          <div style="font-size:18px; font-weight:900; color:#6fb2ff;">120 km</div>
-          <div style="font-size:9px; color:#5e759e;">Mingguan • 55.4 km/L</div>
+          <div style="font-size:9px; color:#8aa0c6;">⚡ Efisiensi Jarak</div>
+          <div id="h2h_jarak" style="font-size:18px; font-weight:900; color:#6fb2ff;">0 km</div>
+          <div style="font-size:9px; color:#5e759e;"><span id="h2h_jarak_sub">Mingguan • 55.4 km/L</span></div>
         </div>
       </div>
-      <div style="margin-top:10px; font-size:8px; color:#4b5d7a; text-align:center;">*Konsumsi Beat real: 48-59 km/L • GridOto 55.4 km/L • Pertalite 10k</div>
+      <div style="margin-top:10px; font-size:8px; color:#4b5d7a; text-align:center;">*Konsumsi Beat real: 48-59 km/L • GridOto 55.4 km/L • Pertalite 10k • CO2 bensin 2.3kg/L</div>
     </div>
+
 
 
     <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%); margin-top:12px;">
@@ -1930,6 +1932,109 @@ setTimeout(renderBateraiRuteBaru,800);
 
 
 <script>
+
+<script>
+// === HEAD-TO-HEAD DYNAMIC - REAL DATA FROM BATTLOG ===
+function updateHeadToHeadDynamic(jarak, biayaRumah, biayaSpklu, periodeLabel){
+  try{
+    const REAL_KM_PER_L = 55.4; // GridOto test average, real range 48-59
+    const PERTALITE = 10000;
+    const CO2_PER_LITER = 2.3; // kg CO2 per liter bensin
+    
+    const biayaListrik = (Number(biayaRumah)||0) + (Number(biayaSpklu)||0);
+    const literBensin = jarak > 0 ? (jarak / REAL_KM_PER_L) : 0;
+    const biayaBensin = literBensin * PERTALITE;
+    const hemat = biayaBensin - biayaListrik;
+    const persenHemat = biayaBensin > 0 ? (hemat / biayaBensin * 100) : 0;
+    const co2Hemat = literBensin * CO2_PER_LITER;
+    
+    const fmtRp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+    
+    const el = (id) => document.getElementById(id);
+    if(el('h2h_periode_label')) el('h2h_periode_label').textContent = periodeLabel || 'Periode ini';
+    if(el('h2h_hemat_banner')){
+      if(jarak <= 0){
+        el('h2h_hemat_banner').textContent = '🎉 Belum ada data trip di ' + (periodeLabel||'periode ini');
+      } else if(hemat > 0){
+        el('h2h_hemat_banner').textContent = '🎉 Kamu hemat ' + fmtRp(hemat) + ' di ' + (periodeLabel||'periode ini');
+      } else {
+        el('h2h_hemat_banner').textContent = '⚡ Biaya listrik ' + fmtRp(biayaListrik) + ' di ' + (periodeLabel||'periode ini');
+      }
+    }
+    if(el('h2h_hemat_sub')){
+      if(jarak>0){
+        el('h2h_hemat_sub').textContent = 'Hemat ' + Math.round(persenHemat) + '% dibanding Honda Beat • ' + literBensin.toFixed(1) + 'L • Pertalite 10k • Real 55.4 km/L';
+      } else {
+        el('h2h_hemat_sub').textContent = 'Isi data trip dulu biar hematnya kehitung • Real 55.4 km/L • Pertalite 10k';
+      }
+    }
+    if(el('h2h_biaya_listrik')) el('h2h_biaya_listrik').textContent = fmtRp(biayaListrik);
+    if(el('h2h_biaya_bensin')) el('h2h_biaya_bensin').textContent = fmtRp(biayaBensin);
+    if(el('h2h_liter')) el('h2h_liter').textContent = literBensin.toFixed(1) + 'L • 55 km/L Real';
+    if(el('h2h_persen')){
+      if(persenHemat>0) el('h2h_persen').textContent = Math.round(persenHemat) + '% lebih murah';
+      else if(jarak>0) el('h2h_persen').textContent = 'Data listrik lebih mahal';
+      else el('h2h_persen').textContent = 'Menunggu data';
+    }
+    if(el('h2h_co2')) el('h2h_co2').textContent = '-' + co2Hemat.toFixed(1) + ' kg';
+    if(el('h2h_jarak')) el('h2h_jarak').textContent = Math.round(jarak) + ' km';
+    if(el('h2h_jarak_sub')) el('h2h_jarak_sub').textContent = (periodeLabel||'Periode') + ' • 55.4 km/L';
+    document.querySelectorAll('.h2h_periode_text').forEach(e=> e.textContent = (periodeLabel||'periode ini').toLowerCase());
+    
+    console.log('[H2H Dynamic] jarak', jarak, 'listrik', biayaListrik, 'bensin', biayaBensin, 'hemat', hemat);
+  }catch(e){ console.warn('H2H dynamic err', e); }
+}
+
+// Patch renderDasbor to call dynamic updater
+(function(){
+  const origRenderDasbor = window.renderDasbor;
+  if(typeof origRenderDasbor === 'function' && !window.__h2hPatched){
+    window.renderDasbor = function(){
+      const res = origRenderDasbor.apply(this, arguments);
+      try{
+        // Try to get jarak, rumah, spklu from DOM or global vars
+        // In original renderDasbor, jarak, rumah, spklu are local vars, but we can recalc quickly here
+        // We'll replicate the filtering logic using ekonomiPeriod
+        let anchor=new Date(); anchor.setHours(0,0,0,0);
+        let cutoff=new Date(anchor);
+        if(typeof ekonomiPeriod!=='undefined'){
+          if(ekonomiPeriod==='harian'){ cutoff=new Date(anchor); }
+          else if(ekonomiPeriod==='7hari'){ cutoff.setDate(anchor.getDate()-6); }
+          else if(ekonomiPeriod==='14hari'){ cutoff.setDate(anchor.getDate()-13); }
+          else if(ekonomiPeriod==='30hari'){ cutoff.setDate(anchor.getDate()-29); }
+          else { cutoff=new Date('2000-01-01'); }
+        } else { cutoff=new Date('2000-01-01'); }
+        let jarak=0, rumah=0, spklu=0;
+        if(typeof entries!=='undefined' && typeof calcEntry==='function'){
+          entries.forEach(e=>{
+            try{
+              const d=new Date(e.tanggal); d.setHours(0,0,0,0);
+              if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d<cutoff || d>anchor)) return;
+              const c=calcEntry(e);
+              jarak+=c.jarak;
+              if(typeof isSpklu==='function' && isSpklu(e)) spklu+=c.biaya; else rumah+=c.biaya;
+            }catch(err){}
+          });
+        }
+        let label='Hari Ini';
+        if(typeof getPeriodeLabel==='function') label=getPeriodeLabel();
+        else if(typeof ekonomiPeriod!=='undefined'){
+          if(ekonomiPeriod==='harian') label='Hari Ini';
+          else if(ekonomiPeriod==='7hari') label='7 Hari';
+          else if(ekonomiPeriod==='14hari') label='14 Hari';
+          else if(ekonomiPeriod==='30hari') label='30 Hari';
+          else label='Semua';
+        }
+        updateHeadToHeadDynamic(jarak, rumah, spklu, label);
+      }catch(e){ console.warn('H2H patch err', e); }
+      return res;
+    };
+    window.__h2hPatched = true;
+    console.log('[H2H] renderDasbor patched for dynamic');
+  }
+})();
+</script>
+
 // Motor images - chunked base64 to avoid GitHub long-line freeze (1 file solution)
 const makaChunks = [
   "UklGRgonAABXRUJQVlA4IP4mAACwuwCdASqnATUBPm00lUgkIqIhpLOKoIANiWluz2QX/cWbvNIsOSB0TzABxtlXR5C1LFX7EelLy1/neHPm7+czI/EXUy+Z/o7+R5299vzH1BfzD+k/7fgG938xT3m+7/9X09/v/PT+E9QXhM6Av6m9Wr/L8q/6J/vfYR/N0cblJMK8H/OPfBsLD84+N9+VOQQGiw1SraTa9jbbqPOwOu4ORV7RfyQK11i62TpgT33TwBfakOT9nj0+IcVM2Lrt0wrdDNXTvsmytPnA+w0pEo+yegdfxi3WHltChGx24ywSxWK88Jx366CQX+mEqnAfFRGyGqWeF+U13pagK/I5wlxeBeUcynwEEaVKHde/dr5u2IJayVtScRDMq2gMJojG7WnkEmWfpMa0g5aaO+h4EzqVUolR7HU7LzktW2Uq92jps2Kyn+yZ7DEJT/WinNktKhzA+FBhgRgUCiIDkm1lDHwhjEDNbozU5uOoc75oGlvlhtq84lLza4tfQE9p5iQd0klChAA0p49YvCz7YTR0ukspkU8sROV2JSE19hhwX8b27tEHlJw3MYXV0sdB2u4wQJSLbG9Vdgo9ObPZAUyxJ5dobUzkk/9h3EUgYmGSX1+/GC1uBJjLoR9pzYepqvzR8rtu9gAb9ssX2vtBaFYWYSFo3M3JHrJm5R6CDqR8PniZCrlyJZlQVfLRm2BvZe+Oj50WKulqvPFWUf2BUVxz53yQpoLnMlTkphAUjPh6dfsCZZZjN90BOOR1pqihKEhPLFJPc1O8P/eHFuYDptGPMgR7BenKpSy+NFeNi6WUGluI5faOIby1Hcpi83/D24SgDw06OG5qMuhCR36/fnqxtKkX/wJTZ/3Gva2fHMAxgbFbsAKBQ9j7k27/NUC68RtltwKU/4l+Ci90otMHNPLLY9SHPRa64A1H6comhv26wUpUXaqBS6SnOCiq/5kLhR5U/9Kr4ujTzUKvyxUk",
