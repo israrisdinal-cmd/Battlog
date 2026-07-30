@@ -361,13 +361,75 @@ window.addEventListener('storage', (event) => {
       <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya SPKLU / SPB LU</div><div id="stat_biaya_spklu" style="font-size:22px; font-weight:800;">Rp 0</div></div>
     </div>
 
-    <div style="display:flex; gap:6px; margin:12px 0 8px 0; overflow-x:auto; padding-bottom:4px;">
-      <button class="pill active" onclick="setEkonomiPeriod('harian', this)">Hari Ini</button>
-      <button class="pill" onclick="setEkonomiPeriod('7hari', this)">7 Hari</button>
-      <button class="pill" onclick="setEkonomiPeriod('14hari', this)">14 Hari</button>
-      <button class="pill" onclick="setEkonomiPeriod('30hari', this)">30 Hari</button>
-      <button class="pill" onclick="setEkonomiPeriod('all', this)">Semua</button>
+    <div id="ekonomiPeriodContainer" style="display:flex; gap:6px; margin:12px 0 8px 0; overflow-x:auto; padding-bottom:4px; scrollbar-width:none;">
+      <!-- Buttons generated dynamically -->
     </div>
+    <script>
+    // === MONTHLY FILTER FOR BATTLOG v1.5.8 ===
+    function generateEkonomiPeriodButtons(){
+        const container = document.getElementById('ekonomiPeriodContainer');
+        if(!container) return;
+        const now = new Date();
+        const months = [];
+        // Hari Ini
+        months.push({value: 'harian', label: 'Hari Ini', isActive: true});
+        // Bulan ini + 2 bulan kebelakang
+        for(let i=0; i<3; i++){
+            let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            let yyyy = d.getFullYear();
+            let mm = String(d.getMonth()+1).padStart(2,'0');
+            let value = `${yyyy}-${mm}`;
+            let monthName = d.toLocaleDateString('id-ID', {month: 'short'});
+            let label = `${monthName} ${yyyy}`;
+            if(i===0) label = `${d.toLocaleDateString('id-ID', {month: 'long'})} (Bulan Ini)`;
+            // Capitalize
+            label = label.charAt(0).toUpperCase() + label.slice(1);
+            months.push({value, label, isActive: false});
+        }
+        // Check existing data months to include if not in last 3
+        try{
+            let existingMonths = new Set();
+            if(typeof entries !== 'undefined' && entries.length){
+                entries.forEach(e=>{
+                    if(e.tanggal && e.tanggal.length>=7){
+                        existingMonths.add(e.tanggal.slice(0,7));
+                    }
+                });
+            }
+            existingMonths.forEach(ym=>{
+                if(!months.find(m=>m.value===ym)){
+                    let [y,m] = ym.split('-');
+                    let d = new Date(parseInt(y), parseInt(m)-1, 1);
+                    let label = d.toLocaleDateString('id-ID', {month: 'short', year: 'numeric'});
+                    label = label.charAt(0).toUpperCase() + label.slice(1);
+                    months.push({value: ym, label, isActive: false});
+                }
+            });
+        }catch(e){}
+        // Sort: harian first, then monthly descending, then all last
+        const monthlyOnly = months.filter(m=>m.value!=='harian').sort((a,b)=>{
+            if(a.value==='all' || b.value==='all') return 0;
+            return b.value.localeCompare(a.value);
+        });
+        const finalMonths = [months.find(m=>m.value==='harian'), ...monthlyOnly.slice(0,4), {value: 'all', label: 'Semua', isActive: false}];
+        
+        container.innerHTML = '';
+        finalMonths.forEach((m,idx)=>{
+            if(!m) return;
+            let btn = document.createElement('button');
+            btn.className = 'pill' + (m.isActive ? ' active' : '');
+            btn.textContent = m.label;
+            btn.onclick = function(){ setEkonomiPeriod(m.value, this); };
+            btn.dataset.value = m.value;
+            container.appendChild(btn);
+        });
+        console.log('[BattLog Monthly] Buttons generated', finalMonths.map(m=>m.value));
+    }
+    // Generate on load
+    document.addEventListener('DOMContentLoaded', generateEkonomiPeriodButtons);
+    setTimeout(generateEkonomiPeriodButtons, 300);
+    </script>
+
 
     
     
@@ -701,7 +763,21 @@ function hitungSoHAI(){
 function hitungPrediksiAIWhKm(filtered){
   let source=filtered&&filtered.length?filtered:entries; const valid=source.filter(e=>{ try{ const c=calcEntry(e); return c.wh_per_km>0&&c.wh_per_km<200; }catch(e){return false;} }); if(valid.length===0) return 0; const take=Math.min(valid.length,(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod==='harian')?3:7); const list=valid.slice(0,take).reverse(); let totB=0, totW=0; list.forEach((e,idx)=>{ const c=calcEntry(e); const b=idx+1; totW+=c.wh_per_km*b; totB+=b; }); return totB?totW/totB:0;
 }
-function getPeriodeLabel(){ if(typeof ekonomiPeriod==='undefined') return 'SEMUA'; const m={harian:'HARIAN','7hari':'7 HARI','14hari':'14 HARI','30hari':'30 HARI',all:'SEMUA'}; return m[ekonomiPeriod]||ekonomiPeriod.toUpperCase(); }
+function getPeriodeLabel(){ 
+        if(typeof ekonomiPeriod==='undefined') return 'SEMUA'; 
+        if(ekonomiPeriod.includes('-')){
+            try{
+                const [y,m] = ekonomiPeriod.split('-');
+                const d = new Date(parseInt(y), parseInt(m)-1, 1);
+                let label = d.toLocaleDateString('id-ID', {month: 'long', year: 'numeric'});
+                return label.charAt(0).toUpperCase() + label.slice(1);
+            }catch(e){
+                return ekonomiPeriod;
+            }
+        }
+        const map={harian:'HARI INI','7hari':'7 HARI','14hari':'14 HARI','30hari':'30 HARI',all:'SEMUA'}; 
+        return map[ekonomiPeriod]||ekonomiPeriod.toUpperCase(); 
+    }
 
 // v2.7.2: AVG km/jam dari odometer yang masuk ke jam onbid GoRide SiGan (jam_awal - jam_akhir per order)
 // Sesuai ide user: SiGan nanti kirim jam_awal & jam_akhir, BattLog cocokan odometer yang masuk ke jam itu
@@ -1031,7 +1107,21 @@ function renderRingkas(){ const box=document.getElementById('ringkasBox'); if(!b
 function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil((((t-yearStart)/86400000)+1)/7); }
 
 function renderDasbor(){
-  window._personalKm={}; let anchor=new Date(); anchor.setHours(0,0,0,0); let cutoff=new Date(anchor); if(typeof ekonomiPeriod!=='undefined'){ if(ekonomiPeriod==='harian'){ cutoff=new Date(anchor); } else if(ekonomiPeriod==='7hari'){ cutoff.setDate(anchor.getDate()-6); } else if(ekonomiPeriod==='14hari'){ cutoff.setDate(anchor.getDate()-13); } else if(ekonomiPeriod==='30hari'){ cutoff.setDate(anchor.getDate()-29); } else { cutoff=new Date('2000-01-01'); } } else { cutoff=new Date('2000-01-01'); }
+  window._personalKm={}; let anchor=new Date(); anchor.setHours(0,0,0,0); let cutoff=new Date(anchor); 
+      if(typeof ekonomiPeriod!=='undefined'){ 
+        if(ekonomiPeriod==='harian'){ cutoff=new Date(anchor); } 
+        else if(ekonomiPeriod.includes('-')){
+            try{
+                const [y,m] = ekonomiPeriod.split('-').map(Number);
+                cutoff = new Date(y, m-1, 1); cutoff.setHours(0,0,0,0);
+                anchor = new Date(y, m, 0); anchor.setHours(0,0,0,0);
+            }catch(e){ cutoff=new Date('2000-01-01'); }
+        }
+        else if(ekonomiPeriod==='7hari'){ cutoff.setDate(anchor.getDate()-6); } 
+        else if(ekonomiPeriod==='14hari'){ cutoff.setDate(anchor.getDate()-13); } 
+        else if(ekonomiPeriod==='30hari'){ cutoff.setDate(anchor.getDate()-29); } 
+        else { cutoff=new Date('2000-01-01'); } 
+      } else { cutoff=new Date('2000-01-01'); }
   let jarak=0, rumah=0, spklu=0, wh=0, n=0, totalEnergi=0, lastCap=(entries[0]&&entries[0].cap_kwh)||4.0, moving=[]; entries.forEach(e=>{ try{ const d=new Date(e.tanggal); d.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod!=='all'&&(d<cutoff||d>anchor)) return; }catch(e){} const c=calcEntry(e); jarak+=c.jarak; totalEnergi+=c.energi_terpakai; if(isSpklu(e)) spklu+=c.biaya; else rumah+=c.biaya; if(c.wh_per_km){ wh+=c.wh_per_km; n++; moving.push(c.wh_per_km); } });
   const avgGlobal=n?(wh/n):0; let filtered=[]; entries.forEach(e=>{ try{ const d=new Date(e.tanggal); d.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod!=='all'&&(d<cutoff||d>anchor)) return; filtered.push(e); }catch(e){} });
   const avgMoving=hitungPrediksiAIWhKm(filtered.length?filtered:undefined)||0; const estimasi=avgMoving>0?((0.7*lastCap*1000)/avgMoving):0;
@@ -1979,6 +2069,13 @@ function updateHeadToHeadDynamic(jarak, biayaRumah, biayaSpklu, periodeLabel){
         let cutoff=new Date(anchor);
         if(typeof ekonomiPeriod!=='undefined'){
           if(ekonomiPeriod==='harian') cutoff=new Date(anchor);
+          else if(ekonomiPeriod.includes('-')){
+            try{
+                const [y,m] = ekonomiPeriod.split('-').map(Number);
+                cutoff = new Date(y, m-1, 1); cutoff.setHours(0,0,0,0);
+                anchor = new Date(y, m, 0); anchor.setHours(0,0,0,0);
+            }catch(e){ cutoff=new Date('2000-01-01'); }
+          }
           else if(ekonomiPeriod==='7hari') cutoff.setDate(anchor.getDate()-6);
           else if(ekonomiPeriod==='14hari') cutoff.setDate(anchor.getDate()-13);
           else if(ekonomiPeriod==='30hari') cutoff.setDate(anchor.getDate()-29);
@@ -2000,6 +2097,14 @@ function updateHeadToHeadDynamic(jarak, biayaRumah, biayaSpklu, periodeLabel){
         if(typeof getPeriodeLabel==='function') label=getPeriodeLabel();
         else if(typeof ekonomiPeriod!=='undefined'){
           if(ekonomiPeriod==='harian') label='Hari Ini';
+          else if(ekonomiPeriod.includes('-')){
+            try{
+                const [y,m] = ekonomiPeriod.split('-');
+                const d = new Date(parseInt(y), parseInt(m)-1, 1);
+                label = d.toLocaleDateString('id-ID', {month: 'long', year: 'numeric'});
+                label = label.charAt(0).toUpperCase() + label.slice(1);
+            }catch(e){ label=ekonomiPeriod; }
+          }
           else if(ekonomiPeriod==='7hari') label='7 Hari';
           else if(ekonomiPeriod==='14hari') label='14 Hari';
           else if(ekonomiPeriod==='30hari') label='30 Hari';
