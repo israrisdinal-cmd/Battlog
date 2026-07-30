@@ -83,7 +83,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LapKeu V5.33.3 Fixed Atomic Sync - 2026-07-29</title>
+    <title>LapKeu V5.34 Monthly Filter - Bulan Ini + 2 Bulan Sebelumnya</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -421,13 +421,77 @@ window.ocrSpaceParse=ocrSpaceParse;
         </div>
 
         
-        <div class="filter-container">
-            <select id="rekapPeriod" onchange="handleRekapPeriodChange()">
-                <option value="7">7 Hari Terakhir</option>
-                <option value="14">14 Hari Terakhir</option>
-                <option value="30">30 Hari Terakhir</option>
+        <div class="filter-container" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select id="rekapPeriod" onchange="handleRekapPeriodChange()" style="flex:1; min-width:180px;">
+                <!-- Options will be filled dynamically by JS -->
             </select>
+            <span id="rekapPeriodInfo" style="font-size:11px; color:#8aa0c6;"></span>
         </div>
+        <script>
+        // === MONTHLY FILTER GENERATOR - NEW v5.34 ===
+        function generateMonthlyOptions(){
+            const sel = document.getElementById('rekapPeriod');
+            if(!sel) return;
+            const now = new Date();
+            // Use current month and 2 previous months
+            const months = [];
+            for(let i=0; i<3; i++){
+                let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                let yyyy = d.getFullYear();
+                let mm = String(d.getMonth()+1).padStart(2,'0');
+                let value = `${yyyy}-${mm}`;
+                let label = d.toLocaleDateString('id-ID', {month:'long', year:'numeric'});
+                // Capitalize first letter
+                label = label.charAt(0).toUpperCase() + label.slice(1);
+                // Add "Bulan Ini" tag for current month
+                if(i===0) label += ' (Bulan Ini)';
+                months.push({value, label});
+            }
+            // Also include all months that have data, to handle old data like Mei/Juni/Juli if not in last 3
+            try{
+                let data = JSON.parse(localStorage.getItem('lapkeuData')||'[]');
+                let existingMonths = new Set(data.map(it=> (it.date||'').slice(0,7)).filter(Boolean));
+                existingMonths.forEach(ym=>{
+                    if(!months.find(m=>m.value===ym)){
+                        let [y,m] = ym.split('-');
+                        let d = new Date(parseInt(y), parseInt(m)-1, 1);
+                        let label = d.toLocaleDateString('id-ID', {month:'long', year:'numeric'});
+                        label = label.charAt(0).toUpperCase() + label.slice(1);
+                        months.push({value: ym, label});
+                    }
+                });
+            }catch(e){}
+            // Sort descending by value (newest first)
+            months.sort((a,b)=> b.value.localeCompare(a.value));
+            // Keep only 6 most recent to avoid too long list, but always include current and 2 prev
+            // For user request: Juli, Juni, Mei only - so limit to 3 if no extra
+            // Let's keep max 6 months
+            const uniqueMonths = [];
+            const seen = new Set();
+            months.forEach(m=>{
+                if(!seen.has(m.value)){
+                    seen.add(m.value);
+                    uniqueMonths.push(m);
+                }
+            });
+            // Build options
+            sel.innerHTML = '';
+            uniqueMonths.slice(0,6).forEach((m,i)=>{
+                let opt = document.createElement('option');
+                opt.value = m.value;
+                opt.textContent = m.label;
+                if(i===0) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            const info = document.getElementById('rekapPeriodInfo');
+            if(info) info.textContent = 'Data hanya bulan yang dipilih';
+        }
+        // Generate on load
+        document.addEventListener('DOMContentLoaded', generateMonthlyOptions);
+        // Also try immediate
+        setTimeout(generateMonthlyOptions, 200);
+        </script>
+
         
         <div class="card" style="border-left:5px solid #e040fb;">
             <div style="font-size:13px; color:var(--muted); margin-bottom:12px; font-weight:bold; text-transform:uppercase;">Analisis Efisiensi Waktu (Presisi OCR First-Last)</div>
@@ -1705,6 +1769,9 @@ function buildStrategiHariSama(data, anchorDate, targetDateStr, dayNames, extrac
 
 function loadRekapData(){
     const period=document.getElementById('rekapPeriod').value;
+    // v5.34: Support monthly filter YYYY-MM
+    let isMonthly = period && period.includes('-');
+
     const data=JSON.parse(localStorage.getItem('lapkeuData')||'[]');
     const shiftData=JSON.parse(localStorage.getItem('lapkeu_shift')||'{}');
     let targetDateStr=document.getElementById('globalDate').value;
@@ -1722,8 +1789,21 @@ function loadRekapData(){
         }
     }catch(e){}
     if(!targetDateStr) return;
-    const parts=targetDateStr.split('-'); const anchorDate=new Date(parts[0],parts[1]-1,parts[2]); anchorDate.setHours(0,0,0,0);
-    let cutoffDate=new Date(anchorDate); let daysToSubtract=parseInt(period)-1; cutoffDate.setDate(anchorDate.getDate()-daysToSubtract);
+    let anchorDate, cutoffDate;
+    if(isMonthly){
+        // Monthly mode: filter only selected month
+        try{
+            const [y,m] = period.split('-').map(Number);
+            cutoffDate = new Date(y, m-1, 1); cutoffDate.setHours(0,0,0,0);
+            anchorDate = new Date(y, m, 0); anchorDate.setHours(0,0,0,0); // last day of month
+        }catch(e){
+            const parts=targetDateStr.split('-'); anchorDate=new Date(parts[0],parts[1]-1,parts[2]); anchorDate.setHours(0,0,0,0);
+            cutoffDate=new Date(anchorDate); cutoffDate.setDate(1);
+        }
+    } else {
+        const parts=targetDateStr.split('-'); anchorDate=new Date(parts[0],parts[1]-1,parts[2]); anchorDate.setHours(0,0,0,0);
+        cutoffDate=new Date(anchorDate); let daysToSubtract=parseInt(period)-1; cutoffDate.setDate(anchorDate.getDate()-daysToSubtract);
+    }
 
     let totalIncome=0, totalExpense=0, totalKm=0;
     let incomeByCat={};
@@ -2987,7 +3067,7 @@ fileInput.addEventListener('change', async (e)=>{
 <script>
 (function(){
   
-// FIX V5.33.3 - Atomic Lake Merge + GPS Persist tanpa ubah layout
+// FIX V5.34 - Atomic Lake Merge + GPS Persist tanpa ubah layout
 window.lapkeuAtomicLakeMerge = window.lapkeuAtomicLakeMerge || function(section, key, value){
   try{
     const LAKE_KEY='UNIVERSAL_LAKE_V1';
@@ -3205,7 +3285,7 @@ window.lapkeuAtomicLakeMerge = window.lapkeuAtomicLakeMerge || function(section,
       var biayaEv=safeParse('battlog_ev_cost'); var summaryEv=safeParse('battlog_summary'); if(biayaEv) lake.cross['battlog_ev_cost']=biayaEv; if(summaryEv) lake.cross['battlog_summary']=summaryEv;
       var riwayatEv=safeParse('battlog_riwayat_harian'); if(riwayatEv) lake.cross['battlog_riwayat_harian']=riwayatEv;
       try{ localStorage.setItem('lapkeu_hub_from_lapkeu', JSON.stringify({siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()})); }catch(e){}
-      // FIX V5.33.3: atomic merge, jangan timpa section battlog/maka yang baru saja ditulis BattLog
+      // FIX V5.34: atomic merge, jangan timpa section battlog/maka yang baru saja ditulis BattLog
       try{
         // baca lake terbaru lagi untuk hindari race
         let latestRaw=localStorage.getItem(LAKE_KEY);
