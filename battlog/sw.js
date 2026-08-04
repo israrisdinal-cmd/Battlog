@@ -1,83 +1,68 @@
-/* BattLog SW V1.5.3 STABLE - FIX CACHE - 2026-07-30
-   FIX: HTML pakai network-first biar update keyboard langsung ke-load, tidak ke-cache lama
-*/
-const CACHE_NAME = 'battlog-v1.5.3-stable-telegram-20260730';
-const CORE_ASSETS = [
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+// sw.js v5.35 FIXED - cache limit + 304 handling
+const CACHE_NAME = 'sigan-cache-v5-35';
+const MAX_CACHE_ITEMS = 80;
+const CACHE_URLS = [
+  './',
+  './index.html'
 ];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(CORE_ASSETS.map(u => cache.add(u))).then(()=> self.skipWaiting());
-    })
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(CACHE_URLS)).then(()=>self.skipWaiting()));
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)))).then(()=>self.clients.claim())
   );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      );
-    }).then(() => self.clients.claim())
-  );
-});
+async function trimCache(){
+  try{
+    const cache = await caches.open(CACHE_NAME);
+    const keys = await cache.keys();
+    if(keys.length > MAX_CACHE_ITEMS){
+      // hapus yang paling lama (first 20)
+      const toDelete = keys.slice(0, keys.length - MAX_CACHE_ITEMS);
+      await Promise.all(toDelete.map(k=>cache.delete(k)));
+    }
+  }catch(e){}
+}
 
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  const isApi = url.pathname.includes('/api/') || url.hostname.includes('workers.dev');
-  const isTile = url.hostname.includes('cartocdn') || url.hostname.includes('osrm') || url.hostname.includes('basemaps') || url.hostname.includes('tile');
-  const isNavigate = event.request.mode === 'navigate' || event.request.destination === 'document';
-
-  if (isApi) {
-    event.respondWith(
-      fetch(event.request).catch(() => new Response(JSON.stringify({ offline: true, ok: false }), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' }
-      }))
-    );
-    return;
-  }
-
-  if (isTile) {
-    return; // jangan cache tile peta
-  }
-
-  // FIX UTAMA: HTML pakai network-first, bukan cache-first
-  if (isNavigate) {
-    event.respondWith(
-      fetch(event.request).then((response) => {
-        // simpan versi terbaru ke cache untuk offline fallback
-        if (response && response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+self.addEventListener('fetch', e => {
+  // hanya GET
+  if(e.request.method !== 'GET') return;
+  
+  e.respondWith(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      // 304 handling: kalau ada di cache, return dulu, tapi revalidate
+      const cached = await cache.match(e.request);
+      
+      const fetchPromise = fetch(e.request).then(async networkRes => {
+        // FIX: jangan cache 304, opaque, atau error
+        if(!networkRes || networkRes.status===304 || networkRes.status===204 || !networkRes.ok){
+          return networkRes;
         }
-        return response;
-      }).catch(() => {
-        // offline -> fallback ke cache
-        return caches.match(event.request).then(cached => {
-          if (cached) return cached;
-          return caches.match('./').then(r => r || caches.match('./index.html'));
-        });
-      })
-    );
-    return;
-  }
-
-  // asset lain: cache-first
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (event.request.method === 'GET' && response && response.status === 200 && response.type !== 'opaque') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        // clone & cache hanya untuk same-origin & bukan api nominatim
+        if(e.request.url.startsWith(self.location.origin) || e.request.url.includes('openstreetmap')){
+          // skip chrome-extension, api gojek
+          if(!e.request.url.includes('chrome-extension') && !e.request.url.includes('gojek')){
+            try{
+              await cache.put(e.request, networkRes.clone());
+              // trim cache di background
+              trimCache();
+            }catch(err){}
+          }
         }
-        return response;
-      }).catch(() => new Response('Offline', { status: 503 }));
-    })
+        return networkRes;
+      }).catch(()=> cached || null);
+
+      // return cache dulu kalau ada (stale-while-revalidate), biar cepat
+      if(cached) {
+        e.waitUntil(fetchPromise);
+        return cached;
+      }
+      return await fetchPromise;
+    })()
   );
 });
