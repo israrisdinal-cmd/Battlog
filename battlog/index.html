@@ -1,14 +1,3 @@
-<!--
-BATTLOG v1.5.1 FIXED 2026-07-28 - Full audit & hardening by Grok
-CHANGES:
-- Version UI disamakan ke V1.5
-- DEFAULT_CHAT_ID dihapus (privasi)
-- Service Worker sw.js ditambahkan + registrasi lebih robust
-- CONFIG terpusat untuk magic numbers
-- safeSetItem / safeGetItem untuk proteksi QuotaExceededError
-- localStorage utama (log + lake) dilindungi
-STATUS: HARDENED - siap pakai ulang
--->
 <!DOCTYPE html>
 <html lang="id">
 <head><!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
@@ -19,6 +8,12 @@ STATUS: HARDENED - siap pakai ulang
   var blockedTypes = { touchstart: 1, touchmove: 1, wheel: 1 };
   EventTarget.prototype.addEventListener = function(type, listener, options) {
     if (blockedTypes[type]) {
+      try{
+        var el=this;
+        if(el && el.closest && el.closest('#battlogMap, .leaflet-container, .leaflet-control')){
+          return origAdd.call(this, type, listener, options);
+        }
+      }catch(_){}
       if (options === undefined || options === null) {
         options = { passive: true };
       } else if (typeof options === 'boolean') {
@@ -359,7 +354,7 @@ window.addEventListener('storage', (event) => {
       <!-- Buttons generated dynamically -->
     </div>
     <script>
-    // === MONTHLY FILTER FOR BATTLOG v1.5.11 ===
+    // === MONTHLY FILTER FOR BATTLOG v1.5.8 ===
     function generateEkonomiPeriodButtons(){
         const container = document.getElementById('ekonomiPeriodContainer');
         if(!container) return;
@@ -720,11 +715,11 @@ if(window.Telegram && window.Telegram.WebApp){ const w=window.Telegram.WebApp; w
 
 function showToast(msg,type='error'){ let c=document.getElementById('toast-container'); if(!c){ c=document.createElement('div'); c.id='toast-container'; document.body.appendChild(c);} const t=document.createElement('div'); t.className='maka-toast'; t.style.background=type==='error'?'#ff4d4d':(type==='warning'?'#ffdd53':'#2b8cff'); if(type==='warning') t.style.color='#0a1328'; t.textContent=msg; c.appendChild(t); setTimeout(()=>t.classList.add('show'),10); setTimeout(()=>{t.classList.remove('show'); setTimeout(()=>t.remove(),300);},3000); }
 function bukaPeta(){ window.open("https://goo.gl/maps/NnLBbg1efPnP4f4f7?g_st=aw","_blank"); }
-function switchView(name){ try{ document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); const el=document.getElementById('view-'+name); if(!el){ showToast('View tidak ditemukan: '+name,'error'); return;} el.classList.add('active'); document.querySelectorAll('.nav-item').forEach(n=>{ const oc=n.getAttribute('onclick')||''; n.classList.toggle('active',oc.includes("'"+name+"'")); }); document.getElementById('app')?.scrollTo({top:0, behavior:'instant'}); if(name==='riwayat'){ renderRingkas(); renderList(); } if(name==='dasbor'){ renderDasbor(); if(usageChart) setTimeout(()=>{try{usageChart.resize()}catch(e){}},50);} }catch(err){ showToast('switchView error: '+err.message,'error'); } }
+function switchView(name){ try{ document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); const el=document.getElementById('view-'+name); if(!el){ showToast('View tidak ditemukan: '+name,'error'); return;} el.classList.add('active'); document.querySelectorAll('.nav-item').forEach(n=>{ const oc=n.getAttribute('onclick')||''; n.classList.toggle('active',oc.includes("'"+name+"'")); }); window.scrollTo(0,0); if(name==='riwayat'){ renderRingkas(); renderList(); } if(name==='dasbor'){ renderDasbor(); if(usageChart) setTimeout(()=>{try{usageChart.resize()}catch(e){}},50);} }catch(err){ showToast('switchView error: '+err.message,'error'); } }
 
 function readForm(){ const g=id=>document.getElementById(id); const v_tarif=parseFloat(g('f_tarif').value); let v_cap; if(editId){ const orig=entries.find(x=>x.id===editId); v_cap=(orig&&Number(orig.cap_kwh)>0)?Number(orig.cap_kwh):(parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0);} else { v_cap=parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; } return { cap_kwh:v_cap, tanggal:g('f_tanggal').value||new Date().toISOString().slice(0,10), km_awal:parseFloat(g('f_km_awal').value)||0, km_akhir:parseFloat(g('f_km_akhir').value)||0, batt_awal:parseFloat(g('f_batt_awal').value)||0, batt_akhir:parseFloat(g('f_batt_akhir').value)||0, batt_setelah:parseFloat(g('f_batt_setelah').value)||100, tarif:isNaN(v_tarif)?1444:v_tarif, biaya:g('f_biaya').value!==""?parseFloat(g('f_biaya').value):null, lokasi:sanitizeLocation(g('f_lokasi').value), charger:g('f_charger')?g('f_charger').value.trim():'', notif_status:g('f_notif_status')?g('f_notif_status').checked:true }; }
 
-function calcEntry(e){ if(e.sumber==='battlog_auto_sync' || e.isSynthetic) return {jarak:0, energi_terpakai:0, energi_tepakai:0, wh_per_km:0, biaya:0, targetCas:100}; const cap=Number(e.cap_kwh)||4.0; const jarak=Math.max(0,(Number(e.km_akhir)||0)-(Number(e.km_awal)||0)); const used=Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0)); const energi= (used/100)*cap; const wh=jarak>0?(energi*1000/jarak):0; let target=Number(e.batt_setelah)||100; const charged=Math.max(0,target-(Number(e.batt_akhir)||0)); const diisi=(charged/100)*cap; let biaya=0; if(e.biaya!==null&&e.biaya!==undefined) biaya=Number(e.biaya); else biaya=diisi*(Number(e.tarif)||0); return {jarak:+jarak.toFixed(2), energi_terpakai:energi, wh_per_km:wh, energi_diisi:diisi, biaya, targetCas:target}; }
+function calcEntry(e){ const cap=Number(e.cap_kwh)||4.0; const jarak=Math.max(0,(Number(e.km_akhir)||0)-(Number(e.km_awal)||0)); const used=Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0)); const energi= (used/100)*cap; const wh=jarak>0?(energi*1000/jarak):0; let target=Number(e.batt_setelah)||100; const charged=Math.max(0,target-(Number(e.batt_akhir)||0)); const diisi=(charged/100)*cap; let biaya=0; if(e.biaya!==null&&e.biaya!==undefined) biaya=Number(e.biaya); else biaya=diisi*(Number(e.tarif)||0); return {jarak:+jarak.toFixed(2), energi_terpakai:energi, wh_per_km:wh, energi_diisi:diisi, biaya, targetCas:target}; }
 
 function getCalibratedBmsFactor(spec){ if(!spec) return null; const key=spec.toLowerCase().replace(/\s+/g,''); try{ const d=localStorage.getItem(BMS_KEY); if(!d) return null; const p=JSON.parse(d); if(Array.isArray(p)) return null; const h=p[key]||[]; if(h.length>0){ const tot=h.reduce((a,b)=>a+b,0); return tot/h.length; } }catch(e){} return null; }
 function renderCapDisplay(ov){ const el=document.getElementById('cap_kwh_display'); if(!el) return; const v=ov||parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; el.textContent=Number(v).toFixed(1)+' kWh'; }
@@ -735,7 +730,7 @@ function kalibrasiSohMover(){
   if(!localStorage.getItem('battlog_factory_cap')&&entries.length){ const f=entries.find(e=>Number(e.cap_kwh)>0); if(f) localStorage.setItem('battlog_factory_cap',f.cap_kwh.toString()); }
   const FACTORY_RANGE=parseFloat(localStorage.getItem('battlog_factory_range'))||115; const FACTORY_KM_PER_PCT=FACTORY_RANGE/100;
   if(!entries.length){ localStorage.setItem(SOH_KEY,JSON.stringify([])); localStorage.setItem('battlog_soh_baseline_is_fallback','1'); return; }
-  const isDeepValid=(e)=>{ const ba=parseFloat(e.batt_awal)||0, bk=parseFloat(e.batt_akhir)||0, bs=parseFloat(e.batt_setelah)||0, jarak=(parseFloat(e.km_akhir)||0)-(parseFloat(e.km_awal)||0); const delta=ba-bk; const isCharge=(bk<=40&&bs>=95); const isDis=(delta>=40&&jarak>5); if(!isCharge||!isDis) return null; const kmPerPct=jarak/delta; if(kmPerPct<0.4||kmPerPct>2.5) return null; return kmPerPct; }; // FIX v1.5.11: threshold turun 50->40, charge 35/99->40/95 biar kalibrasi
+  const isDeepValid=(e)=>{ const ba=parseFloat(e.batt_awal)||0, bk=parseFloat(e.batt_akhir)||0, bs=parseFloat(e.batt_setelah)||0, jarak=(parseFloat(e.km_akhir)||0)-(parseFloat(e.km_awal)||0); const delta=ba-bk; const isCharge=(bk<=35&&bs>=99); const isDis=(delta>=50&&jarak>10); if(!isCharge||!isDis) return null; const kmPerPct=jarak/delta; if(kmPerPct<0.5||kmPerPct>2.2) return null; return kmPerPct; };
   let all=[]; entries.forEach(e=>{ const v=isDeepValid(e); if(v!==null) all.push(v); });
   const sorted=[...entries].sort((a,b)=>new Date(a.tanggal||0)-new Date(b.tanggal||0)); let oldestValid=[]; sorted.forEach(e=>{ const v=isDeepValid(e); if(v!==null) oldestValid.push(v); });
   const hasBaseline=oldestValid.length>=3; let baseline=FACTORY_KM_PER_PCT; if(hasBaseline){ const take=Math.max(1,Math.floor(oldestValid.length*0.5)); const first=oldestValid.slice(0,take); baseline=first.reduce((a,b)=>a+b,0)/first.length; }
@@ -745,8 +740,8 @@ function kalibrasiSohMover(){
 function hitungSoHAI(){
   try{
     const FACTORY_CAP=parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; const calibKm=parseFloat(localStorage.getItem('battlog_factory_calib_km')); const calibSoh=parseFloat(localStorage.getItem('battlog_factory_calib_soh')); if(!entries||!entries.length) return null;
-    let maxOdo=0, whList=[], fast=0, slow=0, parsial=[]; entries.forEach(e=>{ try{ if(e.sumber==='battlog_auto_sync' || e.isSynthetic) return; const c=calcEntry(e); const ka=parseFloat(e.km_akhir)||0; if(ka>maxOdo) maxOdo=ka; if(c.jarak>0&&c.wh_per_km>0) whList.push(c.wh_per_km); const ch=(e.charger||'').toLowerCase(); const mm=ch.match(/(\d+(?:\.\d+)?)\s*ah/); const ah=mm?parseFloat(mm[1]):0; if(ah>=20) fast++; else if(ah>0) slow++; const bAk=parseFloat(e.batt_akhir)||0, bSe=parseFloat(e.batt_setelah)||0; if(bSe>bAk){ const d=bSe-bAk; const kwh=c.energi_diisi||0; if(d>=30&&kwh>0.2){ const cr=kwh/(d/100); if(cr>FACTORY_CAP*0.5&&cr<FACTORY_CAP*1.5) parsial.push(cr); } } }catch(_){} });
-    const avgWh=whList.length?whList.reduce((a,b)=>a+b,0)/whList.length:35; const odo=maxOdo; const totalKwh=odo>0?(odo*avgWh/1000):0; const eq=FACTORY_CAP>0?totalKwh/FACTORY_CAP:0; const totalCh=fast+slow||1; const faktorC=(slow/totalCh)*0.85+(fast/totalCh)*1.18; const faktorSuhu=1.2, faktorDoD=0.85; // FIX v1.5.11: suhu 1.8->1.2 realistis tropis const degPerCycleLab=0.0067*faktorC*faktorSuhu*faktorDoD;
+    let maxOdo=0, whList=[], fast=0, slow=0, parsial=[]; entries.forEach(e=>{ try{ const c=calcEntry(e); const ka=parseFloat(e.km_akhir)||0; if(ka>maxOdo) maxOdo=ka; if(c.jarak>0&&c.wh_per_km>0) whList.push(c.wh_per_km); const ch=(e.charger||'').toLowerCase(); const mm=ch.match(/(\d+(?:\.\d+)?)\s*ah/); const ah=mm?parseFloat(mm[1]):0; if(ah>=20) fast++; else if(ah>0) slow++; const bAk=parseFloat(e.batt_akhir)||0, bSe=parseFloat(e.batt_setelah)||0; if(bSe>bAk){ const d=bSe-bAk; const kwh=c.energi_diisi||0; if(d>=30&&kwh>0.2){ const cr=kwh/(d/100); if(cr>FACTORY_CAP*0.5&&cr<FACTORY_CAP*1.5) parsial.push(cr); } } }catch(_){} });
+    const avgWh=whList.length?whList.reduce((a,b)=>a+b,0)/whList.length:35; const odo=maxOdo; const totalKwh=odo>0?(odo*avgWh/1000):0; const eq=FACTORY_CAP>0?totalKwh/FACTORY_CAP:0; const totalCh=fast+slow||1; const faktorC=(slow/totalCh)*0.85+(fast/totalCh)*1.18; const faktorSuhu=1.8, faktorDoD=0.85; const degPerCycleLab=0.0067*faktorC*faktorSuhu*faktorDoD;
     let umurHari=400; try{ const oldest=[...entries].sort((a,b)=>new Date(a.tanggal)-new Date(b.tanggal))[0]; if(oldest) umurHari=Math.max(30,Math.floor((Date.now()-new Date(oldest.tanggal).getTime())/86400000)); }catch(_){}
     let sohFinal; if(!isNaN(calibKm)&&!isNaN(calibSoh)&&calibKm>0&&odo>0){ const deltaKm=Math.max(0,odo-calibKm); const eqAtCalib=(calibKm*avgWh/1000)/FACTORY_CAP; const degTotalAtCalib=100-calibSoh; const degCycleAtCalib=degTotalAtCalib*0.85; const degPerCycleReal=eqAtCalib>0?degCycleAtCalib/eqAtCalib:degPerCycleLab; const degPerCycleBlend=degPerCycleLab*0.2+degPerCycleReal*0.8; const deltaKwh=deltaKm*avgWh/1000; const deltaCycle=deltaKwh/FACTORY_CAP; const degKalDelta=0.008*(umurHari*(deltaKm/Math.max(1,odo)))*0.5; const penurunan=(deltaCycle*degPerCycleBlend)+degKalDelta; sohFinal=calibSoh-penurunan; localStorage.setItem('battlog_soh_ai_debug',JSON.stringify({deltaKm,deltaCycle:deltaCycle.toFixed(2),degPerCycleBlend:degPerCycleBlend.toFixed(5),penurunan:penurunan.toFixed(3)})); } else { const degKal=0.008*umurHari*0.9; sohFinal=100-(eq*degPerCycleLab)-degKal; }
     if(parsial.length>=3&&(isNaN(calibKm)||odo<=calibKm)){ const avgCap=parsial.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,parsial.length); const sohP=(avgCap/FACTORY_CAP)*100; sohFinal=sohFinal*0.4+sohP*0.6; }
@@ -1097,7 +1092,7 @@ function renderList(){
 }
 
 let ringkasMode='mingguan'; function setRingkas(mode,btn){ ringkasMode=mode; document.querySelectorAll('[data-r]').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active'); renderRingkas(); }
-function renderRingkas(){ const box=document.getElementById('ringkasBox'); if(!box) return; if(!entries.length){ box.innerHTML='<div class="text-[#6b7fa2] text-center py-2">Belum ada data.</div>'; return; } const groups={}; entries.forEach(e=>{ const d=new Date(e.tanggal); let key; if(ringkasMode==='mingguan'){ key=`${d.getFullYear()}-W${getWeek(d)}`; } else if(ringkasMode==='bulanan'){ key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; } else { key=`${d.getFullYear()}`; } (groups[key] ||= []).push(e); }); const rows=Object.keys(groups).sort().reverse().slice(0,8).map(k=>{ let jarak=0, energi=0, rumah=0, spklu=0; groups[k].forEach(e=>{ if(e.sumber==='battlog_auto_sync' || e.isSynthetic) return; const c=calcEntry(e); jarak+=c.jarak; energi+=c.energi_terpakai; if(isSpklu(e)) spklu+=c.biaya; else rumah+=c.biaya; }); const avg=jarak>0?Math.round((energi*1000)/jarak):0; return `<div style="padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.08)"><div style="display:flex;justify-content:space-between;font-weight:600;color:#eaf2ff"><span>${k}</span><span>${Math.round(jarak)} km • ${energi.toFixed(2)} kWh • ${avg} Wh/km</span></div><div style="display:flex;justify-content:flex-end;font-size:11px;color:#8aa0c6;margin-top:2px;gap:8px"><span>Rumah: <span style="color:#dbe8ff">${fmtRp(rumah)}</span></span><span>|</span><span>SPKLU: <span style="color:#7dffb7">${fmtRp(spklu)}</span></span></div></div>`; }).join(''); box.innerHTML=rows||'Belum ada data.'; }
+function renderRingkas(){ const box=document.getElementById('ringkasBox'); if(!box) return; if(!entries.length){ box.innerHTML='<div class="text-[#6b7fa2] text-center py-2">Belum ada data.</div>'; return; } const groups={}; entries.forEach(e=>{ const d=new Date(e.tanggal); let key; if(ringkasMode==='mingguan'){ key=`${d.getFullYear()}-W${getWeek(d)}`; } else if(ringkasMode==='bulanan'){ key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; } else { key=`${d.getFullYear()}`; } (groups[key] ||= []).push(e); }); const rows=Object.keys(groups).sort().reverse().slice(0,8).map(k=>{ let jarak=0, energi=0, rumah=0, spklu=0; groups[k].forEach(e=>{ const c=calcEntry(e); jarak+=c.jarak; energi+=c.energi_terpakai; if(isSpklu(e)) spklu+=c.biaya; else rumah+=c.biaya; }); const avg=jarak>0?Math.round((energi*1000)/jarak):0; return `<div style="padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.08)"><div style="display:flex;justify-content:space-between;font-weight:600;color:#eaf2ff"><span>${k}</span><span>${Math.round(jarak)} km • ${energi.toFixed(2)} kWh • ${avg} Wh/km</span></div><div style="display:flex;justify-content:flex-end;font-size:11px;color:#8aa0c6;margin-top:2px;gap:8px"><span>Rumah: <span style="color:#dbe8ff">${fmtRp(rumah)}</span></span><span>|</span><span>SPKLU: <span style="color:#7dffb7">${fmtRp(spklu)}</span></span></div></div>`; }).join(''); box.innerHTML=rows||'Belum ada data.'; }
 function getWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil((((t-yearStart)/86400000)+1)/7); }
 
 function renderDasbor(){
@@ -1116,9 +1111,9 @@ function renderDasbor(){
         else if(ekonomiPeriod==='30hari'){ cutoff.setDate(anchor.getDate()-29); } 
         else { cutoff=new Date('2000-01-01'); } 
       } else { cutoff=new Date('2000-01-01'); }
-  let jarak=0, rumah=0, spklu=0, wh=0, n=0, totalEnergi=0, lastCap=(entries.find(x=>Number(x.cap_kwh)>0)?.cap_kwh||4.0), moving=[]; entries.forEach(e=>{ try{ if(e.sumber==='battlog_auto_sync' || e.isSynthetic) return; const d=new Date(e.tanggal); d.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod!=='all'&&(d<cutoff||d>anchor)) return; }catch(e){} const c=calcEntry(e); jarak+=c.jarak; totalEnergi+=c.energi_terpakai; if(isSpklu(e)) spklu+=c.biaya; else rumah+=c.biaya; if(c.wh_per_km){ wh+=c.wh_per_km; n++; moving.push(c.wh_per_km); } });
+  let jarak=0, rumah=0, spklu=0, wh=0, n=0, totalEnergi=0, lastCap=(entries[0]&&entries[0].cap_kwh)||4.0, moving=[]; entries.forEach(e=>{ try{ const d=new Date(e.tanggal); d.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod!=='all'&&(d<cutoff||d>anchor)) return; }catch(e){} const c=calcEntry(e); jarak+=c.jarak; totalEnergi+=c.energi_terpakai; if(isSpklu(e)) spklu+=c.biaya; else rumah+=c.biaya; if(c.wh_per_km){ wh+=c.wh_per_km; n++; moving.push(c.wh_per_km); } });
   const avgGlobal=n?(wh/n):0; let filtered=[]; entries.forEach(e=>{ try{ const d=new Date(e.tanggal); d.setHours(0,0,0,0); if(typeof ekonomiPeriod!=='undefined'&&ekonomiPeriod!=='all'&&(d<cutoff||d>anchor)) return; filtered.push(e); }catch(e){} });
-  const avgMoving=hitungPrediksiAIWhKm(filtered.length?filtered:undefined)||0; const estimasi=avgMoving>0?((0.7*lastCap*1000)/avgMoving):0; // lastCap now from newest valid
+  const avgMoving=hitungPrediksiAIWhKm(filtered.length?filtered:undefined)||0; const estimasi=avgMoving>0?((0.7*lastCap*1000)/avgMoving):0;
   document.getElementById('stat_jarak').textContent=Math.round(jarak)+' km'; document.getElementById('stat_whkm').textContent=n?Math.round(avgGlobal)+' Wh/km':'– Wh/km'; document.getElementById('stat_biaya_rumah').textContent=fmtRp(rumah); document.getElementById('stat_biaya_spklu').textContent=fmtRp(spklu);
   // SiGan
   try{
@@ -1531,7 +1526,7 @@ kalibrasiSohMover(); renderAll(); updateLiveCalc(); switchView('dasbor');
               if(Array.isArray(mLog)){
                 const today=new Date().toISOString().slice(0,10);
                 let idx=mLog.findIndex(x=>x.tanggal===today && x.sumber==='battlog_auto_sync');
-                const entry={tanggal:today, jarak_km:res.totalKmMasuk, kecepatan_rata:res.avg, avg_speed:res.avg, avg_km_per_jam:res.avg, mode:res.isStrict?'STRICT':'FALLBACK', jam_valid:res.detail?res.detail.length:0, sumber:'battlog_auto_sync', isSynthetic:true, waktu_dibuat_asli:Date.now()}; // FIX v1.5.11: flag synthetic
+                const entry={tanggal:today, jarak_km:res.totalKmMasuk, kecepatan_rata:res.avg, avg_speed:res.avg, avg_km_per_jam:res.avg, mode:res.isStrict?'STRICT':'FALLBACK', jam_valid:res.detail?res.detail.length:0, sumber:'battlog_auto_sync', waktu_dibuat_asli:Date.now()};
                 if(idx>=0) mLog[idx]=entry; else mLog.push(entry);
                 localStorage.setItem('battlog_log_v1', JSON.stringify(mLog));
                 lake.maka['battlog_log_v1']=mLog;
@@ -1805,74 +1800,218 @@ const _origRenderDasbor=renderDasbor; renderDasbor=function(){ _origRenderDasbor
 setTimeout(renderBateraiRuteBaru,800);
 </script>
 
-<script>
-
-<!-- SCROLL FIX V1.5.10 - minimal, no wild bounce -->
+<!-- AUTO-SCROLL-KEYBOARD-FIX V1.5.3 - tanpa ubah layout -->
 <style>
-  html { scroll-behavior: auto !important; }
-  * { -webkit-overflow-scrolling: touch; }
-  .bottom-nav { transition: transform 0.2s ease; will-change: transform; }
-  .bottom-nav.keyboard-open { transform: translateY(110%) !important; }
-  #view-catat { scroll-padding-bottom: 20vh; }
+  .bottom-nav.keyboard-open-TMP !important; opacity:0 !important; pointer-events:none !important; }
+  .bottom-nav{ transition: transform 0.22s ease, opacity 0.22s ease; }
+  /* biar input tidak ketutup pas keyboard buka */
+  #view-catat, #view-riwayat, #view-dasbor, #tabContentInput{ scroll-padding-bottom: 50vh; }
 </style>
 <script>
+// AUTO-SCROLL-KEYBOARD-FIX
 (function(){
-  const nav = document.querySelector('.bottom-nav');
-  const isInput = el => el && (el.tagName==='INPUT' || el.tagName==='SELECT' || el.tagName==='TEXTAREA');
-  let lastScrollTime = 0;
-  document.addEventListener('focusin', e=>{
-    const t=e.target;
+  let nav = document.querySelector('.bottom-nav, nav.bottom-nav');
+  function isInput(el){ return el && (el.tagName==='INPUT' || el.tagName==='SELECT' || el.tagName==='TEXTAREA'); }
+
+  // pas focus input, scroll ke tengah + sembunyikan nav
+  document.addEventListener('focusin', function(e){
+    let t=e.target;
     if(!isInput(t)) return;
     if(nav) nav.classList.add('keyboard-open');
-    const now=Date.now();
-    if(now-lastScrollTime < 800) return; // debounce biar gak naik turun liar
-    lastScrollTime=now;
-    // cuma 1x scroll, instant, bukan smooth berulang
+    // delay 300ms nunggu keyboard muncul
     setTimeout(()=>{
       try{
-        // scroll parent yang bisa di-scroll, bukan window
-        const parent = t.closest('#view-catat, #view-riwayat, #view-dasbor') || document.scrollingElement;
-        if(parent){
-          const rect = t.getBoundingClientRect();
-          // kalau input ketutup keyboard (di bawah 60% layar)
-          if(rect.bottom > window.innerHeight * 0.6){
-            const delta = rect.bottom - window.innerHeight*0.6 + 20;
-            if(parent===document.scrollingElement){
-              window.scrollBy({top: delta, behavior: 'auto'});
-            } else {
-              parent.scrollBy({top: delta, behavior: 'auto'});
-            }
+        t.scrollIntoView({behavior:'smooth', block:'center', inline:'nearest'});
+        // extra scroll buat form catat
+        let view=t.closest('.view, #tabContentInput');
+        if(view){
+          let rect=t.getBoundingClientRect();
+          if(rect.bottom > window.innerHeight - 120){
+            window.scrollBy({top: rect.bottom - window.innerHeight + 160, behavior:'smooth'});
           }
         }
       }catch(_){}
-    }, 300);
-  }, {passive:true});
+    }, 320);
+  });
 
-  document.addEventListener('focusout', ()=>{
+  document.addEventListener('focusout', function(){
     setTimeout(()=>{
-      const a=document.activeElement;
+      let a=document.activeElement;
       if(!isInput(a)){
         if(nav) nav.classList.remove('keyboard-open');
+        document.body.style.paddingBottom='';
       }
     }, 150);
   });
 
-  // visualViewport cuma buat hide nav, jangan scroll lagi
+  // deteksi keyboard lewat visualViewport (Android Chrome/WebView)
   if(window.visualViewport){
+    let lastH=window.visualViewport.height;
     window.visualViewport.addEventListener('resize', ()=>{
-      const diff = window.innerHeight - window.visualViewport.height;
-      if(diff > 120){
+      let cur=window.visualViewport.height;
+      let diff = window.innerHeight - cur;
+      let active=document.activeElement;
+      if(diff > 120 && isInput(active)){
+        // keyboard buka
         if(nav) nav.classList.add('keyboard-open');
+        document.body.style.paddingBottom = diff + 'px';
+        setTimeout(()=>{ try{ active.scrollIntoView({block:'center', behavior:'smooth'}); }catch(_){} }, 120);
       } else if(diff < 80){
-        if(!isInput(document.activeElement) && nav) nav.classList.remove('keyboard-open');
+        // keyboard tutup
+        document.body.style.paddingBottom='';
+        if(!isInput(active) && nav) nav.classList.remove('keyboard-open');
       }
+      lastH=cur;
     });
   }
+
+  // handle tombol panah / next di Gboard (keydown Enter/Tab/ArrowDown)
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Enter' || e.key==='ArrowDown'){
+      let active=document.activeElement;
+      if(isInput(active) && active.type!=='date'){
+        // biar browser pindah focus dulu, baru scroll
+        setTimeout(()=>{
+          let next=document.activeElement;
+          if(isInput(next)){
+            try{ next.scrollIntoView({block:'center', behavior:'smooth'}); }catch(_){}
+          }
+        }, 50);
+      }
+    }
+  });
 })();
 </script>
 
+
+<!-- AUTO-SCROLL-KEYBOARD-FIX V1.5.4 - Telegram + Chrome Android -->
+<style>
+  .bottom-nav.keyboard-open{ transform: translateY(120%) !important; opacity:0 !important; pointer-events:none !important; }
+  .bottom-nav{ transition: transform 0.25s ease, opacity 0.25s ease; will-change: transform; }
+  html{ scroll-behavior: smooth; }
+  #view-catat{ scroll-padding-bottom: 60vh; }
+</style>
 <script>
-(jarak, biayaRumah, biayaSpklu, periodeLabel){
+(function(){
+  console.log('[KB-FIX V1.5.4] init');
+  const nav = document.querySelector('.bottom-nav, nav.bottom-nav');
+  const isInput = el => el && (el.tagName==='INPUT' || el.tagName==='SELECT' || el.tagName==='TEXTAREA');
+
+  function getScrollableParent(el){
+    let p=el.parentElement;
+    while(p){
+      const style=getComputedStyle(p);
+      const ovY=style.overflowY;
+      if((ovY==='auto' || ovY==='scroll' || p.scrollHeight > p.clientHeight+20) && p.clientHeight>0){
+        return p;
+      }
+      p=p.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+
+  function forceScrollToInput(input){
+    if(!input) return;
+    try{
+      // 1. scroll parent dulu
+      let parent=getScrollableParent(input);
+      let rect=input.getBoundingClientRect();
+      let parentRect=parent.getBoundingClientRect ? parent.getBoundingClientRect() : {top:0};
+      let targetTop = parent.scrollTop + (rect.top - parentRect.top) - (window.innerHeight*0.35);
+      if(parent===document.scrollingElement || parent===document.documentElement || parent===document.body){
+        window.scrollBy({top: rect.bottom - window.innerHeight + 180, behavior:'auto'});
+        setTimeout(()=>{ try{ window.scrollBy({top: rect.bottom - window.innerHeight + 180, behavior:'smooth'}); }catch(_){} }, 50);
+      } else {
+        parent.scrollTo({top: targetTop, behavior:'smooth'});
+      }
+      // 2. scrollIntoView sebagai backup
+      setTimeout(()=>{ try{ input.scrollIntoView({block:'center', inline:'nearest', behavior:'smooth'}); }catch(_){} }, 100);
+    }catch(e){ console.warn('forceScroll err', e.message); }
+  }
+
+  // focusin - hide nav + scroll
+  document.addEventListener('focusin', e=>{
+    let t=e.target;
+    if(!isInput(t)) return;
+    if(nav) nav.classList.add('keyboard-open');
+    // Telegram WebApp expand
+    try{ if(window.Telegram && window.Telegram.WebApp) window.Telegram.WebApp.expand(); }catch(_){}
+    setTimeout(()=>forceScrollToInput(t), 350);
+    setTimeout(()=>forceScrollToInput(t), 700);
+  }, {passive:true});
+
+  document.addEventListener('focusout', ()=>{
+    setTimeout(()=>{
+      let a=document.activeElement;
+      if(!isInput(a)){
+        if(nav) nav.classList.remove('keyboard-open');
+        document.body.style.paddingBottom='';
+        document.documentElement.style.setProperty('--kb-height','0px');
+      }
+    }, 200);
+  });
+
+  // visualViewport - untuk Chrome Android
+  if(window.visualViewport){
+    let lastH=window.visualViewport.height;
+    window.visualViewport.addEventListener('resize', ()=>{
+      let cur=window.visualViewport.height;
+      let diff=window.innerHeight - cur;
+      let active=document.activeElement;
+      if(diff>120 && isInput(active)){
+        document.documentElement.style.setProperty('--kb-height', diff+'px');
+        document.body.style.paddingBottom=diff+'px';
+        if(nav) nav.classList.add('keyboard-open');
+        setTimeout(()=>forceScrollToInput(active), 150);
+      } else if(diff<80){
+        document.body.style.paddingBottom='';
+        document.documentElement.style.setProperty('--kb-height','0px');
+        if(!isInput(active) && nav) nav.classList.remove('keyboard-open');
+      }
+      lastH=cur;
+    });
+  }
+
+  // Telegram viewportChanged event
+  try{
+    if(window.Telegram && window.Telegram.WebApp){
+      window.Telegram.WebApp.onEvent('viewportChanged', (ev)=>{
+        let active=document.activeElement;
+        if(isInput(active)){
+          setTimeout(()=>forceScrollToInput(active), 300);
+        }
+      });
+    }
+  }catch(_){}
+
+  // handle panah next di Gboard (Enter/ArrowDown/Go)
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Enter' || e.key==='ArrowDown' || e.key==='Go' || e.key==='Next'){
+      let active=document.activeElement;
+      if(isInput(active)){
+        setTimeout(()=>{
+          let next=document.activeElement;
+          if(isInput(next)) forceScrollToInput(next);
+        }, 80);
+      }
+    }
+  });
+
+  // fallback: kalau user tap panah di keyboard (yang trigger focus change tanpa keydown)
+  let lastActive=null;
+  setInterval(()=>{
+    let a=document.activeElement;
+    if(isInput(a) && a!==lastActive){
+      lastActive=a;
+      forceScrollToInput(a);
+    }
+  }, 400);
+})();
+</script>
+
+
+<script>
+function updateHeadToHeadDynamic(jarak, biayaRumah, biayaSpklu, periodeLabel){
   try{
     const REAL_KM_PER_L = 55.4;
     const PERTALITE = 10000;
@@ -1960,120 +2099,7 @@ setTimeout(renderBateraiRuteBaru,800);
           else if(ekonomiPeriod==='30hari') label='30 Hari';
           else label='Semua';
         }
-        
-<!-- KEYBOARD AVOIDANCE V1.5.11 - input naik di atas keyboard -->
-<style>
-  html { scroll-behavior: auto !important; }
-  body { overscroll-behavior: contain; }
-  #view-catat, #view-riwayat, #view-dasbor {
-    padding-bottom: 20px;
-    transition: padding-bottom 0.2s ease;
-  }
-  .bottom-nav.keyboard-open { transform: translateY(110%) !important; }
-  .maka-input:focus, input:focus, select:focus, textarea:focus {
-    position: relative;
-    z-index: 2;
-  }
-</style>
-<script>
-(function(){
-  const nav = document.querySelector('.bottom-nav');
-  const isInput = el => el && (el.tagName==='INPUT' || el.tagName==='SELECT' || el.tagName==='TEXTAREA');
-  let lastFocusTime = 0;
-  let kbHeight = 0;
-
-  function getVisibleHeight(){
-    if(window.visualViewport) return window.visualViewport.height;
-    return window.innerHeight;
-  }
-  function getKbHeight(){
-    if(window.visualViewport){
-      return Math.max(0, window.innerHeight - window.visualViewport.height);
-    }
-    return kbHeight;
-  }
-
-  function pushInputAboveKeyboard(input){
-    if(!input) return;
-    try{
-      const visibleH = getVisibleHeight();
-      const kbH = getKbHeight();
-      const rect = input.getBoundingClientRect();
-      // target: input harus 16px di atas keyboard, atau minimal di tengah layar
-      const targetBottom = visibleH - 16; // 16px di atas keyboard / bottom viewport
-      const currentBottom = rect.bottom;
-      if(currentBottom > targetBottom){
-        const delta = currentBottom - targetBottom + 12;
-        // scroll container yang bisa di-scroll
-        const scrollable = input.closest('#view-catat, #view-riwayat, #view-dasbor, #app') || document.scrollingElement;
-        if(scrollable){
-          if(scrollable === document.scrollingElement || scrollable === document.documentElement){
-            window.scrollBy({top: delta, behavior: 'smooth'});
-          } else {
-            scrollable.scrollBy({top: delta, behavior: 'smooth'});
-          }
-        }
-      }
-      // tambahin padding bawah biar bisa scroll mentok
-      const view = input.closest('#view-catat, #view-riwayat');
-      if(view && kbH>0){
-        view.style.paddingBottom = (kbH + 100) + 'px';
-      }
-    }catch(e){}
-  }
-
-  document.addEventListener('focusin', e=>{
-    const t=e.target;
-    if(!isInput(t)) return;
-    if(nav) nav.classList.add('keyboard-open');
-    const now=Date.now();
-    if(now-lastFocusTime < 600) return;
-    lastFocusTime=now;
-    // tunggu keyboard muncul
-    setTimeout(()=>pushInputAboveKeyboard(t), 350);
-    setTimeout(()=>pushInputAboveKeyboard(t), 650);
-  }, {passive:true});
-
-  document.addEventListener('focusout', ()=>{
-    setTimeout(()=>{
-      const a=document.activeElement;
-      if(!isInput(a)){
-        if(nav) nav.classList.remove('keyboard-open');
-        document.querySelectorAll('#view-catat, #view-riwayat, #view-dasbor').forEach(v=>v.style.paddingBottom='20px');
-      }
-    }, 200);
-  });
-
-  // visualViewport: update kbHeight dan dorong input aktif
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize', ()=>{
-      const diff = window.innerHeight - window.visualViewport.height;
-      kbHeight = diff>0 ? diff : 0;
-      const active=document.activeElement;
-      if(isInput(active) && kbHeight>100){
-        if(nav) nav.classList.add('keyboard-open');
-        pushInputAboveKeyboard(active);
-      } else if(kbHeight < 80){
-        if(!isInput(active) && nav) nav.classList.remove('keyboard-open');
-        document.querySelectorAll('#view-catat, #view-riwayat, #view-dasbor').forEach(v=>v.style.paddingBottom='20px');
-      }
-    });
-  }
-
-  // handle Enter/Next di Gboard biar next input juga naik
-  document.addEventListener('keydown', e=>{
-    if(e.key==='Enter' || e.key==='Next' || e.key==='Go'){
-      setTimeout(()=>{
-        const next=document.activeElement;
-        if(isInput(next)) pushInputAboveKeyboard(next);
-      }, 100);
-    }
-  });
-})();
-</script>
-
-<script>
-function updateHeadToHeadDynamic(jarak, rumah, spklu, label);
+        updateHeadToHeadDynamic(jarak, rumah, spklu, label);
       }catch(e){}
       return r;
     };
