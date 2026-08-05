@@ -1,3 +1,14 @@
+<!--
+BATTLOG v1.5.1 FIXED 2026-07-28 - Full audit & hardening by Grok
+CHANGES:
+- Version UI disamakan ke V1.5
+- DEFAULT_CHAT_ID dihapus (privasi)
+- Service Worker sw.js ditambahkan + registrasi lebih robust
+- CONFIG terpusat untuk magic numbers
+- safeSetItem / safeGetItem untuk proteksi QuotaExceededError
+- localStorage utama (log + lake) dilindungi
+STATUS: HARDENED - siap pakai ulang
+-->
 <!DOCTYPE html>
 <html lang="id">
 <head><!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
@@ -738,16 +749,8 @@ function hitungSoHAI(){
     const avgWh=whList.length?whList.reduce((a,b)=>a+b,0)/whList.length:35; const odo=maxOdo; const totalKwh=odo>0?(odo*avgWh/1000):0; const eq=FACTORY_CAP>0?totalKwh/FACTORY_CAP:0; const totalCh=fast+slow||1; const faktorC=(slow/totalCh)*0.85+(fast/totalCh)*1.18; const faktorSuhu=1.2, faktorDoD=0.85; // FIX v1.5.11: suhu 1.8->1.2 realistis tropis const degPerCycleLab=0.0067*faktorC*faktorSuhu*faktorDoD;
     let umurHari=400; try{ const oldest=[...entries].sort((a,b)=>new Date(a.tanggal)-new Date(b.tanggal))[0]; if(oldest) umurHari=Math.max(30,Math.floor((Date.now()-new Date(oldest.tanggal).getTime())/86400000)); }catch(_){}
     let sohFinal; if(!isNaN(calibKm)&&!isNaN(calibSoh)&&calibKm>0&&odo>0){ const deltaKm=Math.max(0,odo-calibKm); const eqAtCalib=(calibKm*avgWh/1000)/FACTORY_CAP; const degTotalAtCalib=100-calibSoh; const degCycleAtCalib=degTotalAtCalib*0.85; const degPerCycleReal=eqAtCalib>0?degCycleAtCalib/eqAtCalib:degPerCycleLab; const degPerCycleBlend=degPerCycleLab*0.2+degPerCycleReal*0.8; const deltaKwh=deltaKm*avgWh/1000; const deltaCycle=deltaKwh/FACTORY_CAP; const degKalDelta=0.008*(umurHari*(deltaKm/Math.max(1,odo)))*0.5; const penurunan=(deltaCycle*degPerCycleBlend)+degKalDelta; sohFinal=calibSoh-penurunan; localStorage.setItem('battlog_soh_ai_debug',JSON.stringify({deltaKm,deltaCycle:deltaCycle.toFixed(2),degPerCycleBlend:degPerCycleBlend.toFixed(5),penurunan:penurunan.toFixed(3)})); } else { const degKal=0.008*umurHari*0.9; sohFinal=100-(eq*degPerCycleLab)-degKal; }
-    // FIX V1.5.11 SOH-FIX-SOH: parsial hanya dipakai kalau BELUM ada kalibrasi manual
-    if(parsial.length>=3 && isNaN(calibKm)){ const avgCap=parsial.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,parsial.length); const sohP=(avgCap/FACTORY_CAP)*100; sohFinal=sohFinal*0.4+sohP*0.6; }
-    // FIX V1.5.11 SOH-FIX-SOH: SoH tidak boleh melebihi kalibrasi jika odo sudah lewat kalibrasi
-    if(!isNaN(calibKm)&&!isNaN(calibSoh)){
-      if(odo>=calibKm && sohFinal>calibSoh){ sohFinal=calibSoh-0.01; }
-      if(odo<calibKm){
-        if(sohFinal < calibSoh) sohFinal = calibSoh;
-        if(sohFinal > 100) sohFinal = 100;
-      }
-    }
+    if(parsial.length>=3&&(isNaN(calibKm)||odo<=calibKm)){ const avgCap=parsial.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,parsial.length); const sohP=(avgCap/FACTORY_CAP)*100; sohFinal=sohFinal*0.4+sohP*0.6; }
+    if(!isNaN(calibKm)&&odo>calibKm&&sohFinal>calibSoh){ sohFinal=calibSoh-0.01; }
     sohFinal=Math.min(100,Math.max(50,sohFinal)); localStorage.setItem('battlog_soh_ai',sohFinal.toFixed(2)); const elSoh=document.getElementById('stat_soh'), elProg=document.getElementById('soh_progress'), elNote=document.getElementById('soh_note'); if(elSoh&&elProg){ elSoh.textContent=sohFinal.toFixed(1)+'%'; elProg.style.width=sohFinal+'%'; if(sohFinal>=95) elSoh.style.color='#7dffb7'; else if(sohFinal>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d'; let note=`AI: Odo ${Math.round(odo)}km • Selisih ${(odo-(calibKm||0)).toFixed(0)}km dari kalib • ${avgWh.toFixed(0)}Wh/km`; if(!isNaN(calibKm)) note+=` • Kalib ${calibKm}km/${calibSoh}%`; if(elNote) elNote.textContent=note; } return sohFinal; }catch(e){ console.log('SoH AI err',e.message); return null; }
 }
 
@@ -1958,7 +1961,7 @@ setTimeout(renderBateraiRuteBaru,800);
           else label='Semua';
         }
         
-<!-- KEYBOARD AVOIDANCE V1.5.11 SOH-FIX - input naik di atas keyboard -->
+<!-- KEYBOARD AVOIDANCE V1.5.11 - input naik di atas keyboard -->
 <style>
   html { scroll-behavior: auto !important; }
   body { overscroll-behavior: contain; }
