@@ -22,163 +22,244 @@
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Battlog V1.5.12 TapFix</title>
+<title>Battlog V1.5.11 Modular Tuntas</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a1328">
 <link rel="icon" type="image/png" sizes="32x32" href="icon/favicon-32.png">
 <link rel="apple-touch-icon" href="icon/apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=1.5.12">
+<link rel="stylesheet" href="css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script>
-// FIX: Telegram safe init + no aggressive cache clear
-(function(){
-  const urlParams = new URLSearchParams(window.location.search);
-  if(urlParams.get('clear')==='1'){
-    if('caches' in window){
-      caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)));
-    }
-    localStorage.removeItem('battlog_force_clear');
-    history.replaceState({},'',location.pathname);
-  }
-})();
-window.addEventListener('DOMContentLoaded', ()=>{
-  try{
-    if(window.Telegram && Telegram.WebApp){
-      Telegram.WebApp.ready();
-      Telegram.WebApp.expand();
-      const u = Telegram.WebApp.initDataUnsafe?.user;
-      document.getElementById('user-display').textContent = u ? `User: ${u.first_name}` : 'User: Telegram';
-    } else {
-      document.getElementById('user-display').textContent = 'User: Guest Mode';
-    }
-  }catch(e){
-    const el=document.getElementById('user-display');
-    if(el) el.textContent='User: Offline';
-  }
-});
-</script>
 </head>
+
 <body>
+
+
+
 <div class="max-w-2xl">
-<header class="header">
-<div>
-<h1 style="font-size:20px; font-weight:800; margin:0;">Battlog <span id="battlogVersionDisplay" style="color:#7dffb7">V1.5.12</span></h1>
-<div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Loading...</div>
-</div>
-<div style="display:flex;gap:8px">
-<button onclick="toggleSohSettings()" class="pill" style="border-color:#2b5a9a;" title="Atur Spek Pabrik Baterai">⚙️</button>
-<button onclick="bukaPeta()" class="pill pill-maps" title="Buka Peta Fast Charging">🗺️</button>
-</div>
-</header>
+  <header class="flex items-center justify-between mb-4">
+    <div>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">Battlog <span id="battlogVersionDisplay" style="color:#7dffb7">V1.5</span></h1>
+      <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="toggleSohSettings()" class="pill" style="border-color:#2b5a9a;" title="Atur Spek Pabrik Baterai">⚙️</button>
+      <button onclick="bukaPeta()" class="pill pill-maps" title="Buka Peta Fast Charging">🗺️</button>
+    </div>
+  </header>
 
-<div id="soh_settings_panel" class="maka-card" style="display:none; border-color:#2b5a9a;">
-<div style="font-size:13px; font-weight:800; color:#6fb2ff; margin-bottom:8px;">⚙️ Pengaturan Kendaraan</div>
-<div style="font-size:11px; color:#8aa0c6; margin-bottom:10px;">Kapasitas baterai dipakai untuk SEMUA hitungan</div>
-<div class="grid grid-cols-2 gap-3">
-<div><label class="maka-label">Kapasitas Baterai (kWh)</label><input type="number" id="f_factory_cap" class="maka-input" placeholder="4.0" step="0.1" min="0.1"></div>
-<div><label class="maka-label">Jarak Klaim Pabrik (km)</label><input type="number" id="f_factory_range" class="maka-input" placeholder="115" step="1" min="1"></div>
-</div>
-<div style="margin-top:14px; padding-top:12px; border-top:1px dashed #1e2d4a;">
-<div style="font-size:11px; font-weight:800; color:#6fb2ff; margin-bottom:6px;">🔬 Kalibrasi SoH (Opsional)</div>
-<div class="grid grid-cols-2 gap-3">
-<div><label class="maka-label">Odometer saat cek SoH (km)</label><input type="number" id="f_calib_km" class="maka-input" placeholder="12191"></div>
-<div><label class="maka-label">SoH saat itu (%)</label><input type="number" id="f_calib_soh" class="maka-input" placeholder="98" step="0.1" min="0" max="100"></div>
-</div>
-</div>
-<button onclick="saveFactorySpec()" class="btn-primary" style="margin-top:12px;">Simpan Pengaturan</button>
-</div>
+  <div id="soh_settings_panel" class="maka-card" style="display:none; border-color:#2b5a9a;">
+    <div style="font-size:13px; font-weight:800; color:#6fb2ff; margin-bottom:8px;">⚙️ Pengaturan Kendaraan</div>
+    <div style="font-size:11px; color:#8aa0c6; margin-bottom:10px; line-height:1.5;">Kapasitas baterai dipakai untuk SEMUA hitungan — tidak perlu diisi ulang tiap catat trip.</div>
+    <div class="grid grid-cols-2 gap-3">
+      <div><label class="maka-label">Kapasitas Baterai (kWh)</label><input type="number" id="f_factory_cap" class="maka-input" placeholder="Contoh: 4.0" step="0.1" min="0.1"></div>
+      <div><label class="maka-label">Jarak Tempuh Klaim Pabrik (km)</label><input type="number" id="f_factory_range" class="maka-input" placeholder="Contoh: 115" step="1" min="1"></div>
+    </div>
+    <div style="margin-top:14px; padding-top:12px; border-top:1px dashed #1e2d4a;">
+      <div style="font-size:11px; font-weight:800; color:#6fb2ff; margin-bottom:6px;">🔬 Kalibrasi SoH (Opsional)</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="maka-label">Odometer saat cek SoH (km)</label><input type="number" id="f_calib_km" class="maka-input" placeholder="Contoh: 12191"></div>
+        <div><label class="maka-label">SoH saat itu (%)</label><input type="number" id="f_calib_soh" class="maka-input" placeholder="Contoh: 98" step="0.1" min="0" max="100"></div>
+      </div>
+    </div>
+    <button onclick="saveFactorySpec()" class="btn-primary" style="margin-top:12px;">Simpan Pengaturan</button>
+  </div>
 
-<div id="view-dasbor" class="view active">
-<div class="maka-card" style="background: linear-gradient(135deg, #112240 0%, #111d35 100%); border-color: rgba(43, 140, 255, 0.3);">
-<div class="flex items-center justify-between">
-<div><div style="font-size:12px; font-weight:700; color:#6fb2ff; text-transform:uppercase;">Estimasi Jarak Tempuh AI (100% → 30%)</div><div id="estimasi_note" style="font-size:11px; color:#8aa0c6;">Menghitung rata-rata dari data pemakaian</div></div>
-<div id="stat_estimasi" style="font-size:26px; font-weight:900; text-align:right; color: #7dffb7;">– km</div>
-</div>
-<div style="margin-top:14px; padding-top:12px; border-top:1px dashed rgba(43,140,255,0.2);">
-<div class="flex items-center justify-between" style="margin-bottom:6px;"><div style="font-size:11px; font-weight:700; color:#8aa0c6;">BATERAI SOH ESTIMATOR</div><div id="stat_soh" style="font-size:14px; font-weight:800; color:#7dffb7;">–</div></div>
-<div style="width:100%; background:#0f1f36; height:6px; border-radius:999px; overflow:hidden;"><div id="soh_progress" style="width:0%; background:linear-gradient(90deg, #2b8cff, #7dffb7); height:100%;"></div></div>
-<div id="soh_note" style="font-size:10px; color:#5e759e; margin-top:5px;">Mengukur degradasi nyata</div>
-</div>
-</div>
+  <div id="view-dasbor" class="view active">
+    <div class="maka-card" style="background: linear-gradient(135deg, #112240 0%, #111d35 100%); border-color: rgba(43, 140, 255, 0.3);">
+      <div class="flex items-center justify-between">
+        <div><div style="font-size:12px; font-weight:700; color:#6fb2ff; letter-spacing:0.05em; text-transform:uppercase;">Estimasi Jarak Tempuh AI (100% → 30%)</div><div id="estimasi_note" style="font-size:11px; color:#8aa0c6; margin-top:2px;">Menghitung rata-rata dari data pemakaian harianmu</div></div>
+        <div id="stat_estimasi" style="font-size:26px; font-weight:900; text-align:right; color: #7dffb7;">– km</div>
+      </div>
+      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(43, 140, 255, 0.2);">
+        <div class="flex items-center justify-between" style="margin-bottom: 6px;"><div style="font-size:11px; font-weight:700; color:#8aa0c6;">BATERAI SOH ESTIMATOR</div><div id="stat_soh" style="font-size:14px; font-weight:800; color:#7dffb7;">Menghitung...</div></div>
+        <div style="width:100%; background:#0f1f36; height:6px; border-radius:999px; overflow:hidden; border:1px solid var(--line);"><div id="soh_progress" style="width:0%; background:linear-gradient(90deg, #2b8cff, #7dffb7); height:100%; transition: width 0.5s ease;"></div></div>
+        <div id="soh_note" style="font-size:10px; color:#5e759e; margin-top:5px;">Mengukur degradasi nyata berdasarkan riwayat deep-cycle valid.</div>
+      </div>
+    </div>
 
-<div class="maka-card">
-<div class="flex gap-2 mb-3" style="font-size:12px;">
-<button class="pill active" data-period="harian" onclick="setPeriod('harian',this)">Harian</button>
-<button class="pill" data-period="mingguan" onclick="setPeriod('mingguan',this)">Mingguan</button>
-<button class="pill" data-period="bulanan" onclick="setPeriod('bulanan',this)">Bulanan</button>
-</div>
-<div id="chartWrap"><canvas id="usageChart" height="196"></canvas></div>
-</div>
+    <div class="maka-card">
+      <div class="flex gap-2 mb-3" style="font-size:12px;">
+        <button class="pill active" data-period="harian" onclick="setPeriod('harian',this)">Harian</button>
+        <button class="pill" data-period="mingguan" onclick="setPeriod('mingguan',this)">Mingguan</button>
+        <button class="pill" data-period="bulanan" onclick="setPeriod('bulanan',this)">Bulanan</button>
+      </div>
+      <div id="chartWrap"><canvas id="usageChart" height="196" style="display: block; box-sizing: border-box; height: 196px; width: 100%;"></canvas></div>
+    </div>
 
-<div class="maka-card" style="background: linear-gradient(180deg, #0e192f 0%, #0b1424 100%);">
-<div class="flex justify-between items-center" style="font-size:10px; color:#5e759e; font-weight:700; text-transform:uppercase; margin-bottom:4px;"><span>Dashboard Kluster</span><span style="color:#7dffb7">● Online</span></div>
-<div style="padding:1rem 0;">
-<canvas id="speedoCanvas" width="320" height="150" style="display:block; max-width:100%; margin:0 auto;"></canvas>
-<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
-<div style="background:#070e1a; border:1px solid #162847; padding:6px 14px; border-radius:20px; font-size:11px; color:#8aa0c6;">MIN: <span id="speedo_min" style="color:#7dffb7;">–</span> | MAX: <span id="speedo_max" style="color:#ff4d4d;">–</span> Wh/km</div>
-<div style="background:#0d1e2a; border:1px solid rgba(125,255,183,0.25); padding:6px 14px; border-radius:20px; font-size:11px; color:#8aa0c6;">AVG: <span id="stat_avg_kmjam" style="color:#7dffb7;">–</span> km/jam</div>
-</div>
-</div>
-</div>
+    <div class="maka-card" style="background: linear-gradient(180deg, #0e192f 0%, #0b1424 100%); border: 1px solid #1a2f52;">
+      <div class="flex justify-between items-center" style="font-size:10px; color:#5e759e; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px;"><span>Dashboard Kluster</span><span style="color:#7dffb7">● Online</span></div>
+      <div class="relative w-full flex style-flex" style="padding-top:1rem; padding-bottom:1rem;">
+        <canvas id="speedoCanvas" width="320" height="150" style="display: block; max-width: 100%; height: auto; margin: 0 auto;"></canvas>
+        <div style="margin-top: 8px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; align-items:center;">
+          <div style="background: #070e1a; border: 1px solid #162847; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #8aa0c6;"><span>MIN: <span id="speedo_min" style="color:#7dffb7; font-family: monospace;">–</span> | MAX: <span id="speedo_max" style="color:#ff4d4d; font-family: monospace;">–</span> Wh/km</span></div>
+          <div style="background: #0d1e2a; border: 1px solid rgba(125,255,183,0.25); padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #8aa0c6;"><span>AVG: <span id="stat_avg_kmjam" style="color:#7dffb7; font-family: monospace; font-weight:800;">–</span> km/jam <span style="font-size:9px; color:#5e759e;">(AI)</span></span></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Total Jarak</div><div id="stat_jarak" style="font-size:22px; font-weight:800;">0 km</div></div>
+      <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Efisiensi (Rata-rata)</div><div id="stat_whkm" style="font-size:22px; font-weight:800;">– Wh/km</div></div>
+      <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya Rumah</div><div id="stat_biaya_rumah" style="font-size:22px; font-weight:800;">Rp 0</div></div>
+      <div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya SPKLU / SPB LU</div><div id="stat_biaya_spklu" style="font-size:22px; font-weight:800;">Rp 0</div></div>
+    </div>
 
-<div class="grid grid-cols-2 gap-3 mb-3">
-<div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Total Jarak</div><div id="stat_jarak" style="font-size:22px; font-weight:800;">0 km</div></div>
-<div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Efisiensi</div><div id="stat_whkm" style="font-size:22px; font-weight:800;">– Wh/km</div></div>
-<div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya Rumah</div><div id="stat_biaya_rumah" style="font-size:22px; font-weight:800;">Rp 0</div></div>
-<div class="maka-card" style="margin-bottom:0;"><div style="font-size:11px; color:#8aa0c6;">Biaya SPKLU</div><div id="stat_biaya_spklu" style="font-size:22px; font-weight:800;">Rp 0</div></div>
-</div>
-<button onclick="switchView('catat')" class="btn-primary" style="margin-top:0.75rem;">→ Buka Catat</button>
-</div>
+    <div id="ekonomiPeriodContainer" style="display:flex; gap:6px; margin:12px 0 8px 0; overflow-x:auto; padding-bottom:4px; scrollbar-width:none;">
+      <!-- Buttons generated dynamically -->
+    </div>
+    
 
-<div id="view-catat" class="view">
-<form id="entryForm" onsubmit="return false" class="space-y-4">
-<div class="maka-card space-y-4" style="margin-bottom:0;">
-<div style="background: rgba(43,140,255,0.05); padding:12px; border-radius:12px; border:1px dashed rgba(43,140,255,0.2); display:flex; justify-content:space-between;">
-<div><label class="maka-label" style="color:#6fb2ff;">Kapasitas</label><div id="cap_kwh_display" style="font-size:16px; font-weight:800;">4.0 kWh</div></div>
-<button type="button" onclick="toggleSohSettings()" class="pill" style="border-color:#2b5a9a;">⚙️ Ubah</button>
-</div>
-<div><label class="maka-label">Tanggal</label><input type="date" id="f_tanggal" class="maka-input"></div>
-<div class="grid grid-cols-2 gap-3"><div><label class="maka-label">Km Awal</label><input type="number" id="f_km_awal" class="maka-input" placeholder="0"></div><div><label class="maka-label">Km Akhir</label><input type="number" id="f_km_akhir" class="maka-input" placeholder="0"></div></div>
-<div class="grid grid-cols-3 gap-2"><div><label class="maka-label" style="font-size:11px;">Batt Awal %</label><input type="number" id="f_batt_awal" class="maka-input" placeholder="100" min="0" max="100"></div><div><label class="maka-label" style="font-size:11px;">Batt Akhir %</label><input type="number" id="f_batt_akhir" class="maka-input" placeholder="0" min="0" max="100"></div><div><label class="maka-label" style="font-size:11px;">Setelah Cas %</label><input type="number" id="f_batt_setelah" class="maka-input" placeholder="100" min="0" max="100"></div></div>
-</div>
-<div class="maka-card space-y-3" style="margin-bottom:0;">
-<div><label class="maka-label">Tarif Listrik (Rp/kWh)</label><div class="flex gap-2"><select id="f_tarif_preset" class="maka-input" style="flex:1"><option value="1444">Rumah – 1.444</option><option value="2466">SPKLU – 2.466</option><option value="0">Gratis / Kantor – 0</option></select><input type="number" id="f_tarif" class="maka-input" value="1444" style="width:130px"></div></div>
-<div><label class="maka-label">Total Bayar (Rp) – kosongkan untuk auto</label><input type="number" id="f_biaya" class="maka-input" placeholder="otomatis dari tarif"></div>
-<div><label class="maka-label">Lokasi</label><input type="text" id="f_lokasi" class="maka-input" placeholder="Rumah / SPKLU"></div>
-<div><label class="maka-label">Charger (V Ah)</label><div class="grid grid-cols-2 gap-3"><input type="text" id="f_custom_v" class="maka-input" placeholder="Voltase"><input type="text" id="f_custom_ah" class="maka-input" placeholder="Ampere"></div><input type="hidden" id="f_charger" value=""></div>
-</div>
-<div class="maka-card" style="background:#0d1f1a; border-color:rgba(125,255,183,.15);">
-<div style="font-size:11px; font-weight:700; color:#7dffb7;">HITUNG OTOMATIS</div>
-<div class="calc-row"><span>Jarak Tempuh</span><strong id="c_jarak">–</strong></div>
-<div class="calc-row"><span>Energi Terpakai</span><strong id="c_energi">–</strong></div>
-<div class="calc-row"><span>Efisiensi</span><strong id="c_whkm">–</strong></div>
-<div class="calc-row"><span>Biaya</span><strong id="c_biaya" style="color:#7dffb7">–</strong></div>
-<div class="calc-row"><span>Durasi Charging AI</span><strong id="c_durasi">–</strong></div>
-</div>
-<div class="flex gap-3"><button id="saveBtn" onclick="saveEntry()" type="button" class="btn-primary" style="flex:1;">Simpan Catatan</button><button type="button" onclick="resetForm()" class="btn-ghost">Reset</button></div>
-</form>
-</div>
 
-<div id="view-riwayat" class="view">
-<div id="listBox" class="space-y-3"></div>
-</div>
+    
+    
+    <div class="maka-card" id="head2head-card" style="border:1px solid rgba(125,255,183,0.25); background: linear-gradient(180deg, #0d1e2a 0%, #0b1424 100%); margin-bottom:12px; position:relative; overflow:hidden;">
+      <div style="font-size:11px; font-weight:800; color:#7dffb7; letter-spacing:0.08em; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;"><span>⚔️ HEAD-TO-HEAD • HEMAT (Real 55 km/L)</span><span id="h2h_periode_label" style="font-size:10px; color:#6b7fa2; font-weight:600;">Hari Ini</span></div>
+      
+      <div style="background: linear-gradient(135deg, #0f2a1e 0%, #143d2b 100%); border:1px solid rgba(125,255,183,0.25); border-radius:12px; padding:10px 12px; text-align:center; margin-bottom:14px;">
+        <div id="h2h_hemat_banner" style="font-size:13px; color:#7dffb7; font-weight:800;">🎉 Kamu hemat Rp 0 minggu ini</div>
+        <div id="h2h_hemat_sub" style="font-size:10px; color:#8aa0c6; margin-top:2px;">Hemat 0% dibanding Honda Beat • Pertalite 10k • Real 55.4 km/L</div>
+      </div>
 
-<footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem;">Battlog v1.5.12 TapFix • Data lapkeu auto-merge</footer>
+      <div style="display:grid; grid-template-columns:1fr 36px 1fr; gap:8px; align-items:center;">
+        <div style="background: rgba(125,255,183,0.06); border:1px solid rgba(125,255,183,0.18); border-radius:16px; padding:10px 8px; text-align:center;">
+          <div style="font-size:10px; color:#7dffb7; font-weight:800;">⚡ MOTOR LISTRIK</div>
+          <div style="height:82px; display:flex; align-items:center; justify-content:center; margin:6px 0;">
+            <img id="img-maka-white" src="" alt="Maka White" loading="lazy" style="max-width:100%; max-height:78px; object-fit:contain;">
+          </div>
+          <div style="font-size:10px; color:#8aa0c6; font-weight:600;">Listrik Baterai</div>
+          <div id="h2h_biaya_listrik" style="font-size:20px; font-weight:900; color:#7dffb7; line-height:1;">Rp 0</div>
+          <div style="font-size:9px; color:#5e759e; margin-top:2px;">Biaya <span class="h2h_periode_text">periode ini</span></div>
+          <div id="h2h_persen" style="margin-top:8px; background: rgba(125,255,183,0.15); border:1px solid rgba(125,255,183,0.2); color:#7dffb7; font-size:9px; font-weight:800; padding:4px 8px; border-radius:999px; display:inline-block;">0% lebih murah</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+          <div style="background:#151f32; border:2px solid #2a3a52; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; color:#8aa0c6;">VS</div>
+        </div>
+
+        <div style="background: rgba(255,184,107,0.06); border:1px solid rgba(255,184,107,0.18); border-radius:16px; padding:10px 8px; text-align:center;">
+          <div style="font-size:10px; color:#ffb86b; font-weight:800;">⛽ MOTOR BENSIN</div>
+          <div style="height:82px; display:flex; align-items:center; justify-content:center; margin:6px 0;">
+            <img id="img-beat-brown" src="" alt="Beat Brown" loading="lazy" style="max-width:100%; max-height:78px; object-fit:contain;">
+          </div>
+          <div style="font-size:10px; color:#c49a6b; font-weight:600;">Pertalite Rp 10.000 / L</div>
+          <div id="h2h_biaya_bensin" style="font-size:20px; font-weight:900; color:#ffb86b; line-height:1;">Rp 0</div>
+          <div style="font-size:9px; color:#5e759e; margin-top:2px;">Biaya <span class="h2h_periode_text">periode ini</span></div>
+          <div id="h2h_liter" style="margin-top:8px; background: rgba(255,184,107,0.15); border:1px solid rgba(255,184,107,0.2); color:#ffb86b; font-size:9px; font-weight:800; padding:4px 8px; border-radius:999px; display:inline-block;">0L • 55 km/L Real</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px;">
+        <div style="background: rgba(10,19,40,0.7); border:1px solid #1e2d4a; border-radius:12px; padding:10px; text-align:center;">
+          <div style="font-size:9px; color:#8aa0c6;">🌱 Penghematan CO2</div>
+          <div id="h2h_co2" style="font-size:18px; font-weight:900; color:#7dffb7;">-0 kg</div>
+          <div style="font-size:9px; color:#5e759e;"><span class="h2h_periode_text">periode ini</span> • 48-59 km/L</div>
+        </div>
+        <div style="background: rgba(10,19,40,0.7); border:1px solid #1e2d4a; border-radius:12px; padding:10px; text-align:center;">
+          <div style="font-size:9px; color:#8aa0c6;">⚡ Efisiensi Jarak</div>
+          <div id="h2h_jarak" style="font-size:18px; font-weight:900; color:#6fb2ff;">0 km</div>
+          <div style="font-size:9px; color:#5e759e;"><span id="h2h_jarak_sub">Mingguan • 55.4 km/L</span></div>
+        </div>
+      </div>
+      <div style="margin-top:10px; font-size:8px; color:#4b5d7a; text-align:center;">*Konsumsi Beat real: 48-59 km/L • GridOto 55.4 km/L • Pertalite 10k • CO2 bensin 2.3kg/L</div>
+    </div>
+
+
+
+    <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%); margin-top:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div style="font-size:11px; font-weight:800; color:var(--blue);">🤖 AI DIAGNOSTIK • FIXED</div>
+        <div id="ai-periode-badge" style="font-size:10px; font-weight:700; color:#8aa0c6; background:#0f1f36; border:1px solid var(--line); border-radius:999px; padding:3px 8px;">PERIODE</div>
+      </div>
+      <div id="ai-insight-box" style="font-size:13px; color:#eaf2ff; line-height:1.5;">Menganalisis data...</div>
+    </div>
+    <button onclick="switchView('catat')" class="btn-primary" style="margin-top:0.75rem;">→ Buka Catat</button>
+  </div>
+
+  <div id="view-catat" class="view">
+    <form id="entryForm" onsubmit="return false" class="space-y-4">
+      <div class="maka-card space-y-4" style="margin-bottom:0;">
+        <div style="background: rgba(43, 140, 255, 0.05); padding: 12px; border-radius: 12px; border: 1px dashed rgba(43, 140, 255, 0.2); display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <div><label class="maka-label" style="color: #6fb2ff; margin-bottom:2px;">Kapasitas Baterai Kendaraan</label><div id="cap_kwh_display" style="font-size:16px; font-weight:800; color:#eaf2ff;">4.0 kWh</div></div>
+          <button type="button" onclick="toggleSohSettings()" class="pill" style="border-color:#2b5a9a; flex-shrink:0;">⚙️ Ubah</button>
+        </div>
+        <div><label class="maka-label">Tanggal</label><input type="date" id="f_tanggal" class="maka-input"></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="maka-label">Km Awal</label><input type="number" id="f_km_awal" class="maka-input" placeholder="0"></div><div><label class="maka-label">Km Akhir</label><input type="number" id="f_km_akhir" class="maka-input" placeholder="0"></div></div>
+        <div class="grid grid-cols-3 gap-2"><div><label class="maka-label" style="font-size:11px;">Baterai Awal %</label><input type="number" id="f_batt_awal" class="maka-input" placeholder="100" min="0" max="100"></div><div><label class="maka-label" style="font-size:11px;">Baterai Akhir %</label><input type="number" id="f_batt_akhir" class="maka-input" placeholder="0" min="0" max="100"></div><div><label class="maka-label" style="font-size:11px;">Setelah Cas %</label><input type="number" id="f_batt_setelah" class="maka-input" placeholder="100" min="0" max="100"></div></div>
+      </div>
+      <div class="maka-card space-y-3" style="margin-bottom:0;">
+        <div><label class="maka-label">Tarif Listrik (Rp/kWh)</label><div class="flex gap-2"><select id="f_tarif_preset" class="maka-input" style="flex:1"><option value="1444">Rumah – 1.444</option><option value="2466">SPKLU – 2.466</option><option value="0">Gratis / Kantor – 0</option></select><input type="number" id="f_tarif" class="maka-input" value="1444" style="width:130px"></div></div>
+        <div><label class="maka-label">Total Bayar (Rp) – kosongkan untuk auto</label><input type="number" id="f_biaya" class="maka-input" placeholder="otomatis dari tarif"></div>
+        <div><label class="maka-label">Lokasi</label><div style="position:relative"><input type="text" id="f_lokasi" class="maka-input" placeholder="Rumah / SPKLU …" autocomplete="off"><div id="lokasi_suggest" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:6px;background:#0f1f36;border:1px solid #1e2d4a;border-radius:12px;z-index:50;overflow:hidden"></div></div></div>
+        <div class="relative"><label class="maka-label">Spesifikasi Charger</label><div class="grid grid-cols-2 gap-3"><div class="relative"><input type="text" inputmode="decimal" id="f_custom_v" class="maka-input" style="padding-right: 2.5rem;" placeholder="Voltase" min="0"><span class="custom-addon">V</span></div><div class="relative"><input type="text" inputmode="decimal" id="f_custom_ah" class="maka-input" style="padding-right: 3rem;" placeholder="Ampere" min="0"><span class="custom-addon">Ah</span></div></div><input type="hidden" id="f_charger" value=""><div id="charger_suggest" style="display:none; position:absolute; left:0; right:0; background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; z-index:50; overflow:hidden; margin-top:6px;"></div></div>
+        <div class="flex items-center gap-2" style="padding-top: 6px;"><input type="checkbox" id="f_notif_status" checked style="width:18px; height:18px; accent-color: var(--blue); cursor:pointer;"><label for="f_notif_status" style="font-size:13px; color:#9ab8e6; cursor:pointer; font-weight:600;">Kirim Notifikasi Telegram</label></div>
+      </div>
+      <div class="maka-card shadow-inner" style="background:#0d1f1a; border-color:rgba(125,255,183,.15); margin-bottom:0;">
+        <div id="calc_title_kwh" style="font-size:11px; font-weight:700; letter-spacing:0.05em; color:#7dffb7; margin-bottom:0.5rem;">HITUNG OTOMATIS</div>
+        <div class="calc-row"><span>Jarak Tempuh</span><strong id="c_jarak">–</strong></div>
+        <div class="calc-row"><span>Energi Terpakai</span><strong id="c_energi">–</strong></div>
+        <div class="calc-row"><span>Efisiensi</span><strong id="c_whkm">–</strong></div>
+        <div class="calc-row"><span>Energi Diisi</span><strong id="c_diisi">–</strong></div>
+        <div class="calc-row"><span>Estimasi Biaya</span><strong id="c_biaya" style="color:#7dffb7">–</strong></div>
+        <div class="calc-row"><span>Durasi Charging AI</span><strong id="c_durasi">–</strong></div>
+        <div class="calc-row" style="border-bottom:none"><span>Jam Selesai AI</span><strong id="c_jam_selesai" style="color:#7dffb7">–</strong></div>
+      </div>
+      <div class="flex gap-3"><button id="saveBtn" onclick="saveEntry()" type="button" class="btn-primary" style="flex:1;">Simpan Catatan</button><button type="button" onclick="resetForm()" class="btn-ghost">Reset</button></div>
+      <button id="cancelEditBtn" onclick="cancelEdit();switchView('riwayat')" type="button" class="btn-ghost w-full" style="display:none">Batal Edit</button>
+    </form>
+  </div>
+
+  <div id="view-riwayat" class="view">
+    <div style="position: sticky; top: 0; background: var(--bg); z-index: 40; padding-top: 2px; padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 12px;">
+      <div class="maka-card shadow-xl" style="margin-bottom:0; transition:all 0.3s;" id="ringkasCard">
+        <div class="flex items-center justify-between mb-2">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button onclick="toggleRingkas()" id="btnToggleRingkas" style="background:#13223d; border:1px solid #1e3a5f; color:#6fb2ff; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px;">👁️</button>
+            <div style="font-weight:700; font-size:14px; color:#6fb2ff;">Ringkas Pemakaian</div>
+            <span id="ringkasBadge" style="background:#0f1f36; border:1px solid #1e2d4a; color:#5a7096; font-size:10px; padding:2px 6px; border-radius:999px; display:none;">Tersembunyi</span>
+          </div>
+          <div class="flex gap-1" style="font-size:11px;" id="ringkasPills"><button class="pill active" onclick="setRingkas('mingguan',this)" data-r="mingguan">Mingguan</button><button class="pill" onclick="setRingkas('bulanan',this)" data-r="bulanan">Bulanan</button><button class="pill" onclick="setRingkas('tahunan',this)" data-r="tahunan">Tahunan</button></div>
+        </div>
+        <div id="ringkasBox" class="space-y-1" style="font-size:12px; color:#9ab8e6; max-h:160px; overflow-y:auto; transition:all 0.3s;">Belum ada data.</div>
+      </div>
+      <div class="flex items-center justify-between mt-3"><h2 style="font-weight:700; font-size:16px; margin:0;">Daftar Catatan</h2><div style="display:flex; gap:6px; align-items:center;"><button onclick="toggleRingkas()" style="background:#111d35; border:1px solid #1e2d4a; color:#8aa0c6; padding:6px 10px; border-radius:10px; font-size:11px; font-weight:700;">👁️ Ringkas</button><input id="searchBox" oninput="renderList()" placeholder="Cari catatan…" class="maka-input" style="width:140px; padding:7px 11px; font-size:12px;"></div></div>
+    </div>
+    
+
+    <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
+  </div>
+
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.1 Hardened • Layout Tetap</footer>
 </div>
 
 <nav class="bottom-nav">
-<div class="max-w-2xl flex" style="padding:0; margin:0;">
-<button type="button" class="nav-item active" onclick="switchView('dasbor')"><span>Dasbor</span></button>
-<button type="button" class="nav-item" onclick="switchView('catat')"><span>Catat</span></button>
-<button type="button" class="nav-item" onclick="switchView('riwayat')"><span>Riwayat</span></button>
-</div>
+  <div class="max-w-2xl flex" style="padding-top:0; padding-bottom:0; margin-top:0;">
+    <button type="button" class="nav-item active" onclick="switchView('dasbor')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="14" width="7" height="7" rx="1.6"></rect><rect x="3" y="14" width="7" height="7" rx="1.6"></rect></svg>Dasbor</button>
+    <button type="button" class="nav-item" onclick="switchView('catat')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>Catat</button>
+    <button type="button" class="nav-item" onclick="switchView('riwayat')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><circle cx="4" cy="6" r="1.5"></circle><circle cx="4" cy="12" r="1.5"></circle><circle cx="4" cy="18" r="1.5"></circle></svg>Riwayat</button>
+  </div>
 </nav>
 
 <div id="toast-container"></div>
-<script type="module" src="js/app.js?v=1.5.12"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script src="js/app.js"></script>
+<script>
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js').catch(()=>{}); }
+</script>
 </body>
 </html>
