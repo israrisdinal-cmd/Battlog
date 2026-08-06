@@ -8,6 +8,8 @@
   .map-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
 
 
+/* --- */
+
 
   :root{--bg:#0a1328;--card:#111d35;--line:#1e2d4a;--blue:#2b8cff;--green:#7dffb7}
   *{font-family:'Inter',system-ui,sans-serif;box-sizing:border-box}
@@ -55,6 +57,8 @@
   .maka-toast.show { opacity: 1; transform: translateY(0); }
 
 
+/* --- */
+
 
   html { scroll-behavior: auto !important; }
   * { -webkit-overflow-scrolling: touch; }
@@ -62,6 +66,8 @@
   .bottom-nav.keyboard-open { transform: translateY(110%) !important; }
   #view-catat { scroll-padding-bottom: 20vh; }
 
+
+/* --- */
 
 
   html { scroll-behavior: auto !important; }
