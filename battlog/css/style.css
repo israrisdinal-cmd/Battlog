@@ -1,83 +1,31 @@
 
-  #battlogMap { height: 220px; border-radius: 12px; border: 1px solid #1e2d4a; z-index: 1; background: #0d1526; }
-  .leaflet-container { background: #0d1526; font: 12px/1.5 Inter, system-ui, sans-serif; }
-  .leaflet-popup-content-wrapper { background: #111d35; color: #dbe8ff; border-radius: 10px; border: 1px solid #1e2d4a; }
-  .leaflet-popup-tip { background: #111d35; }
-  .leaflet-control-zoom a { background: #111d35 !important; color: #8aa0c6 !important; border-color: #1e2d4a !important; }
-  .map-legend { display:flex; gap:10px; margin-top:8px; font-size:10px; color:#8aa0c6; flex-wrap:wrap; }
-  .map-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
-
-
-/* --- */
-
-
-  :root{--bg:#0a1328;--card:#111d35;--line:#1e2d4a;--blue:#2b8cff;--green:#7dffb7}
-  *{font-family:'Inter',system-ui,sans-serif;box-sizing:border-box}
-  body{background:var(--bg);color:#dbe8ff;margin:0;padding-bottom: 100px;}
-  .max-w-2xl {max-width: 42rem; margin-left: auto; margin-right: auto; padding-left: 1rem; padding-right: 1rem; padding-top: 1.25rem;}
-  .flex {display: flex;}
-  .items-center {align-items: center;}
-  .justify-between {justify-content: space-between;}
-  .mb-4 {margin-bottom: 1rem;}
-  .mb-3 {margin-bottom: 0.75rem;}
-  .mb-2 {margin-bottom: 0.5rem;}
-  .mt-3 {margin-top: 0.75rem;}
-  .gap-2 {gap: 0.5rem;}
-  .gap-3 {gap: 0.75rem;}
-  .grid {display: grid;}
-  .grid-cols-2 {grid-template-columns: repeat(2, minmax(0, 1fr));}
-  .grid-cols-3 {grid-template-columns: repeat(3, minmax(0, 1fr));}
-  .w-full {width: 100%;}
-  .space-y-1 > * + * {margin-top: 0.25rem;}
-  .space-y-3 > * + * {margin-top: 0.75rem;}
-  .space-y-4 > * + * {margin-top: 1rem;}
-  .maka-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:1rem;margin-bottom:1rem;position:relative;}
-  .maka-input{background:#0f1f36;border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:#eaf2ff;width:100%;font-size:15px;transition: border-color 0.2s;}
-  .maka-input:focus{outline:none;border-color:var(--blue)}
-  .maka-label{font-size:12px;color:#8aa0c6;margin-bottom:6px;display:block;font-weight:600}
-  .btn-primary{background:linear-gradient(180deg,#2b8cff,#1a6fd8);color:#fff;font-weight:700;border-radius:14px;padding:14px;border:0;cursor:pointer;width:100%;font-size:15px;text-align:center;}
-  .btn-ghost{background:#13223d;border:1px solid var(--line);color:#a8c0e8;border-radius:14px;padding:14px;cursor:pointer;font-size:15px;}
-  .view{display:none}.view.active{display:block}
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:rgba(10,19,40,.98);backdrop-filter:blur(14px);border-top:1px solid var(--line);z-index:9999;padding-bottom:env(safe-area-inset-bottom,0)}
-  .nav-item{flex:1;text-align:center;padding:14px 6px 18px;color:#6b7fa2;font-size:11px;font-weight:600;background:none;border:0;cursor:pointer}
-  .nav-item.active{color:var(--blue)}
-  .nav-item svg{margin:0 auto 4px;display:block}
-  .calc-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px dashed rgba(125,255,183,.12);font-size:14px;color:#9ab8e6}
-  .calc-row strong{color:#eaf6ff;text-align:right}
-  .pill{background:#0f1f36;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:#8aa0c6;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
-  .pill.active{background:rgba(43,140,255,.15);color:#6fb2ff;border-color:#2b5a9a}
-  .pill-danger{background:rgba(255,77,77,0.15);border:1px solid #ff4d4d;border-radius:999px;padding:6px 12px;font-size:12px;color:#ff6b6b;cursor:pointer;border:0;}
-  .pill-maps {background: rgba(43,140,255,.2); border: 1px solid var(--blue); color: #6fb2ff; cursor: pointer;}
-  .custom-addon{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:14px;color:#6b7fa2;font-weight:600;pointer-events:none}
-  .relative {position: relative;}
-  .style-flex {flex-direction: column; justify-content: center; align-items: center;}
-  @media(min-width: 480px) { .style-flex {flex-direction: row; gap: 1rem;} }
-  #toast-container {position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000; display: flex; flex-direction: column; gap: 10px; pointer-events: none;}
-  .maka-toast {background: #ff4d4d; color: #fff; padding: 12px 24px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 15px rgba(0,0,0,0.4); opacity: 0; transform: translateY(-20px); transition: all 0.3s ease;}
-  .maka-toast.show { opacity: 1; transform: translateY(0); }
-
-
-/* --- */
-
-
-  html { scroll-behavior: auto !important; }
-  * { -webkit-overflow-scrolling: touch; }
-  .bottom-nav { transition: transform 0.2s ease; will-change: transform; }
-  .bottom-nav.keyboard-open { transform: translateY(110%) !important; }
-  #view-catat { scroll-padding-bottom: 20vh; }
-
-
-/* --- */
-
-
-  html { scroll-behavior: auto !important; }
-  body { overscroll-behavior: contain; }
-  #view-catat, #view-riwayat, #view-dasbor {
-    padding-bottom: 20px;
-    transition: padding-bottom 0.2s ease;
-  }
-  .bottom-nav.keyboard-open { transform: translateY(110%) !important; }
-  .maka-input:focus, input:focus, select:focus, textarea:focus {
-    position: relative;
-    z-index: 2;
-  }
+/* FIX V1.5.12 - Tap & Widget block */
+.bottom-nav {
+  pointer-events: auto !important;
+  z-index: 9999 !important;
+  touch-action: manipulation !important;
+}
+.bottom-nav .nav-item {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.pill, button, .nav-item {
+  touch-action: manipulation !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+/* Matikan widget hijau yang nutupin */
+div[style*="position: fixed"][style*="z-index"] {
+  max-width: 90vw !important;
+}
+#chat-widget, [id*="tawk"], [class*="floating"] {
+  pointer-events: none !important;
+}
+#chat-widget *, [id*="tawk"] * {
+  pointer-events: auto !important;
+}
+.calc-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed rgba(255,255,255,0.1); font-size:12px; }
+.maka-card { background: rgba(16,33,64,0.8); border:1px solid #1e2d4a; border-radius:16px; padding:14px; margin-bottom:12px; }
+.maka-input { width:100%; background:#0f1f36; border:1px solid #1e2d4a; border-radius:10px; padding:10px 12px; color:#eaf2ff; }
+.btn-primary { background: linear-gradient(135deg,#2b8cff,#7dffb7); color:#000; font-weight:800; padding:12px; border-radius:12px; border:none; width:100%; }
+.view { display:none; } .view.active { display:block; }
