@@ -27,15 +27,14 @@
 <meta name="theme-color" content="#0a1328">
 <link rel="icon" type="image/png" sizes="32x32" href="icon/favicon-32.png">
 <link rel="apple-touch-icon" href="icon/apple-touch-icon.png">
-<!-- External CSS -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
-<!-- External JS (must before app.js) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
+
 <body>
 
 
@@ -260,9 +259,7 @@
 
 <script src="js/app.js"></script>
 <script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').catch(()=>{});
-}
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js').catch(()=>{}); }
 </script>
 </body>
 </html>
