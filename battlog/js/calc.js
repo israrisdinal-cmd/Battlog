@@ -1,4 +1,4 @@
-// js/calc.js - Perhitungan energi & jarak
+// js/calc.js - FIX biaya 0 dan wh/km filter
 export function isSpklu(e){
   if(!e) return false;
   const t=String(e.tarif??'');
@@ -15,15 +15,17 @@ export function calcEntry(e){
   const used=Math.max(0,(Number(e.batt_awal)||0)-(Number(e.batt_akhir)||0));
   const energi_terpakai = used>0 ? (used/100)*cap : 0;
   const wh_per_km = jarak>0 && energi_terpakai>0 ? Math.round((energi_terpakai*1000)/jarak) : 0;
+
   let biaya=0;
-  if(e.biaya!=null && !isNaN(e.biaya)) biaya=Number(e.biaya);
-  else if(e.tarif!=null){
+  // FIX: biaya 0 = gratis, jangan hitung ulang
+  if(e.biaya!=='' && e.biaya!=null && !isNaN(e.biaya)){
+    biaya=Number(e.biaya);
+  } else if(e.tarif!=null && e.tarif!==''){
     const pct=Math.max(0,(Number(e.batt_setelah||100)-Number(e.batt_akhir||0)));
     biaya=(pct/100)*cap*Number(e.tarif||0);
   }
   const energi_diisi = Math.max(0,(Number(e.batt_setelah||0)-Number(e.batt_akhir||0))/100*cap);
-  const targetCas = 100;
-  return {jarak, energi_terpakai, energi_diisi, wh_per_km, biaya, targetCas};
+  return {jarak, energi_terpakai, energi_diisi, wh_per_km, biaya, targetCas:100};
 }
 
 export function hitungPrediksiAIWhKm(entries){
@@ -32,7 +34,7 @@ export function hitungPrediksiAIWhKm(entries){
     try{
       if(e.sumber==='battlog_auto_sync' || e.isSynthetic) return false;
       const c=calcEntry(e);
-      return c.wh_per_km>0 && c.wh_per_km<200;
+      return c.wh_per_km>=15 && c.wh_per_km<200; // filter 15-200 biar gak ngaco
     }catch(_){return false;}
   });
   if(!valid.length) return 0;
@@ -61,7 +63,6 @@ export function minutesToHHMM(min){
   const mm=m%60;
   return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');
 }
-
 export function getDurationInHours(start,end){
   if(!start||!end) return 0;
   const [sH,sM]=start.split(':').map(Number);
@@ -70,6 +71,6 @@ export function getDurationInHours(start,end){
   let diffMins=(eH*60+eM)-(sH*60+sM);
   if(diffMins===0) return 0;
   if(diffMins<0) diffMins+=24*60;
-  if(diffMins<0 || diffMins>720) return 0; // FIX v5.35: cap 12 jam
+  if(diffMins<0 || diffMins>720) return 0;
   return diffMins/60;
 }
