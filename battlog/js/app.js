@@ -1,6 +1,7 @@
 window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
+
 
 // --- PUSAT DATA SIGAN (Terintegrasi) ---
 const SIGAN_HUB_KEY = 'sigan_hub_data';
@@ -76,9 +77,11 @@ window.addEventListener('storage', (event) => {
     }
 });
 
-// ===== NEXT BLOCK =====
 
-// Service Worker v1.5 - robust registration
+// ===== BLOCK =====
+
+
+  // Service Worker v1.5 - robust registration
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js', { scope: './' })
@@ -93,7 +96,9 @@ window.addEventListener('storage', (event) => {
     });
   }
 
-// ===== NEXT BLOCK =====
+
+// ===== BLOCK =====
+
 
 // === MIGRASI OTOMATIS v1.0 -> v1.1 - BATTLOG & LAPKEU STANDARD ===
 (function(){
@@ -187,9 +192,11 @@ window.addEventListener('storage', (event) => {
   }catch(e){ console.log('migrasi err',e); }
 })();
 
-// ===== NEXT BLOCK =====
 
-// === MONTHLY FILTER FOR BATTLOG v1.5.11 ===
+// ===== BLOCK =====
+
+
+    // === MONTHLY FILTER FOR BATTLOG v1.5.11 ===
     function generateEkonomiPeriodButtons(){
         const container = document.getElementById('ekonomiPeriodContainer');
         if(!container) return;
@@ -252,10 +259,12 @@ window.addEventListener('storage', (event) => {
     // Generate on load
     document.addEventListener('DOMContentLoaded', generateEkonomiPeriodButtons);
     setTimeout(generateEkonomiPeriodButtons, 300);
+    
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
-(function(){
+
+    (function(){
       const KEY='battlog_ringkas_hidden';
       window.toggleRingkas=function(){
         const box=document.getElementById('ringkasBox');
@@ -295,8 +304,10 @@ window.addEventListener('storage', (event) => {
         }
       }catch(e){}
     })();
+    
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
+
 
 // === CORE FIXED MINIMAL - LAYOUT TETAP, LOGIKA DIBENERIN ===
 // === CONFIG TERPUSAT (V1.5) - ganti magic number di sini ===
@@ -1512,7 +1523,13 @@ function renderBateraiRuteBaru(){
 const _origRenderDasbor=renderDasbor; renderDasbor=function(){ _origRenderDasbor.apply(this,arguments); setTimeout(renderBateraiRuteBaru,120); };
 setTimeout(renderBateraiRuteBaru,800);
 
-// ===== NEXT BLOCK =====
+
+// ===== BLOCK =====
+
+
+
+
+
 
 (function(){
   const nav = document.querySelector('.bottom-nav');
@@ -1568,7 +1585,101 @@ setTimeout(renderBateraiRuteBaru,800);
   }
 })();
 
-// ===== NEXT BLOCK =====
+
+// ===== BLOCK =====
+
+
+function updateHeadToHeadDynamic(jarak, biayaRumah, biayaSpklu, periodeLabel){
+  try{
+    const REAL_KM_PER_L = 55.4;
+    const PERTALITE = 10000;
+    const CO2_PER_LITER = 2.3;
+    const biayaListrik = (Number(biayaRumah)||0) + (Number(biayaSpklu)||0);
+    const literBensin = jarak > 0 ? (jarak / REAL_KM_PER_L) : 0;
+    const biayaBensin = literBensin * PERTALITE;
+    const hemat = biayaBensin - biayaListrik;
+    const persenHemat = biayaBensin > 0 ? (hemat / biayaBensin * 100) : 0;
+    const co2Hemat = literBensin * CO2_PER_LITER;
+    const fmtRp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+    const el = (id) => document.getElementById(id);
+    if(el('h2h_periode_label')) el('h2h_periode_label').textContent = periodeLabel || 'Periode ini';
+    if(el('h2h_hemat_banner')){
+      if(jarak <= 0) el('h2h_hemat_banner').textContent = '🎉 Belum ada data trip di ' + (periodeLabel||'periode ini');
+      else if(hemat > 0) el('h2h_hemat_banner').textContent = '🎉 Kamu hemat ' + fmtRp(hemat) + ' di ' + (periodeLabel||'periode ini');
+      else el('h2h_hemat_banner').textContent = '⚡ Biaya listrik ' + fmtRp(biayaListrik) + ' di ' + (periodeLabel||'periode ini');
+    }
+    if(el('h2h_hemat_sub')){
+      if(jarak>0) el('h2h_hemat_sub').textContent = 'Hemat ' + Math.round(persenHemat) + '% dibanding Honda Beat • ' + literBensin.toFixed(1) + 'L • Pertalite 10k • Real 55.4 km/L';
+      else el('h2h_hemat_sub').textContent = 'Isi data trip dulu biar hematnya kehitung • Real 55.4 km/L • Pertalite 10k';
+    }
+    if(el('h2h_biaya_listrik')) el('h2h_biaya_listrik').textContent = fmtRp(biayaListrik);
+    if(el('h2h_biaya_bensin')) el('h2h_biaya_bensin').textContent = fmtRp(biayaBensin);
+    if(el('h2h_liter')) el('h2h_liter').textContent = literBensin.toFixed(1) + 'L • 55 km/L Real';
+    if(el('h2h_persen')){
+      if(persenHemat>0) el('h2h_persen').textContent = Math.round(persenHemat) + '% lebih murah';
+      else if(jarak>0) el('h2h_persen').textContent = 'Data listrik lebih mahal';
+      else el('h2h_persen').textContent = 'Menunggu data';
+    }
+    if(el('h2h_co2')) el('h2h_co2').textContent = '-' + co2Hemat.toFixed(1) + ' kg';
+    if(el('h2h_jarak')) el('h2h_jarak').textContent = Math.round(jarak) + ' km';
+    if(el('h2h_jarak_sub')) el('h2h_jarak_sub').textContent = (periodeLabel||'Periode') + ' • 55.4 km/L';
+    document.querySelectorAll('.h2h_periode_text').forEach(e=> e.textContent = (periodeLabel||'periode ini').toLowerCase());
+  }catch(e){ console.warn('H2H err', e); }
+}
+(function(){
+  const orig = window.renderDasbor;
+  if(typeof orig==='function' && !window.__h2hPatched){
+    window.renderDasbor = function(){
+      const r = orig.apply(this, arguments);
+      try{
+        let anchor=new Date(); anchor.setHours(0,0,0,0);
+        let cutoff=new Date(anchor);
+        if(typeof ekonomiPeriod!=='undefined'){
+          if(ekonomiPeriod==='harian') cutoff=new Date(anchor);
+          else if(ekonomiPeriod.includes('-')){
+            try{
+                const [y,m] = ekonomiPeriod.split('-').map(Number);
+                cutoff = new Date(y, m-1, 1); cutoff.setHours(0,0,0,0);
+                anchor = new Date(y, m, 0); anchor.setHours(0,0,0,0);
+            }catch(e){ cutoff=new Date('2000-01-01'); }
+          }
+          else if(ekonomiPeriod==='7hari') cutoff.setDate(anchor.getDate()-6);
+          else if(ekonomiPeriod==='14hari') cutoff.setDate(anchor.getDate()-13);
+          else if(ekonomiPeriod==='30hari') cutoff.setDate(anchor.getDate()-29);
+          else cutoff=new Date('2000-01-01');
+        } else cutoff=new Date('2000-01-01');
+        let jarak=0, rumah=0, spklu=0;
+        if(typeof entries!=='undefined' && typeof calcEntry==='function'){
+          entries.forEach(e=>{
+            try{
+              const d=new Date(e.tanggal); d.setHours(0,0,0,0);
+              if(typeof ekonomiPeriod!=='undefined' && ekonomiPeriod!=='all' && (d<cutoff || d>anchor)) return;
+              const c=calcEntry(e);
+              jarak+=c.jarak;
+              if(typeof isSpklu==='function' && isSpklu(e)) spklu+=c.biaya; else rumah+=c.biaya;
+            }catch(err){}
+          });
+        }
+        let label='Hari Ini';
+        if(typeof getPeriodeLabel==='function') label=getPeriodeLabel();
+        else if(typeof ekonomiPeriod!=='undefined'){
+          if(ekonomiPeriod==='harian') label='Hari Ini';
+          else if(ekonomiPeriod.includes('-')){
+            try{
+                const [y,m] = ekonomiPeriod.split('-');
+                const d = new Date(parseInt(y), parseInt(m)-1, 1);
+                label = d.toLocaleDateString('id-ID', {month: 'long', year: 'numeric'});
+                label = label.charAt(0).toUpperCase() + label.slice(1);
+            }catch(e){ label=ekonomiPeriod; }
+          }
+          else if(ekonomiPeriod==='7hari') label='7 Hari';
+          else if(ekonomiPeriod==='14hari') label='14 Hari';
+          else if(ekonomiPeriod==='30hari') label='30 Hari';
+          else label='Semua';
+        }
+        
+
+
 
 (function(){
   const nav = document.querySelector('.bottom-nav');
@@ -1665,17 +1776,15 @@ setTimeout(renderBateraiRuteBaru,800);
   });
 })();
 
-// ===== NEXT BLOCK =====
 
-function updateHeadToHeadDynamic(jarak, rumah, spklu, label);
-      }catch(e){}
-      return r;
-    };
-    window.__h2hPatched=true;
-  }
-})();
+// ===== BLOCK =====
 
-// ===== NEXT BLOCK =====
+
+// patched head-to-head removed (was broken)
+
+
+// ===== BLOCK =====
+
 
 // Chunked images - 1 file anti-freeze
 const makaChunks = [
