@@ -1,6 +1,6 @@
-// js/config.js - Konstanta & Keys (V1.5.11 SOH-FIX)
+// js/config.js - FIX V1.5.12 - Clean + Telegram safe
 export const BATTLOG_CONFIG = {
-  version: '1.5.11-sohfix',
+  version: '1.5.12-tapfix',
   defaultCapKwh: 4.0,
   defaultFactoryRangeKm: 140,
   defaultTarifRumah: 1444,
@@ -11,11 +11,11 @@ export const BATTLOG_CONFIG = {
   maxMuterPct: 0.60,
   fallbackMuterPct: 0.30,
   maxAvgKmJam: 60,
-  deepCycleMinDrop: 40, // FIX: 50->40 biar kalibrasi
+  deepCycleMinDrop: 40,
   deepCycleMinKm: 5,
   deepCycleMaxBattAfter: 40,
   deepCycleMinBattAfter: 95,
-  faktorSuhu: 1.2, // FIX: 1.8->1.2
+  faktorSuhu: 1.2,
   faktorDoD: 0.85,
 };
 
