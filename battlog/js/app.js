@@ -1,6 +1,6 @@
 window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
 // --- PUSAT DATA SIGAN (Terintegrasi) ---
@@ -78,7 +78,7 @@ window.addEventListener('storage', (event) => {
 });
 
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
   // Service Worker v1.5 - robust registration
@@ -97,7 +97,7 @@ window.addEventListener('storage', (event) => {
   }
 
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
 // === MIGRASI OTOMATIS v1.0 -> v1.1 - BATTLOG & LAPKEU STANDARD ===
@@ -193,7 +193,7 @@ window.addEventListener('storage', (event) => {
 })();
 
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
     // === MONTHLY FILTER FOR BATTLOG v1.5.11 ===
@@ -261,7 +261,7 @@ window.addEventListener('storage', (event) => {
     setTimeout(generateEkonomiPeriodButtons, 300);
     
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
     (function(){
@@ -306,7 +306,7 @@ window.addEventListener('storage', (event) => {
     })();
     
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
 // === CORE FIXED MINIMAL - LAYOUT TETAP, LOGIKA DIBENERIN ===
@@ -1524,7 +1524,7 @@ const _origRenderDasbor=renderDasbor; renderDasbor=function(){ _origRenderDasbor
 setTimeout(renderBateraiRuteBaru,800);
 
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
 
@@ -1592,7 +1592,7 @@ setTimeout(renderBateraiRuteBaru,800);
 })();
 
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
 (jarak, biayaRumah, biayaSpklu, periodeLabel){
@@ -1795,7 +1795,7 @@ setTimeout(renderBateraiRuteBaru,800);
 })();
 
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
 function updateHeadToHeadDynamic(jarak, rumah, spklu, label);
@@ -1807,7 +1807,7 @@ function updateHeadToHeadDynamic(jarak, rumah, spklu, label);
 })();
 
 
-// ===== NEXT BLOCK =====
+// ===== BLOCK =====
 
 
 // Chunked images - 1 file anti-freeze
