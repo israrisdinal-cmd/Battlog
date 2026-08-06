@@ -29,10 +29,37 @@
 <link rel="apple-touch-icon" href="icon/apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=tabfix3">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<script>
+// Auto clear SW cache if old version detected or ?clear=1
+(async function(){
+  const urlParams = new URLSearchParams(window.location.search);
+  if(urlParams.get('clear')==='1' || localStorage.getItem('battlog_force_clear')!=='v3'){
+    try{
+      if('serviceWorker' in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for(let r of regs) await r.unregister();
+      }
+      if('caches' in window){
+        const keys = await caches.keys();
+        for(let k of keys) await caches.delete(k);
+      }
+      localStorage.setItem('battlog_force_clear','v3');
+      console.log('[Battlog] Cache cleared, reloading...');
+      if(urlParams.get('clear')==='1'){
+        window.location.href = window.location.pathname;
+      } else {
+        location.reload(true);
+      }
+    }catch(e){ console.warn(e); }
+  }
+})();
+</script>
+
 </head>
 
 <body>
@@ -257,7 +284,7 @@
 
 
 
-<script src="js/app.js"></script>
+<script src="js/app.js?v=tabfix3"></script>
 <script>
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js').catch(()=>{}); }
 </script>
