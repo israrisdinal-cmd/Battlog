@@ -289,7 +289,7 @@ window.addEventListener('storage', (event) => {
 <div class="max-w-2xl">
   <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 style="font-size:20px; font-weight:800; margin:0;">Battlog <span id="battlogVersionDisplay" style="color:#7dffb7">V1.5</span></h1>
+      <h1 style="font-size:20px; font-weight:800; margin:0;">Battlog <span id="battlogVersionDisplay" style="color:#7dffb7">V1.5.1</span></h1>
       <div id="user-display" style="font-size:11px; color:#8aa0c6; font-weight:600; margin-top:2px;">User: Menghubungkan Telegram...</div>
     </div>
     <div style="display:flex;gap:8px">
@@ -599,9 +599,9 @@ window.addEventListener('storage', (event) => {
 
 <script>
 // === CORE FIXED MINIMAL - LAYOUT TETAP, LOGIKA DIBENERIN ===
-// === CONFIG TERPUSAT (V1.5) - ganti magic number di sini ===
+// === CONFIG TERPUSAT (V1.5.1) - ganti magic number di sini ===
 const BATTLOG_CONFIG = {
-  version: '1.5',
+  version: '1.5.1',
   defaultCapKwh: 4.0,
   defaultFactoryRangeKm: 115,
   defaultTarifRumah: 1444,
@@ -753,15 +753,11 @@ function hitungSoHAI(){
     if(parsial.length>=3 && isNaN(calibKm)){ const avgCap=parsial.slice(-10).reduce((a,b)=>a+b,0)/Math.min(10,parsial.length); const sohP=(avgCap/FACTORY_CAP)*100; sohFinal=sohFinal*0.4+sohP*0.6; }
     // FIX V1.5.11 SOH-FIX-SOH: SoH tidak boleh melebihi kalibrasi jika odo sudah lewat kalibrasi
     if(!isNaN(calibKm)&&!isNaN(calibSoh)){
-      if(odo>=calibKm){
-        if(sohFinal>calibSoh){ sohFinal=calibSoh-0.01; }
-      } else {
-        // odo < calibKm: SoH minimal = calibSoh (belum sampai titik kalibrasi, tidak mungkin lebih rendah)
+      if(odo>=calibKm && sohFinal>calibSoh){ sohFinal=calibSoh-0.01; }
+      if(odo<calibKm){
         if(sohFinal < calibSoh) sohFinal = calibSoh;
         if(sohFinal > 100) sohFinal = 100;
       }
-      // Safety: jika odo sudah lewat kalibrasi, SoH final tidak boleh > calibSoh
-      if(odo>=calibKm && sohFinal>calibSoh) sohFinal=calibSoh-0.01;
     }
     sohFinal=Math.min(100,Math.max(50,sohFinal)); localStorage.setItem('battlog_soh_ai',sohFinal.toFixed(2)); const elSoh=document.getElementById('stat_soh'), elProg=document.getElementById('soh_progress'), elNote=document.getElementById('soh_note'); if(elSoh&&elProg){ elSoh.textContent=sohFinal.toFixed(1)+'%'; elProg.style.width=sohFinal+'%'; if(sohFinal>=95) elSoh.style.color='#7dffb7'; else if(sohFinal>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d'; let note=`AI: Odo ${Math.round(odo)}km • Selisih ${(odo-(calibKm||0)).toFixed(0)}km dari kalib • ${avgWh.toFixed(0)}Wh/km`; if(!isNaN(calibKm)) note+=` • Kalib ${calibKm}km/${calibSoh}%`; if(elNote) elNote.textContent=note; } return sohFinal; }catch(e){ console.log('SoH AI err',e.message); return null; }
 }
@@ -1048,22 +1044,7 @@ async function saveEntry(){
   if(editId){ const i=entries.findIndex(x=>x.id===editId); if(i>=0){ if(entries[i].waktu_selesai_riil) entryData.waktu_selesai_riil=entries[i].waktu_selesai_riil; entries[i]=entryData; } editId=null; document.getElementById('saveBtn').textContent='Simpan Catatan'; document.getElementById('cancelEditBtn').style.display='none'; showToast('Catatan diperbarui!','success'); } else { entries.unshift(entryData); showToast('Catatan disimpan!','success'); }
   try{ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }catch(_){} kalibrasiSohMover();
   let jamKirim=null; if(e.charger&&e.batt_akhir<calc.targetCas){ const regex=/([\d.,]+)\s*v\s*([\d.,]+)\s*ah/i; const m=e.charger.match(regex); if(m){ const volt=Number(m[1])||0, amp=Number(m[2])||0, sisa=Math.max(0,calc.targetCas-e.batt_akhir), needWh=sisa*((e.cap_kwh*1000)/100), watt=volt*amp; if(watt>0){ let f=getCalibratedBmsFactor(e.charger)||((e.cap_kwh>=10)?1.1:(amp>10?1.4:1.15)); const h=(needWh/watt)*f; const totM=Math.round(h*60); const targetExec=Number(waktuAsli)+(totM*60*1000); const now=new Date(Number(waktuAsli)); now.setMinutes(now.getMinutes()+totM); jamKirim=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+' ke '+calc.targetCas+'%'; if(e.notif_status){ fetch(API_BASE+'/schedule-remind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:API_CHAT_ID,waktuEksekusi:targetExec,pesan:`⚡ Pengisian Baterai Selesai!\n\nPengisian dari ${e.batt_akhir}% ke ${calc.targetCas}% telah selesai Silakan cabut charger!!`,batt_akhir:e.batt_akhir,batt_setelah:calc.targetCas,jam_selesai:jamKirim})}).then(r=>r.text().then(t=>{ console.log('[NOTIF] Worker response:', t); })).catch(err=>{ console.error('[NOTIF] Gagal:', err); }); } } } }
-  resetForm(); renderAll(); switchView('riwayat');
-  // AUTO-SCROLL ke catatan terbaru di Riwayat
-  setTimeout(()=>{
-    try{
-      const view=document.getElementById('view-riwayat');
-      const list=document.getElementById('listBox');
-      if(view) view.scrollTop=0;
-      if(list){
-        list.scrollTop=0;
-        const first=list.firstElementChild;
-        if(first) first.scrollIntoView({behavior:'smooth', block:'start'});
-      }
-      window.scrollTo({top:0, behavior:'smooth'});
-      document.getElementById('app')?.scrollTo({top:0, behavior:'smooth'});
-    }catch(e){}
-  },150); 
+  resetForm(); renderAll(); switchView('dasbor'); 
   // RESTORED: apiPost ke worker /api/log
   try{ apiPost({...entryData, batt_setelah: calc.targetCas}, jamKirim).then(ok => { if(ok && e.lokasi) saveLokasiToHistory(e.lokasi); }).catch(err => console.log('Bg Sync error:', err)); }catch(err){ try{ if(e.lokasi) saveLokasiToHistory(e.lokasi); }catch(e2){} }
 }
@@ -1175,14 +1156,7 @@ function renderDasbor(){
     window._battlogAIExtra={totalIncome,totalKmEfektif,kmMuter,effRute:eff,labaBersih,labaPerKm,rpPerKwh,labaPerKwh,avgRpPerKmEfektif:avgEf,totalEnergiKwh:totalEnergi,jarak,biayaSpklu:spklu,biayaRumah:rumah,avgWhKmGlobal:avgGlobal,periode:getPeriodeLabel(),tripCount:filtered.length,cutoff:cutoff.toISOString().slice(0,10),totalKmKerja};
   }catch(err){ console.log('SiGan err',err.message); }
   const estimasiEl=document.getElementById('stat_estimasi'), noteEl=document.getElementById('estimasi_note'); if(estimasi>0){ estimasiEl.textContent=Math.round(estimasi)+' km'; noteEl.textContent='Rentang 100% → 30% berdasarkan AI Moving Weighted'; } else { estimasiEl.textContent='– km'; noteEl.textContent='Menunggu data'; }
-  try{ const hist=JSON.parse(localStorage.getItem(SOH_KEY)||'[]'); const elSoh=document.getElementById('stat_soh'), prog=document.getElementById('soh_progress'), note=document.getElementById('soh_note'); const FACTORY_SPEC=parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; const FACTORY_RANGE=parseFloat(localStorage.getItem('battlog_factory_range'))||115; const baseline=parseFloat(localStorage.getItem('battlog_soh_baseline'))||(FACTORY_RANGE/100); const isFall=localStorage.getItem('battlog_soh_baseline_is_fallback')==='1'; const totalSamples=parseInt(localStorage.getItem('battlog_soh_total_samples')||'0',10); if(hist.length>=1){ const avgKm=hist.reduce((a,b)=>a+b,0)/hist.length; const pct=(avgKm/baseline)*100; let clamped=Math.min(Math.max(pct,50),100);
-      // FIX SoH tidak boleh melebihi kalibrasi
-      try{
-        const calibKmF=parseFloat(localStorage.getItem('battlog_factory_calib_km'));
-        const calibSohF=parseFloat(localStorage.getItem('battlog_factory_calib_soh'));
-        let maxOdoF=0; entries.forEach(e=>{ const ka=parseFloat(e.km_akhir)||0; if(ka>maxOdoF) maxOdoF=ka; });
-        if(!isNaN(calibKmF)&&!isNaN(calibSohF)&&maxOdoF>=calibKmF&&clamped>calibSohF){ clamped=calibSohF-0.01; }
-      }catch(_){} const rataKwh=(avgKm*FACTORY_SPEC)/(FACTORY_RANGE/100); elSoh.textContent=clamped.toFixed(1)+'%'; prog.style.width=clamped+'%'; const sumber=isFall?'klaim pabrik, sementara':'riwayat awalmu'; note.textContent=`Deep Cycle ${totalSamples} trip | ~${rataKwh.toFixed(2)} kWh | ${avgKm.toFixed(2)} km/% (Baseline: ${baseline.toFixed(2)} km/%, ${sumber})`; if(clamped>=95) elSoh.style.color='#7dffb7'; else if(clamped>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d'; } else { elSoh.textContent='Menunggu Deep Cycle'; prog.style.width='0%'; note.textContent='Butuh 1 catatan batt_akhir ≤35% dicas 100% & jarak >10km'; } }catch(err){}
+  try{ const hist=JSON.parse(localStorage.getItem(SOH_KEY)||'[]'); const elSoh=document.getElementById('stat_soh'), prog=document.getElementById('soh_progress'), note=document.getElementById('soh_note'); const FACTORY_SPEC=parseFloat(localStorage.getItem('battlog_factory_cap'))||4.0; const FACTORY_RANGE=parseFloat(localStorage.getItem('battlog_factory_range'))||115; const baseline=parseFloat(localStorage.getItem('battlog_soh_baseline'))||(FACTORY_RANGE/100); const isFall=localStorage.getItem('battlog_soh_baseline_is_fallback')==='1'; const totalSamples=parseInt(localStorage.getItem('battlog_soh_total_samples')||'0',10); if(hist.length>=1){ const avgKm=hist.reduce((a,b)=>a+b,0)/hist.length; const pct=(avgKm/baseline)*100; const clamped=Math.min(Math.max(pct,50),100); const rataKwh=(avgKm*FACTORY_SPEC)/(FACTORY_RANGE/100); elSoh.textContent=clamped.toFixed(1)+'%'; prog.style.width=clamped+'%'; const sumber=isFall?'klaim pabrik, sementara':'riwayat awalmu'; note.textContent=`Deep Cycle ${totalSamples} trip | ~${rataKwh.toFixed(2)} kWh | ${avgKm.toFixed(2)} km/% (Baseline: ${baseline.toFixed(2)} km/%, ${sumber})`; if(clamped>=95) elSoh.style.color='#7dffb7'; else if(clamped>=85) elSoh.style.color='#2b8cff'; else elSoh.style.color='#ff4d4d'; } else { elSoh.textContent='Menunggu Deep Cycle'; prog.style.width='0%'; note.textContent='Butuh 1 catatan batt_akhir ≤35% dicas 100% & jarak >10km'; } }catch(err){}
   try{ if(typeof hitungSoHAI==='function') hitungSoHAI(); }catch(e){}
   const avgMovingFiltered=hitungPrediksiAIWhKm(filtered); drawModernDigitalCluster(Math.round(avgMovingFiltered||avgMoving)); perbaruiAIInsightDasbor(avgMovingFiltered||avgMoving,filtered);
   const minD=document.getElementById('speedo_min'), maxD=document.getElementById('speedo_max'); if(moving.length>0){ const minV=Math.round(Math.min(...moving)), maxV=Math.round(Math.max(...moving)); if(minD) minD.textContent=minV; if(maxD) maxD.textContent=maxV; } else { if(minD) minD.textContent='–'; if(maxD) maxD.textContent='–'; }
