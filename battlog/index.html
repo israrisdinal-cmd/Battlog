@@ -64,8 +64,6 @@
 
 <body>
 
-
-
 <div class="max-w-2xl">
   <header class="flex items-center justify-between mb-4">
     <div>
@@ -139,10 +137,6 @@
       <!-- Buttons generated dynamically -->
     </div>
     
-
-
-    
-    
     <div class="maka-card" id="head2head-card" style="border:1px solid rgba(125,255,183,0.25); background: linear-gradient(180deg, #0d1e2a 0%, #0b1424 100%); margin-bottom:12px; position:relative; overflow:hidden;">
       <div style="font-size:11px; font-weight:800; color:#7dffb7; letter-spacing:0.08em; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;"><span>⚔️ HEAD-TO-HEAD • HEMAT (Real 55 km/L)</span><span id="h2h_periode_label" style="font-size:10px; color:#6b7fa2; font-weight:600;">Hari Ini</span></div>
       
@@ -155,7 +149,7 @@
         <div style="background: rgba(125,255,183,0.06); border:1px solid rgba(125,255,183,0.18); border-radius:16px; padding:10px 8px; text-align:center;">
           <div style="font-size:10px; color:#7dffb7; font-weight:800;">⚡ MOTOR LISTRIK</div>
           <div style="height:82px; display:flex; align-items:center; justify-content:center; margin:6px 0;">
-            <img id="img-maka-white" src="" alt="Maka White" loading="lazy" style="max-width:100%; max-height:78px; object-fit:contain;">
+            <img id="img-maka-white" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Maka White" loading="lazy" style="max-width:100%; max-height:78px; object-fit:contain;">
           </div>
           <div style="font-size:10px; color:#8aa0c6; font-weight:600;">Listrik Baterai</div>
           <div id="h2h_biaya_listrik" style="font-size:20px; font-weight:900; color:#7dffb7; line-height:1;">Rp 0</div>
@@ -170,7 +164,7 @@
         <div style="background: rgba(255,184,107,0.06); border:1px solid rgba(255,184,107,0.18); border-radius:16px; padding:10px 8px; text-align:center;">
           <div style="font-size:10px; color:#ffb86b; font-weight:800;">⛽ MOTOR BENSIN</div>
           <div style="height:82px; display:flex; align-items:center; justify-content:center; margin:6px 0;">
-            <img id="img-beat-brown" src="" alt="Beat Brown" loading="lazy" style="max-width:100%; max-height:78px; object-fit:contain;">
+            <img id="img-beat-brown" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Beat Brown" loading="lazy" style="max-width:100%; max-height:78px; object-fit:contain;">
           </div>
           <div style="font-size:10px; color:#c49a6b; font-weight:600;">Pertalite Rp 10.000 / L</div>
           <div id="h2h_biaya_bensin" style="font-size:20px; font-weight:900; color:#ffb86b; line-height:1;">Rp 0</div>
@@ -193,8 +187,6 @@
       </div>
       <div style="margin-top:10px; font-size:8px; color:#4b5d7a; text-align:center;">*Konsumsi Beat real: 48-59 km/L • GridOto 55.4 km/L • Pertalite 10k • CO2 bensin 2.3kg/L</div>
     </div>
-
-
 
     <div class="maka-card" style="border: 1px solid var(--blue); background: linear-gradient(180deg, #0d1e36 0%, #0b1424 100%); margin-top:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -221,7 +213,10 @@
         <div><label class="maka-label">Tarif Listrik (Rp/kWh)</label><div class="flex gap-2"><select id="f_tarif_preset" class="maka-input" style="flex:1"><option value="1444">Rumah – 1.444</option><option value="2466">SPKLU – 2.466</option><option value="0">Gratis / Kantor – 0</option></select><input type="number" id="f_tarif" class="maka-input" value="1444" style="width:130px"></div></div>
         <div><label class="maka-label">Total Bayar (Rp) – kosongkan untuk auto</label><input type="number" id="f_biaya" class="maka-input" placeholder="otomatis dari tarif"></div>
         <div><label class="maka-label">Lokasi</label><div style="position:relative"><input type="text" id="f_lokasi" class="maka-input" placeholder="Rumah / SPKLU …" autocomplete="off"><div id="lokasi_suggest" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:6px;background:#0f1f36;border:1px solid #1e2d4a;border-radius:12px;z-index:50;overflow:hidden"></div></div></div>
-        <div class="relative"><label class="maka-label">Spesifikasi Charger</label><div class="grid grid-cols-2 gap-3"><div class="relative"><input type="text" inputmode="decimal" id="f_custom_v" class="maka-input" style="padding-right: 2.5rem;" placeholder="Voltase" min="0"><span class="custom-addon">V</span></div><div class="relative"><input type="text" inputmode="decimal" id="f_custom_ah" class="maka-input" style="padding-right: 3rem;" placeholder="Ampere" min="0"><span class="custom-addon">Ah</span></div></div><input type="hidden" id="f_charger" value=""><div id="charger_suggest" style="display:none; position:absolute; left:0; right:0; background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; z-index:50; overflow:hidden; margin-top:6px;"></div></div>
+        
+        <!-- FIXED: changed type="text" to type="number" with step="any" so min="0" works properly -->
+        <div class="relative"><label class="maka-label">Spesifikasi Charger</label><div class="grid grid-cols-2 gap-3"><div class="relative"><input type="number" id="f_custom_v" class="maka-input" style="padding-right: 2.5rem;" placeholder="Voltase" min="0" step="any"><span class="custom-addon">V</span></div><div class="relative"><input type="number" id="f_custom_ah" class="maka-input" style="padding-right: 3rem;" placeholder="Ampere" min="0" step="any"><span class="custom-addon">Ah</span></div></div><input type="hidden" id="f_charger" value=""><div id="charger_suggest" style="display:none; position:absolute; left:0; right:0; background:#0f1f36; border:1px solid #1e2d4a; border-radius:12px; z-index:50; overflow:hidden; margin-top:6px;"></div></div>
+        
         <div class="flex items-center gap-2" style="padding-top: 6px;"><input type="checkbox" id="f_notif_status" checked style="width:18px; height:18px; accent-color: var(--blue); cursor:pointer;"><label for="f_notif_status" style="font-size:13px; color:#9ab8e6; cursor:pointer; font-weight:600;">Kirim Notifikasi Telegram</label></div>
       </div>
       <div class="maka-card shadow-inner" style="background:#0d1f1a; border-color:rgba(125,255,183,.15); margin-bottom:0;">
@@ -254,7 +249,6 @@
       </div>
       <div class="flex items-center justify-between mt-3"><h2 style="font-weight:700; font-size:16px; margin:0;">Daftar Catatan</h2><div style="display:flex; gap:6px; align-items:center;"><button onclick="toggleRingkas()" style="background:#111d35; border:1px solid #1e2d4a; color:#8aa0c6; padding:6px 10px; border-radius:10px; font-size:11px; font-weight:700;">👁️ Ringkas</button><input id="searchBox" oninput="renderList()" placeholder="Cari catatan…" class="maka-input" style="width:140px; padding:7px 11px; font-size:12px;"></div></div>
     </div>
-    
 
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
@@ -271,18 +265,6 @@
 </nav>
 
 <div id="toast-container"></div>
-
-
-
-
-
-
-
-
-
-
-
-
 
 <script src="js/app.js?v=tabfix3"></script>
 <script>
