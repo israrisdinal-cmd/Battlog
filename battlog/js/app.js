@@ -312,7 +312,7 @@ window.addEventListener('storage', (event) => {
 // === CORE FIXED MINIMAL - LAYOUT TETAP, LOGIKA DIBENERIN ===
 // === CONFIG TERPUSAT (V1.5) - ganti magic number di sini ===
 const BATTLOG_CONFIG = {
-  version: '1.5',
+  version: '1.5.11',
   defaultCapKwh: 4.0,
   defaultFactoryRangeKm: 115,
   defaultTarifRumah: 1444,
@@ -325,7 +325,7 @@ const BATTLOG_CONFIG = {
   fallbackMuterPct: 0.30,
   maxAvgKmJam: 60,
   // SoH & efisiensi
-  deepCycleMinDrop: 50,
+  deepCycleMinDrop: 40,
   deepCycleMinKm: 10,
   deepCycleMaxBattEnd: 35,
   deepCycleMinBattAfter: 99,
