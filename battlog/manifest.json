@@ -1,23 +1,8 @@
 {
-  "name": "Battlog - E-moto Logbook",
+  "name": "Battlog E-moto Logbook",
   "short_name": "Battlog",
-  "description": "Logbook baterai motor listrik dengan AI SoH estimator",
-  "start_url": "./index.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0a1328",
-  "theme_color": "#0a1328",
-  "icons": [
-    {
-      "src": "icon/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+  "theme_color": "#0a1328"
 }
