@@ -1,9 +1,9 @@
-/* BattLog SW V1.5.4 PATCHED - FIX CACHE + TRIM + 304 - 2026-07-31
+/* BattLog SW V1.5.1 - FIX CACHE + TRIM + 304 - 2026-08-06
    FIX: HTML pakai network-first biar update keyboard langsung ke-load
    FIX: Response 304 juga di-cache
    FIX: Cache size management (max 60 items)
 */
-const CACHE_NAME = 'battlog-v1.5.4-patched-20260731';
+const CACHE_NAME = 'battlog-v1.5.1-20260806';
 const CORE_ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
