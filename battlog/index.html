@@ -1,5 +1,5 @@
 <!--
-BATTLOG v1.6.1 FIXED 2026-07-28 - Full audit & hardening by Grok
+BATTLOG v1.5.2 FIXED 2026-07-28 - Full audit & hardening by Grok
 CHANGES:
 - Version UI disamakan ke V1.5
 - DEFAULT_CHAT_ID dihapus (privasi)
@@ -128,7 +128,7 @@ window.addEventListener('storage', (event) => {
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>BattLog v1.6.1 - EV Vehicle Tracker</title>
+<title>BattLog v1.5.2 - EV Vehicle Tracker</title>
 <meta name="theme-color" content="#0a1328">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@ window.addEventListener('storage', (event) => {
       <!-- Buttons generated dynamically -->
     </div>
     <script>
-    // === MONTHLY FILTER FOR BATTLOG v1.6.11 ===
+    // === MONTHLY FILTER FOR BATTLOG v1.5.21 ===
     function generateEkonomiPeriodButtons(){
         const container = document.getElementById('ekonomiPeriodContainer');
         if(!container) return;
@@ -584,7 +584,7 @@ window.addEventListener('storage', (event) => {
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
 
-  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.6.1 Hybrid SiGan Shift+Km Real • Layout Tetap</footer>
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.2 Fixed SoH • Layout Tetap</footer>
 </div>
 
 <nav class="bottom-nav">
@@ -800,34 +800,27 @@ function parseJamMenit(str){
 }
 function getSiganOrdersWithJam(){
   let orders=[];
-  let debugKeys=[];
   try{
-    const keysToTry=['lapkeu_cross_goride','lapkeuData','siganData','gorideData','lapkeu_goride','UNIVERSAL_LAKE_V1'];
-    for(let key of keysToTry){
-      if(orders.length) break;
-      let raw=localStorage.getItem(key);
-      if(!raw) continue;
-      debugKeys.push(key+':'+raw.slice(0,30));
-      try{
-        let p=JSON.parse(raw);
-        if(Array.isArray(p) && p.length){ orders=p; break; }
-        if(p.data&&Array.isArray(p.data)&&p.data.length){ orders=p.data; break; }
-        if(p.cross&&p.cross.maka_cross_sigan_goride&&Array.isArray(p.cross.maka_cross_sigan_goride)&&p.cross.maka_cross_sigan_goride.length){ orders=p.cross.maka_cross_sigan_goride; break; }
-        if(p.sigan&&Array.isArray(p.sigan.siganData)&&p.sigan.siganData.length){ orders=p.sigan.siganData; break; }
-        if(p.cross&&Array.isArray(p.cross.siganData)&&p.cross.siganData.length){ orders=p.cross.siganData; break; }
-        if(p.cross&&p.cross.sigan_hub_data_from_sigan&&Array.isArray(p.cross.sigan_hub_data_from_sigan.siganData)){ orders=p.cross.sigan_hub_data_from_sigan.siganData; break; }
-        // if object is map of dates
-        if(typeof p==='object' && !Array.isArray(p)){
-          let vals=Object.values(p);
-          if(vals.length && Array.isArray(vals[0])){ orders=vals.flat(); break; }
-        }
-      }catch(e){ debugKeys.push(key+':parse err '+e.message); }
+    let rawFix=localStorage.getItem('lapkeu_cross_goride');
+    if(rawFix){ try{ let p=JSON.parse(rawFix); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }catch(e){} }
+    if(!orders.length){
+      let raw=localStorage.getItem('lapkeuData');
+      if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }
+    }
+    if(!orders.length){
+      let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
+      if(lakeRaw){
+        let lake=JSON.parse(lakeRaw);
+        if(lake.cross&&Array.isArray(lake.cross.maka_cross_sigan_goride) && lake.cross.maka_cross_sigan_goride.length) orders=lake.cross.maka_cross_sigan_goride;
+        else if(lake.sigan&&Array.isArray(lake.sigan.siganData) && lake.sigan.siganData.length) orders=lake.sigan.siganData;
+        else if(lake.cross&&Array.isArray(lake.cross.siganData)) orders=lake.cross.siganData;
+        else if(lake.cross&&lake.cross.sigan_hub_data_from_sigan&&Array.isArray(lake.cross.sigan_hub_data_from_sigan.siganData)) orders=lake.cross.sigan_hub_data_from_sigan.siganData;
+      }
     }
   }catch(e){ orders=[]; }
-  window._siganDebug={keys:debugKeys, count:orders.length, sample:orders.slice(0,2)};
   return orders.map(o=>{
-    const tanggal=o.tanggal||o.date||o.tgl||o.tanggal_ocr||o.created_at||'';
-    let ja=o.jam_awal||o.jam_mulai||o.waktu_mulai||o.start||o.jam_start||o.time||o.jam||null;
+    const tanggal=o.tanggal||o.date||o.tgl||o.tanggal_ocr||'';
+    let ja=o.jam_awal||o.jam_mulai||o.waktu_mulai||o.start||o.jam_start||o.time||null;
     let jk=o.jam_akhir||o.jam_selesai||o.waktu_selesai||o.end||o.jam_end||o.endTime||o.predictedEndTime||null;
     if(!ja&&jk&&String(jk).includes('-')){
       const parts=String(jk).split('-'); if(parts.length>=2){ ja=parts[0].trim(); jk=parts[1].trim(); }
@@ -835,13 +828,12 @@ function getSiganOrdersWithJam(){
     if(o.jam&&String(o.jam).includes('-')&&!ja){
       const parts=String(o.jam).split('-'); if(parts.length>=2){ ja=parts[0].trim(); jk=parts[1].trim(); }
     }
-    // jika masih null, coba parse dari o.waktu (ex: "08:00 - 09:30")
-    if(!ja && o.waktu && String(o.waktu).includes('-')){
-      const parts=String(o.waktu).split('-'); if(parts.length>=2){ ja=parts[0].trim(); jk=parts[1].trim(); }
-    }
-    let rawKm = o.km||o.jarak_km||o.jarak||o.dist||o.distance||o.km_go||0;
+    // FIX V1.5: hapus km_akhir (odometer) dari jarak trip, cap max 100km biar tidak kehitung odometer nyasar
+    let rawKm = o.km||o.jarak_km||o.jarak||o.dist||o.distance||0;
+    // cari yang masuk akal <100
     let km = Number(rawKm)||0;
     if(km>BATTLOG_CONFIG.maxTripKmFromSigan){
+      // coba cari field lain yang lebih kecil
       let candidates=[o.dist,o.jarak,o.jarak_km,o.km,o.distance].map(v=>Number(v)||0).filter(v=>v>0&&v<=100);
       km = candidates.length?candidates[0]:0;
     }
@@ -852,22 +844,27 @@ function getSiganOrdersWithJam(){
 
 
 
-
 function parseTglRobust(str){
   if(!str) return null;
   str=String(str).trim();
+  // YYYY-MM-DD
   let m=str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
   if(m){ return new Date(Number(m[1]), Number(m[2])-1, Number(m[3])); }
+  // DD-MM-YYYY or DD/MM/YYYY
   let m2=str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
   if(m2){ return new Date(Number(m2[3]), Number(m2[2])-1, Number(m2[1])); }
   let d=new Date(str);
   return isNaN(d.getTime())?null:d;
 }
-
-function hitungAvg3HariInternal(source, ordersGoride, ordersAll){
+function hitungAvgKmJamGoride(filtered){
   try{
+    let source=filtered&&filtered.length?filtered:entries;
+    let ordersGoride=getSiganOrdersWithJam(); // Goride only
+    let ordersAll=getSiganOrdersForBattlog(); // all services
     let anchor=new Date(); anchor.setHours(0,0,0,0);
     let cutoff3=new Date(anchor); cutoff3.setDate(anchor.getDate()-2);
+
+    // FIX V1.5: parsing tanggal robust YYYY-MM-DD & DD-MM-YYYY
     let gorideLast3=ordersGoride.filter(o=>{
       try{
         let d=parseTglRobust(o.tanggal); if(!d) return false;
@@ -876,6 +873,7 @@ function hitungAvg3HariInternal(source, ordersGoride, ordersAll){
       }catch(e){return false;}
     });
     if(gorideLast3.length===0 && ordersGoride.length>0){
+      // fallback ambil 3 tanggal terbaru berdasarkan tanggal asli, bukan sort string
       let uniqDates=[...new Set(ordersGoride.map(o=>o.tanggal))].filter(Boolean)
         .map(t=>({raw:t, date:parseTglRobust(t)}))
         .filter(x=>x.date)
@@ -898,40 +896,23 @@ function hitungAvg3HariInternal(source, ordersGoride, ordersAll){
       if(uniqDates.length===0) uniqDates=[...new Set(ordersAll.map(o=>o.tanggal||o.date))].sort().reverse().slice(0,3);
       allLast3=ordersAll.filter(o=>uniqDates.includes(o.tanggal||o.date));
     }
+
+    // === WAKTU EFEKTIF GORIDE (Σ jam akhir - jam awal) ===
     let totalJamGoride=0;
     let jamPerTglGoride={};
     gorideLast3.forEach(o=>{
-      let sMin=parseJamMenit(o.jam_awal);
-      let eMin=parseJamMenit(o.jam_akhir);
-      if(sMin===null||eMin===null){
-        return;
-      }
+      const sMin=parseJamMenit(o.jam_awal);
+      const eMin=parseJamMenit(o.jam_akhir);
+      if(sMin===null||eMin===null) return;
       let dur=eMin-sMin; if(dur<0) dur+=24*60; 
+      // FIX V1.5: naikkan cap 12 jam -> 18 jam (1080 menit) biar shift panjang tidak kebuang
       if(dur<=0||dur>BATTLOG_CONFIG.maxShiftDurationMin) return;
       totalJamGoride+=dur/60;
       if(!jamPerTglGoride[o.tanggal]) jamPerTglGoride[o.tanggal]=0;
       jamPerTglGoride[o.tanggal]+=dur/60;
     });
-    // FALLBACK: jika jam Goride 0, ambil dari shift (lapkeu_shift) yang real
-    if(totalJamGoride<=0.01){
-      try{
-        let shiftRaw=localStorage.getItem('lapkeu_shift');
-        if(shiftRaw){
-          let sd=JSON.parse(shiftRaw);
-          Object.keys(sd).forEach(tgl=>{
-            if(!jamPerTglGoride[tgl]){
-              let sh=sd[tgl];
-              if(sh&&sh.start&&sh.end){
-                let s=parseJamMenit(sh.start), e=parseJamMenit(sh.end);
-                if(s!==null&&e!==null){ let d=e-s; if(d<0) d+=1440; let h=d/60; if(h>0&&h<=18){ totalJamGoride+=h; jamPerTglGoride[tgl]=h; } }
-              }
-            }
-          });
-        }
-      }catch(e){}
-    }
-    // TIDAK pakai estimasi km/20 - kalau jam kosong, biarin 0, nanti fallback ke data lama yang ada
-    
+
+    // === WAKTU ONLINE TOTAL (semua layanan) 3 hari ===
     let totalJamOnline=0;
     allLast3.forEach(o=>{
       const sMin=parseJamMenit(o.jam_awal);
@@ -941,6 +922,7 @@ function hitungAvg3HariInternal(source, ordersGoride, ordersAll){
       if(dur<=0||dur>BATTLOG_CONFIG.maxShiftDurationMin) return;
       totalJamOnline+=dur/60;
     });
+    // fallback online dari shift
     if(totalJamOnline<=0.01){
       try{
         let shiftRaw=localStorage.getItem('lapkeu_shift');
@@ -956,198 +938,83 @@ function hitungAvg3HariInternal(source, ordersGoride, ordersAll){
         }
       }catch(e){}
     }
+    // FIX V1.5: jika hanya Goride, online = goride (ratio 1), bukan *1.5
     if(totalJamOnline<=0.01) totalJamOnline = totalJamGoride>0? totalJamGoride : 0;
+
+    // === KM SESI BATTLOG di tanggal yang ada Goride ===
     let evPerTgl={};
     source.forEach(e=>{ if(!e.tanggal) return; if(!evPerTgl[e.tanggal]) evPerTgl[e.tanggal]=[]; evPerTgl[e.tanggal].push(e); });
     let commonDates=Object.keys(jamPerTglGoride);
     if(commonDates.length===0) commonDates=Object.keys(evPerTgl).sort().reverse().slice(0,3);
+
     let totalSesiKm=0;
     commonDates.forEach(tgl=>{
       (evPerTgl[tgl]||[]).forEach(ev=>{ try{ totalSesiKm+=calcEntry(ev).jarak||0; }catch(e){} });
     });
+
+    // Total km Gojek Goride 3 hari
     let totalKmGojekGoride=0;
     gorideLast3.forEach(o=>{ 
       let k=Number(o.km||0);
-      if(k>0 && k<=100) totalKmGojekGoride+=k;
+      if(k>0 && k<=100) totalKmGojekGoride+=k; // FIX: filter km wajar
     });
+
+    // Total km semua Lapkeu 3 hari (untuk hitung muter %)
     let totalKmAllLapkeu=0;
     allLast3.forEach(o=>{ 
       let k=Number(o.km||o.jarak_km||0);
       if(k>0 && k<=100) totalKmAllLapkeu+=k;
     });
+
     let avgMuterPct=0;
     if(totalSesiKm>0 && totalKmAllLapkeu>0){
       avgMuterPct=(totalSesiKm-totalKmAllLapkeu)/totalSesiKm;
       if(avgMuterPct<0) avgMuterPct=0;
-      if(avgMuterPct>BATTLOG_CONFIG.maxMuterPct) avgMuterPct=BATTLOG_CONFIG.fallbackMuterPct;
+      if(avgMuterPct>BATTLOG_CONFIG.maxMuterPct) avgMuterPct=BATTLOG_CONFIG.fallbackMuterPct; // FIX V1.5: cap 60% dan fallback dinamis 30% bukan 40.7% magic
     } else {
-      avgMuterPct=BATTLOG_CONFIG.defaultMuterPct;
+      avgMuterPct=BATTLOG_CONFIG.defaultMuterPct; // dari CONFIG
     }
+
+    // === 2 CARA HITUNG KM REAL GORIDE ===
     let kmGorideRealProp=0;
     if(totalSesiKm>0 && totalJamOnline>0 && totalJamGoride>0){
       kmGorideRealProp=totalSesiKm * (totalJamGoride/totalJamOnline);
     }
     let kmGorideRealMurni=totalKmGojekGoride * (1+avgMuterPct);
+
+    // FIX V1.5: ambil max prop vs murni, jangan lebih kecil dari tagihan
     let kmFinal=0;
     if(kmGorideRealProp>0 && kmGorideRealMurni>0) kmFinal=Math.max(kmGorideRealProp, kmGorideRealMurni);
     else kmFinal=kmGorideRealProp>0?kmGorideRealProp:kmGorideRealMurni;
     if(kmFinal < totalKmGojekGoride) kmFinal=kmGorideRealMurni;
+
     let avg=totalJamGoride>0?kmFinal/totalJamGoride:0;
     avg=Math.min(Math.max(avg,0),60);
     if(avg<=0.01 && kmFinal>0) avg=25;
-    return {avg, totalKmMasuk:kmFinal, totalJam:totalJamGoride, jamPerTgl:jamPerTglGoride, commonDates, avgMuterPct, totalSesiKm, totalKmGojekGoride};
-  }catch(e){ return {avg:0,totalKmMasuk:0,totalJam:0,jamPerTgl:{},commonDates:[],avgMuterPct:0.25,totalSesiKm:0,totalKmGojekGoride:0}; }
-}
 
-function hitungAvgKmJamGoride(filtered){
-  try{
-    let source=filtered&&filtered.length?filtered:entries;
-    let anchor=new Date(); anchor.setHours(0,0,0,0);
-    
-    function getShiftMap(){
-      try{
-        let raw=localStorage.getItem('lapkeu_shift');
-        if(!raw) return {};
-        let sd=JSON.parse(raw);
-        let map={};
-        Object.keys(sd).forEach(tgl=>{
-          let sh=sd[tgl];
-          if(!sh||!sh.start||!sh.end) return;
-          let s=parseJamMenit(sh.start), e=parseJamMenit(sh.end);
-          if(s===null||e===null) return;
-          let d=e-s; if(d<0) d+=1440;
-          let h=d/60;
-          if(h>0&&h<=18) map[tgl]=h;
-        });
-        return map;
-      }catch(e){ return {}; }
-    }
-    
-    function getSiganKmPerDate(){
-      // ambil dari ordersGoride atau ordersAll
-      let orders=getSiganOrdersWithJam();
-      if(!orders.length) orders=getSiganOrdersForBattlog();
-      let perDate={};
-      orders.forEach(o=>{
-        let t=o.tanggal||o.date||'';
-        if(!t) return;
-        let k=Number(o.km||o.jarak_km||0);
-        if(k<=0||k>100) return;
-        if(!perDate[t]) perDate[t]=0;
-        perDate[t]+=k;
-      });
-      return perDate;
-    }
-    
-    let shiftMap=getShiftMap();
-    let kmMap=getSiganKmPerDate();
-    
-    window._siganShiftMap=shiftMap;
-    window._siganKmMap=kmMap;
-    
-    // gabung tanggal yang ada shift dan km
-    let allDates=Array.from(new Set([...Object.keys(shiftMap), ...Object.keys(kmMap)])).filter(Boolean)
-      .map(t=>({raw:t, date:parseTglRobust(t)}))
-      .filter(x=>x.date)
-      .sort((a,b)=>b.date-a.date);
-    
-    // hitung avg per tanggal: km Sigan / jam Shift (REAL, bukan ngarang, tidak pakai BattLog tanggal cas)
-    let dailyAvgs=allDates.map(x=>{
-      let tgl=x.raw;
-      let jam=shiftMap[tgl]||0;
-      let km=kmMap[tgl]||0;
-      // jika km 0 tapi shift ada, coba ambil dari battlog jarak di tanggal itu? TIDAK, user bilang tidak akurat, jadi skip
-      if(jam<=0.2||km<=0.5) return null;
-      let avg=km/jam;
-      if(avg<=0||avg>60) return null;
-      return {tgl, date:x.date, jam, km, avg};
-    }).filter(Boolean);
-    
-    // 1. RECENT 3 HARI TERAKHIR
-    let cutoff3=new Date(anchor); cutoff3.setDate(anchor.getDate()-2);
-    let recentList=dailyAvgs.filter(x=>{ let d=new Date(x.date); d.setHours(0,0,0,0); return d>=cutoff3 && d<=anchor; });
-    if(recentList.length===0){
-      // jika 3 hari kosong, ambil 3 tanggal terbaru yang ada
-      recentList=dailyAvgs.slice(0,3);
-    }
-    let recentAvg=recentList.length? recentList.reduce((a,b)=>a+b.avg,0)/recentList.length : 0;
-    
-    // 2. SAME WEEKDAY 2 BULAN (120 hari) - sesuai request: kalau ada 1 Selasa pakai itu
-    let targetDay=anchor.getDay();
-    let cutoff120=new Date(anchor); cutoff120.setDate(anchor.getDate()-120);
-    let sameDayList=dailyAvgs.filter(x=>{
-      let d=new Date(x.date); d.setHours(0,0,0,0);
-      return d>=cutoff120 && d<=anchor && d.getDay()===targetDay;
+    window._avgDebug={totalJamGoride, totalJamOnline, totalSesiKm, totalKmGojekGoride, totalKmAllLapkeu, kmGorideRealProp, kmGorideRealMurni, kmFinal, avg, commonDates, avgMuterPct};
+
+    let detail=commonDates.map(tgl=>{
+      let sesiKm=(evPerTgl[tgl]||[]).reduce((a,ev)=>{ try{return a+(calcEntry(ev).jarak||0);}catch(e){return a;}},0);
+      return {tgl, jarak:sesiKm, jam:jamPerTglGoride[tgl]||0, mode:'PROP'};
     });
-    if(sameDayList.length===0){
-      let cutoff365=new Date(anchor); cutoff365.setDate(anchor.getDate()-365);
-      sameDayList=dailyAvgs.filter(x=>{
-        let d=new Date(x.date); d.setHours(0,0,0,0);
-        return d>=cutoff365 && d<=anchor && d.getDay()===targetDay;
-      });
-    }
-    // weighted 0.85 decay
-    let weightedSum=0, weightTotal=0;
-    sameDayList.sort((a,b)=>b.date-a.date);
-    sameDayList.slice(0,8).forEach((item, idx)=>{
-      let w=Math.pow(BATTLOG_CONFIG.sameDayDecay, idx);
-      weightedSum+=item.avg*w;
-      weightTotal+=w;
-    });
-    let avgSameDay=weightTotal>0?weightedSum/weightTotal:0;
-    
-    // 3. HYBRID FINAL - HANYA DATA REAL SIGAN (shift+km), TIDAK PAKAI BATTLOG TANGGAL CAS
-    let finalAvg=0;
-    let wSame=BATTLOG_CONFIG.hybridWeightSameDay, wRecent=BATTLOG_CONFIG.hybridWeightRecent;
-    if(avgSameDay>0 && recentAvg>0){
-      finalAvg=avgSameDay*wSame + recentAvg*wRecent;
-    } else if(avgSameDay>0){
-      finalAvg=avgSameDay;
-    } else if(recentAvg>0){
-      finalAvg=recentAvg;
-    } else if(dailyAvgs.length>0){
-      // fallback: rata-rata 30 hari terakhir any day
-      let cutoff30=new Date(anchor); cutoff30.setDate(anchor.getDate()-30);
-      let last30=dailyAvgs.filter(x=>{ let d=new Date(x.date); d.setHours(0,0,0,0); return d>=cutoff30 && d<=anchor; });
-      if(last30.length>0) finalAvg=last30.reduce((a,b)=>a+b.avg,0)/last30.length;
-      else finalAvg=dailyAvgs.slice(0,10).reduce((a,b)=>a+b.avg,0)/Math.min(10,dailyAvgs.length);
-    }
-    finalAvg=Math.min(Math.max(finalAvg,0),60);
-    
-    let isEmpty=finalAvg<=0.01;
-    window._avgDebug={
-      shiftMap, kmMap, dailyAvgs, recentList, sameDayList,
-      recentAvg, avgSameDay, finalAvg,
-      siganCount: getSiganOrdersWithJam().length,
-      allCount: getSiganOrdersForBattlog().length
-    };
-    
-    let labelSame=sameDayList.slice(0,8).map(d=>d.tgl.slice(5)+'='+d.avg.toFixed(1)).join(', ')||'no same-day';
-    let labelRecent=recentList.map(d=>d.tgl.slice(5)+'='+d.avg.toFixed(1)).join(', ')||'no recent';
-    
-    let labelFinal = isEmpty ?
-      'HYBRID V1.6.1: NO DATA | shiftKeys='+Object.keys(shiftMap).length+' kmKeys='+Object.keys(kmMap).length+' | cek _avgDebug' :
-      'HYBRID V1.6.1: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recentAvg.toFixed(1) + ' ['+labelRecent+'] | SameDay(70%)=' + avgSameDay.toFixed(1) + ' ['+labelSame+']';
-    
+
     return {
-      avg: finalAvg,
-      totalKmMasuk: recentList.reduce((a,b)=>a+b.km,0),
-      totalJam: recentList.reduce((a,b)=>a+b.jam,0),
-      isFresh: !isEmpty,
-      usedDateLabel: labelFinal,
-      detail: recentList.map(x=>({tgl:x.tgl, jarak:x.km, jam:x.jam, mode:'SIGAN'})),
-      jamPerTgl: {},
-      is3Hari: false,
-      isHybrid: true,
-      isEmpty: isEmpty,
-      extra: {recentAvg, avgSameDay, dailyAvgs}
+      avg, 
+      totalKmMasuk:kmFinal, 
+      totalJam:totalJamGoride, 
+      isFresh:true, 
+      usedDateLabel: commonDates.join(', ')+' (V1.5 FIX: '+kmFinal.toFixed(1)+' km / '+totalJamGoride.toFixed(2)+' jam, muter '+(avgMuterPct*100).toFixed(1)+'%)',
+      detail, 
+      jamPerTgl:jamPerTglGoride, 
+      is3Hari:true, 
+      isStrict:true,
+      extra:{totalJamGoride, totalJamOnline, totalSesiKm, totalKmGojekGoride, kmGorideRealProp, kmGorideRealMurni, avgMuterPct}
     };
-  }catch(e){ console.log('AVG V1.6.1 err',e.message, e.stack); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'err '+e.message,detail:[]}; }
+  }catch(e){ console.log('AVG baru err',e.message, e.stack); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
 }
-
 
 function hitungPrediksiAIKmJamFixed(filtered){ return hitungAvgKmJamGoride(filtered); }
-
 
 
 
@@ -1329,9 +1196,9 @@ function renderDasbor(){
     if(el){
       el.textContent=res.avg>0?res.avg.toFixed(1):'–';
       el.style.color=res.isFresh?'#7dffb7':'#ff8a80';
-      let tip=`Hybrid GoRide: ${res.totalKmMasuk?res.totalKmMasuk.toFixed(1):0} km / ${res.totalJam?res.totalJam.toFixed(2):0} jam`;
+      let tip=`3 Hari GoRide: ${res.totalKmMasuk?res.totalKmMasuk.toFixed(1):0} km / ${res.totalJam?res.totalJam.toFixed(2):0} jam`;
       tip+=`\n${res.isFresh?'✅ Data 3 hari terupdate':'⚠️ Pakai data '+res.usedDateLabel} - ${res.isFresh?'hijau':'merah'}`;
-      tip+=`\nHybrid: 70% SameDay (8x weekday) + 30% Recent (3 hari)`;
+      tip+=`\nDianggap gambaran keseluruhan 3 hari`;
       if(res.detail&&res.detail.length){ tip+=`\nDetail: ${res.detail.slice(0,3).map(d=>d.tgl+':'+(d.jarak||0)+'km').join(', ')}`; }
       el.title=tip;
       if(parent){
@@ -1346,10 +1213,10 @@ function renderDasbor(){
         el.parentNode.appendChild(badge);
       }
       if(badge){
-        badge.textContent=res.isHybrid?'● HYBRID':(res.isFresh?'● 3 HARI':'● '+res.usedDateLabel.slice(0,10));
+        badge.textContent=res.isFresh?'● 3 HARI':'● '+res.usedDateLabel.slice(0,10);
         badge.style.background=res.isFresh?'rgba(125,255,183,0.15)':'rgba(255,77,77,0.15)';
         badge.style.color=res.isFresh?'#7dffb7':'#ff8a80';
-        badge.title=res.isHybrid?res.usedDateLabel:(res.isFresh?'Data GoRide 3 hari terakhir':'Pakai data '+res.usedDateLabel);
+        badge.title=res.isFresh?'Data GoRide 3 hari terakhir':'Pakai data '+res.usedDateLabel;
       }
     }
     // simpan ke hub untuk SiGan
