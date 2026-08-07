@@ -1,5 +1,5 @@
 <!--
-BATTLOG v1.5.9 FIXED 2026-07-28 - Full audit & hardening by Grok
+BATTLOG v1.6.1 FIXED 2026-07-28 - Full audit & hardening by Grok
 CHANGES:
 - Version UI disamakan ke V1.5
 - DEFAULT_CHAT_ID dihapus (privasi)
@@ -128,7 +128,7 @@ window.addEventListener('storage', (event) => {
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>BattLog v1.5.9 - EV Vehicle Tracker</title>
+<title>BattLog v1.6.1 - EV Vehicle Tracker</title>
 <meta name="theme-color" content="#0a1328">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@ window.addEventListener('storage', (event) => {
       <!-- Buttons generated dynamically -->
     </div>
     <script>
-    // === MONTHLY FILTER FOR BATTLOG v1.5.91 ===
+    // === MONTHLY FILTER FOR BATTLOG v1.6.11 ===
     function generateEkonomiPeriodButtons(){
         const container = document.getElementById('ekonomiPeriodContainer');
         if(!container) return;
@@ -584,7 +584,7 @@ window.addEventListener('storage', (event) => {
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
 
-  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.9 Hybrid Real + Shift Fallback • Layout Tetap</footer>
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.6.1 Hybrid SiGan Shift+Km Real • Layout Tetap</footer>
 </div>
 
 <nav class="bottom-nav">
@@ -1002,164 +1002,149 @@ function hitungAvg3HariInternal(source, ordersGoride, ordersAll){
 function hitungAvgKmJamGoride(filtered){
   try{
     let source=filtered&&filtered.length?filtered:entries;
-    let ordersGoride=getSiganOrdersWithJam();
-    let ordersAll=getSiganOrdersForBattlog();
     let anchor=new Date(); anchor.setHours(0,0,0,0);
     
-    // 1. AVG 3 HARI TERAKHIR (recent) 30% - jika Goride kosong pakai All
-    let effectiveGoride = ordersGoride.length>0 ? ordersGoride : ordersAll;
-    let recent=hitungAvg3HariInternal(source, effectiveGoride, ordersAll);
-    
-    // 2. AVG SAME WEEKDAY 2 BULAN (seasonal) 70% - PURE REAL DATA
-    // Kalau hari ini Kamis kosong, cari Kamis-Kamis lama sampai 120 hari ke belakang
-    let targetDay=anchor.getDay();
-    let lookbackLong=120;
-    let cutoffSameLong=new Date(anchor); cutoffSameLong.setDate(anchor.getDate()-lookbackLong);
-    
-    // include today juga (d <= anchor), bukan < anchor
-    let sameDayOrders=ordersGoride.filter(o=>{
+    function getShiftMap(){
       try{
-        let d=parseTglRobust(o.tanggal); if(!d) return false;
-        d.setHours(0,0,0,0);
-        return d>=cutoffSameLong && d<=anchor && d.getDay()===targetDay;
-      }catch(e){return false;}
-    });
-    if(sameDayOrders.length===0){
-      let cutoff1y=new Date(anchor); cutoff1y.setDate(anchor.getDate()-365);
-      sameDayOrders=ordersGoride.filter(o=>{
-        try{ let d=parseTglRobust(o.tanggal); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoff1y && d<=anchor && d.getDay()===targetDay; }catch(e){return false;}
-      });
+        let raw=localStorage.getItem('lapkeu_shift');
+        if(!raw) return {};
+        let sd=JSON.parse(raw);
+        let map={};
+        Object.keys(sd).forEach(tgl=>{
+          let sh=sd[tgl];
+          if(!sh||!sh.start||!sh.end) return;
+          let s=parseJamMenit(sh.start), e=parseJamMenit(sh.end);
+          if(s===null||e===null) return;
+          let d=e-s; if(d<0) d+=1440;
+          let h=d/60;
+          if(h>0&&h<=18) map[tgl]=h;
+        });
+        return map;
+      }catch(e){ return {}; }
     }
-    // jika Goride kosong, pakai semua layanan (GoFood/Grab) sebagai fallback real
-    if(sameDayOrders.length===0 && ordersAll.length>0){
-      sameDayOrders=ordersAll.filter(o=>{
-        try{ let d=parseTglRobust(o.tanggal||o.date); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoffSameLong && d<=anchor && d.getDay()===targetDay; }catch(e){return false;}
-      });
-    }
-    let sameDayByDate={};
-    sameDayOrders.forEach(o=>{
-      if(!sameDayByDate[o.tanggal]) sameDayByDate[o.tanggal]=[];
-      sameDayByDate[o.tanggal].push(o);
-    });
-    let sameDayList=Object.keys(sameDayByDate).map(tgl=>{
-      let list=sameDayByDate[tgl];
-      let totalJam=0, totalKm=0;
-      list.forEach(o=>{
-        let s=parseJamMenit(o.jam_awal), e=parseJamMenit(o.jam_akhir);
-        if(s===null||e===null) return;
-        let dur=e-s; if(dur<0) dur+=1440; if(dur<=0||dur>1080) return;
-        totalJam+=dur/60;
-        let k=Number(o.km||0); if(k>0&&k<=100) totalKm+=k;
-      });
-      // fallback shift real untuk tanggal itu
-      if(totalJam<=0.01){
-        try{
-          let shiftRaw=localStorage.getItem('lapkeu_shift');
-          if(shiftRaw){
-            let sd=JSON.parse(shiftRaw);
-            let sh=sd[tgl];
-            if(sh&&sh.start&&sh.end){
-              let s=parseJamMenit(sh.start), e=parseJamMenit(sh.end);
-              if(s!==null&&e!==null){ let d=e-s; if(d<0) d+=1440; totalJam=d/60; }
-            }
-          }
-        }catch(e){}
-      }
-      if(totalJam<=0.01) return null;
-      let evKm=0;
-      (source.filter(ev=>ev.tanggal===tgl)).forEach(ev=>{ try{evKm+=calcEntry(ev).jarak||0;}catch(e){} });
-      let muterPct=0.25;
-      if(evKm>0&&totalKm>0){ muterPct=(evKm-totalKm)/evKm; if(muterPct<0) muterPct=0; if(muterPct>0.6) muterPct=0.3; }
-      let kmFinal=totalKm*(1+muterPct);
-      let avg=totalJam>0?kmFinal/totalJam:0;
-      let d=parseTglRobust(tgl);
-      return {tgl, date:d, totalJam, totalKm:kmFinal, avg};
-    }).filter(x=>x&&x.avg>0&&x.totalJam>0.2).sort((a,b)=>b.date-a.date).slice(0,8);
     
-    let weightedSum=0, weightTotal=0, detailSame=[];
-    sameDayList.forEach((item, idx)=>{
+    function getSiganKmPerDate(){
+      // ambil dari ordersGoride atau ordersAll
+      let orders=getSiganOrdersWithJam();
+      if(!orders.length) orders=getSiganOrdersForBattlog();
+      let perDate={};
+      orders.forEach(o=>{
+        let t=o.tanggal||o.date||'';
+        if(!t) return;
+        let k=Number(o.km||o.jarak_km||0);
+        if(k<=0||k>100) return;
+        if(!perDate[t]) perDate[t]=0;
+        perDate[t]+=k;
+      });
+      return perDate;
+    }
+    
+    let shiftMap=getShiftMap();
+    let kmMap=getSiganKmPerDate();
+    
+    window._siganShiftMap=shiftMap;
+    window._siganKmMap=kmMap;
+    
+    // gabung tanggal yang ada shift dan km
+    let allDates=Array.from(new Set([...Object.keys(shiftMap), ...Object.keys(kmMap)])).filter(Boolean)
+      .map(t=>({raw:t, date:parseTglRobust(t)}))
+      .filter(x=>x.date)
+      .sort((a,b)=>b.date-a.date);
+    
+    // hitung avg per tanggal: km Sigan / jam Shift (REAL, bukan ngarang, tidak pakai BattLog tanggal cas)
+    let dailyAvgs=allDates.map(x=>{
+      let tgl=x.raw;
+      let jam=shiftMap[tgl]||0;
+      let km=kmMap[tgl]||0;
+      // jika km 0 tapi shift ada, coba ambil dari battlog jarak di tanggal itu? TIDAK, user bilang tidak akurat, jadi skip
+      if(jam<=0.2||km<=0.5) return null;
+      let avg=km/jam;
+      if(avg<=0||avg>60) return null;
+      return {tgl, date:x.date, jam, km, avg};
+    }).filter(Boolean);
+    
+    // 1. RECENT 3 HARI TERAKHIR
+    let cutoff3=new Date(anchor); cutoff3.setDate(anchor.getDate()-2);
+    let recentList=dailyAvgs.filter(x=>{ let d=new Date(x.date); d.setHours(0,0,0,0); return d>=cutoff3 && d<=anchor; });
+    if(recentList.length===0){
+      // jika 3 hari kosong, ambil 3 tanggal terbaru yang ada
+      recentList=dailyAvgs.slice(0,3);
+    }
+    let recentAvg=recentList.length? recentList.reduce((a,b)=>a+b.avg,0)/recentList.length : 0;
+    
+    // 2. SAME WEEKDAY 2 BULAN (120 hari) - sesuai request: kalau ada 1 Selasa pakai itu
+    let targetDay=anchor.getDay();
+    let cutoff120=new Date(anchor); cutoff120.setDate(anchor.getDate()-120);
+    let sameDayList=dailyAvgs.filter(x=>{
+      let d=new Date(x.date); d.setHours(0,0,0,0);
+      return d>=cutoff120 && d<=anchor && d.getDay()===targetDay;
+    });
+    if(sameDayList.length===0){
+      let cutoff365=new Date(anchor); cutoff365.setDate(anchor.getDate()-365);
+      sameDayList=dailyAvgs.filter(x=>{
+        let d=new Date(x.date); d.setHours(0,0,0,0);
+        return d>=cutoff365 && d<=anchor && d.getDay()===targetDay;
+      });
+    }
+    // weighted 0.85 decay
+    let weightedSum=0, weightTotal=0;
+    sameDayList.sort((a,b)=>b.date-a.date);
+    sameDayList.slice(0,8).forEach((item, idx)=>{
       let w=Math.pow(BATTLOG_CONFIG.sameDayDecay, idx);
       weightedSum+=item.avg*w;
       weightTotal+=w;
-      detailSame.push({...item, weight:w});
     });
     let avgSameDay=weightTotal>0?weightedSum/weightTotal:0;
     
-    // 3. HYBRID FINAL - HANYA DATA REAL
+    // 3. HYBRID FINAL - HANYA DATA REAL SIGAN (shift+km), TIDAK PAKAI BATTLOG TANGGAL CAS
     let finalAvg=0;
     let wSame=BATTLOG_CONFIG.hybridWeightSameDay, wRecent=BATTLOG_CONFIG.hybridWeightRecent;
-    if(avgSameDay>0 && recent.avg>0){
-      finalAvg=avgSameDay*wSame + recent.avg*wRecent;
+    if(avgSameDay>0 && recentAvg>0){
+      finalAvg=avgSameDay*wSame + recentAvg*wRecent;
     } else if(avgSameDay>0){
-      // data recent kosong, pakai 1 hari Selasa lama yang ada
       finalAvg=avgSameDay;
-    } else if(recent.avg>0){
-      finalAvg=recent.avg;
-    } else {
-      // kalau keduanya kosong, cari ANY day dalam 90 hari terakhir (real data)
-      let cutoffAny=new Date(anchor); cutoffAny.setDate(anchor.getDate()-90);
-      let anyOrders=(ordersGoride.length>0?ordersGoride:ordersAll).filter(o=>{
-        try{ let d=parseTglRobust(o.tanggal||o.date); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoffAny && d<=anchor; }catch(e){return false;}
-      });
-      if(anyOrders.length>0){
-        // group per tanggal dan hitung avg real
-        let byDate={};
-        anyOrders.forEach(o=>{ if(!byDate[o.tanggal]) byDate[o.tanggal]=[]; byDate[o.tanggal].push(o); });
-        let avgs=[];
-        Object.keys(byDate).forEach(tgl=>{
-          let list=byDate[tgl]; let jam=0, km=0;
-          list.forEach(o=>{ let s=parseJamMenit(o.jam_awal), e=parseJamMenit(o.jam_akhir); if(s===null||e===null) return; let d=e-s; if(d<0) d+=1440; if(d<=0||d>1080) return; jam+=d/60; let k=Number(o.km||0); if(k>0&&k<=100) km+=k; });
-          if(jam>0&&km>0) avgs.push(km/jam);
-        });
-        if(avgs.length>0) finalAvg=avgs.reduce((a,b)=>a+b,0)/avgs.length;
-      }
+    } else if(recentAvg>0){
+      finalAvg=recentAvg;
+    } else if(dailyAvgs.length>0){
+      // fallback: rata-rata 30 hari terakhir any day
+      let cutoff30=new Date(anchor); cutoff30.setDate(anchor.getDate()-30);
+      let last30=dailyAvgs.filter(x=>{ let d=new Date(x.date); d.setHours(0,0,0,0); return d>=cutoff30 && d<=anchor; });
+      if(last30.length>0) finalAvg=last30.reduce((a,b)=>a+b.avg,0)/last30.length;
+      else finalAvg=dailyAvgs.slice(0,10).reduce((a,b)=>a+b.avg,0)/Math.min(10,dailyAvgs.length);
     }
     finalAvg=Math.min(Math.max(finalAvg,0),60);
-    // TIDAK ada default 20, biarin 0 kalau memang tidak ada data sama sekali (akurat)
     
-    
+    let isEmpty=finalAvg<=0.01;
     window._avgDebug={
-      recent, sameDayList:detailSame, avgSameDay, finalAvg,
-      totalJamGoride:recent.totalJam, totalKmMasuk:recent.totalKmMasuk,
-      commonDates:recent.commonDates, avgMuterPct:recent.avgMuterPct
+      shiftMap, kmMap, dailyAvgs, recentList, sameDayList,
+      recentAvg, avgSameDay, finalAvg,
+      siganCount: getSiganOrdersWithJam().length,
+      allCount: getSiganOrdersForBattlog().length
     };
     
-    let detail=recent.commonDates.map(tgl=>{
-      let sesiKm=(source.filter(ev=>ev.tanggal===tgl)).reduce((a,ev)=>{ try{return a+(calcEntry(ev).jarak||0);}catch(e){return a;}},0);
-      return {tgl, jarak:sesiKm, jam:recent.jamPerTgl[tgl]||0, mode:'HYBRID'};
-    });
+    let labelSame=sameDayList.slice(0,8).map(d=>d.tgl.slice(5)+'='+d.avg.toFixed(1)).join(', ')||'no same-day';
+    let labelRecent=recentList.map(d=>d.tgl.slice(5)+'='+d.avg.toFixed(1)).join(', ')||'no recent';
     
-    let labelSame=detailSame.length?detailSame.map(d=>d.tgl.slice(5)+'='+d.avg.toFixed(1)).join(', '):'no same-day';
-    let labelRecent=recent.commonDates.length?recent.commonDates.join(', ')+'='+recent.avg.toFixed(1):'no recent';
-    
-    let isEmpty = finalAvg<=0.01;
-    // jika kosong, coba pakai last saved AVG dari localStorage biar tidak "-"
-    if(isEmpty){
-      try{
-        let saved=localStorage.getItem('battlog_avg_km_jam_go');
-        if(saved){ let p=JSON.parse(saved); if(p.avg_km_jam_go>0) { finalAvg=p.avg_km_jam_go; } }
-      }catch(e){}
-    }
-    // label jujur kalau kosong
-    let labelFinal = isEmpty ? 
-      'HYBRID V1.5.9: NO DATA | ordersGoride='+(ordersGoride.length||0)+' sample='+(window._siganDebug&&window._siganDebug.sample?JSON.stringify(window._siganDebug.sample).slice(0,100):'') + ' | cek console _siganDebug' :
-      'HYBRID V1.5.9: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recent.avg.toFixed(1) + ' | SameDay(70%,8x)=' + avgSameDay.toFixed(1) + ' | ' + labelSame;
+    let labelFinal = isEmpty ?
+      'HYBRID V1.6.1: NO DATA | shiftKeys='+Object.keys(shiftMap).length+' kmKeys='+Object.keys(kmMap).length+' | cek _avgDebug' :
+      'HYBRID V1.6.1: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recentAvg.toFixed(1) + ' ['+labelRecent+'] | SameDay(70%)=' + avgSameDay.toFixed(1) + ' ['+labelSame+']';
     
     return {
       avg: finalAvg,
-      totalKmMasuk: recent.totalKmMasuk,
-      totalJam: recent.totalJam,
+      totalKmMasuk: recentList.reduce((a,b)=>a+b.km,0),
+      totalJam: recentList.reduce((a,b)=>a+b.jam,0),
       isFresh: !isEmpty,
       usedDateLabel: labelFinal,
-      detail: detail,
-      jamPerTgl: recent.jamPerTgl,
+      detail: recentList.map(x=>({tgl:x.tgl, jarak:x.km, jam:x.jam, mode:'SIGAN'})),
+      jamPerTgl: {},
       is3Hari: false,
       isHybrid: true,
       isEmpty: isEmpty,
-      extra: {recentAvg:recent.avg, sameDayAvg:avgSameDay, sameDayDetail:detailSame, recentDetail:recent, siganDebug:window._siganDebug}
+      extra: {recentAvg, avgSameDay, dailyAvgs}
     };
-  }catch(e){ console.log('AVG hybrid err',e.message, e.stack); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'hybrid err',detail:[]}; }
+  }catch(e){ console.log('AVG V1.6.1 err',e.message, e.stack); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'err '+e.message,detail:[]}; }
 }
+
 
 function hitungPrediksiAIKmJamFixed(filtered){ return hitungAvgKmJamGoride(filtered); }
 
