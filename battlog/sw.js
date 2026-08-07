@@ -1,8 +1,4 @@
-/* BattLog SW V1.5.2 - FIX CACHE + TRIM + 304 - 2026-08-06
-   FIX: HTML pakai network-first biar update keyboard langsung ke-load
-   FIX: Response 304 juga di-cache
-   FIX: Cache size management (max 60 items)
-*/
+/* BattLog SW V1.5.2 CLEAN - 2026-08-06 */
 const CACHE_NAME = 'battlog-v1.5.2-20260806';
 const CORE_ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
@@ -10,92 +6,99 @@ const CORE_ASSETS = [
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 ];
 
-async function trimCache(cacheName, maxItems) {
-    try {
-        const cache = await caches.open(cacheName);
-        const keys = await cache.keys();
-        if (keys.length > maxItems) {
-            const toDelete = keys.slice(0, keys.length - maxItems);
-            await Promise.all(toDelete.map(k => cache.delete(k)));
-        }
-    } catch(e) { /* silent */ }
-}
-
-self.addEventListener('install', (event) => {
+self.addEventListener('install', function(event) {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(CORE_ASSETS.map(u => cache.add(u))).then(()=> self.skipWaiting());
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(CORE_ASSETS).then(function() {
+        return self.skipWaiting();
+      });
     })
   );
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', function(event) {
   event.waitUntil(
-    caches.keys().then((keys) => {
+    caches.keys().then(function(keys) {
       return Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(function(k) { return k !== CACHE_NAME; }).map(function(k) {
+          return caches.delete(k);
+        })
       );
-    }).then(() => self.clients.claim())
-     .then(() => trimCache(CACHE_NAME, 60))
+    }).then(function() {
+      return self.clients.claim();
+    }).then(function() {
+      return caches.open(CACHE_NAME).then(function(cache) {
+        return cache.keys().then(function(keys) {
+          if (keys.length > 60) {
+            var toDelete = keys.slice(0, keys.length - 60);
+            return Promise.all(toDelete.map(function(k) { return cache.delete(k); }));
+          }
+        });
+      });
+    })
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  const isApi = url.pathname.includes('/api/') || url.hostname.includes('workers.dev');
-  const isTile = url.hostname.includes('cartocdn') || url.hostname.includes('osrm') || url.hostname.includes('basemaps') || url.hostname.includes('tile');
-  const isNavigate = event.request.mode === 'navigate' || event.request.destination === 'document';
+self.addEventListener('fetch', function(event) {
+  var url = new URL(event.request.url);
+  var isApi = url.pathname.indexOf('/api/') !== -1 || url.hostname.indexOf('workers.dev') !== -1;
+  var isTile = url.hostname.indexOf('cartocdn') !== -1 || url.hostname.indexOf('osrm') !== -1 || url.hostname.indexOf('basemaps') !== -1 || url.hostname.indexOf('tile') !== -1;
+  var isNavigate = event.request.mode === 'navigate' || event.request.destination === 'document';
 
   if (isApi) {
     event.respondWith(
-      fetch(event.request).catch(() => new Response(JSON.stringify({ offline: true, ok: false }), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' }
-      }))
-    );
-    return;
-  }
-
-  if (isTile) {
-    return; // jangan cache tile peta
-  }
-
-  // FIX UTAMA: HTML pakai network-first, bukan cache-first
-  if (isNavigate) {
-    event.respondWith(
-      fetch(event.request).then((response) => {
-        // simpan versi terbaru ke cache untuk offline fallback
-        if (response && response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          return response;
-        }
-        if (response && response.status === 304) {
-          return caches.match(event.request).then(cached => cached || response);
-        }
-        return response;
-      }).catch(() => {
-        // offline -> fallback ke cache
-        return caches.match(event.request).then(cached => {
-          if (cached) return cached;
-          return caches.match('./').then(r => r || caches.match('./index.html'));
+      fetch(event.request).catch(function() {
+        return new Response(JSON.stringify({ offline: true, ok: false }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
         });
       })
     );
     return;
   }
 
-  // asset lain: cache-first
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (event.request.method === 'GET' && response && response.status === 200 && response.type !== 'opaque') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+  if (isTile) {
+    return;
+  }
+
+  if (isNavigate) {
+    event.respondWith(
+      fetch(event.request).then(function(response) {
+        if (response && response.status === 200) {
+          var clone = response.clone();
+          caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, clone); });
+          return response;
+        }
+        if (response && response.status === 304) {
+          return caches.match(event.request).then(function(cached) {
+            return cached || response;
+          });
         }
         return response;
-      }).catch(() => new Response('Offline', { status: 503 }));
+      }).catch(function() {
+        return caches.match(event.request).then(function(cached) {
+          if (cached) return cached;
+          return caches.match('./').then(function(r) {
+            return r || caches.match('./index.html');
+          });
+        });
+      })
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then(function(cached) {
+      if (cached) return cached;
+      return fetch(event.request).then(function(response) {
+        if (event.request.method === 'GET' && response && response.status === 200 && response.type !== 'opaque') {
+          var clone = response.clone();
+          caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, clone); });
+        }
+        return response;
+      }).catch(function() {
+        return new Response('Offline', { status: 503 });
+      });
     })
   );
 });
