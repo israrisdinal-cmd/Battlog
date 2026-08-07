@@ -1,5 +1,5 @@
 <!--
-BATTLOG v1.5.4 FIXED 2026-07-28 - Full audit & hardening by Grok
+BATTLOG v1.5.6 FIXED 2026-07-28 - Full audit & hardening by Grok
 CHANGES:
 - Version UI disamakan ke V1.5
 - DEFAULT_CHAT_ID dihapus (privasi)
@@ -128,7 +128,7 @@ window.addEventListener('storage', (event) => {
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>BattLog v1.5.4 - EV Vehicle Tracker</title>
+<title>BattLog v1.5.6 - EV Vehicle Tracker</title>
 <meta name="theme-color" content="#0a1328">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@ window.addEventListener('storage', (event) => {
       <!-- Buttons generated dynamically -->
     </div>
     <script>
-    // === MONTHLY FILTER FOR BATTLOG v1.5.41 ===
+    // === MONTHLY FILTER FOR BATTLOG v1.5.61 ===
     function generateEkonomiPeriodButtons(){
         const container = document.getElementById('ekonomiPeriodContainer');
         if(!container) return;
@@ -584,7 +584,7 @@ window.addEventListener('storage', (event) => {
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
 
-  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.4 Hybrid AVG Fixed • Layout Tetap</footer>
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.6 Hybrid Real Data Only • Layout Tetap</footer>
 </div>
 
 <nav class="bottom-nav">
@@ -893,15 +893,35 @@ function hitungAvg3HariInternal(source, ordersGoride, ordersAll){
     let totalJamGoride=0;
     let jamPerTglGoride={};
     gorideLast3.forEach(o=>{
-      const sMin=parseJamMenit(o.jam_awal);
-      const eMin=parseJamMenit(o.jam_akhir);
-      if(sMin===null||eMin===null) return;
+      let sMin=parseJamMenit(o.jam_awal);
+      let eMin=parseJamMenit(o.jam_akhir);
+      // fallback jika jam tidak ada tapi ada durasi atau jam dalam field lain
+      if(sMin===null||eMin===null){
+        // coba parse dari o.jam, o.durasi, o.duration
+        let durasiRaw = o.durasi||o.duration||o.lama||0;
+        if(typeof durasiRaw==='string'){
+          let m=durasiRaw.match(/(\d+(?:\.\d+)?)\s*jam/i);
+          if(m) { 
+            let h=parseFloat(m[1]); 
+            if(h>0&&h<=18){ totalJamGoride+=h; if(!jamPerTglGoride[o.tanggal]) jamPerTglGoride[o.tanggal]=0; jamPerTglGoride[o.tanggal]+=h; }
+            return;
+          }
+          let m2=durasiRaw.match(/(\d+)\s*menit/i);
+          if(m2){ let h=parseInt(m2[1])/60; if(h>0){ totalJamGoride+=h; if(!jamPerTglGoride[o.tanggal]) jamPerTglGoride[o.tanggal]=0; jamPerTglGoride[o.tanggal]+=h; } return; }
+        } else if(typeof durasiRaw==='number'&&durasiRaw>0){
+          let h=durasiRaw>100?durasiRaw/60:durasiRaw; // jika menit
+          if(h>0&&h<=18){ totalJamGoride+=h; if(!jamPerTglGoride[o.tanggal]) jamPerTglGoride[o.tanggal]=0; jamPerTglGoride[o.tanggal]+=h; return; }
+        }
+        return;
+      }
       let dur=eMin-sMin; if(dur<0) dur+=24*60; 
       if(dur<=0||dur>BATTLOG_CONFIG.maxShiftDurationMin) return;
       totalJamGoride+=dur/60;
       if(!jamPerTglGoride[o.tanggal]) jamPerTglGoride[o.tanggal]=0;
       jamPerTglGoride[o.tanggal]+=dur/60;
     });
+    // TIDAK pakai estimasi km/20 - kalau jam kosong, biarin 0, nanti fallback ke data lama yang ada
+    
     let totalJamOnline=0;
     allLast3.forEach(o=>{
       const sMin=parseJamMenit(o.jam_awal);
@@ -979,19 +999,26 @@ function hitungAvgKmJamGoride(filtered){
     // 1. AVG 3 HARI TERAKHIR (recent) 30%
     let recent=hitungAvg3HariInternal(source, ordersGoride, ordersAll);
     
-    // 2. AVG SAME WEEKDAY 2 BULAN (seasonal) 70% dengan decay 0.85
-    let sameDayResults=[];
+    // 2. AVG SAME WEEKDAY 2 BULAN (seasonal) 70% - PURE REAL DATA
+    // Kalau hari ini Kamis kosong, cari Kamis-Kamis lama sampai 120 hari ke belakang
     let targetDay=anchor.getDay();
-    let lookback=BATTLOG_CONFIG.sameDayLookbackDays||60;
-    let cutoffSame=new Date(anchor); cutoffSame.setDate(anchor.getDate()-lookback);
+    let lookbackLong=120; // diperpanjang dari 60 ke 120 hari biar dapat 1 Selasa pun kepake
+    let cutoffSameLong=new Date(anchor); cutoffSameLong.setDate(anchor.getDate()-lookbackLong);
     
     let sameDayOrders=ordersGoride.filter(o=>{
       try{
         let d=parseTglRobust(o.tanggal); if(!d) return false;
         d.setHours(0,0,0,0);
-        return d>=cutoffSame && d<anchor && d.getDay()===targetDay;
+        return d>=cutoffSameLong && d<anchor && d.getDay()===targetDay;
       }catch(e){return false;}
     });
+    // Kalau masih kosong di 120 hari, cari sampai 365 hari (setahun) untuk weekday yang sama
+    if(sameDayOrders.length===0){
+      let cutoff1y=new Date(anchor); cutoff1y.setDate(anchor.getDate()-365);
+      sameDayOrders=ordersGoride.filter(o=>{
+        try{ let d=parseTglRobust(o.tanggal); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoff1y && d<anchor && d.getDay()===targetDay; }catch(e){return false;}
+      });
+    }
     let sameDayByDate={};
     sameDayOrders.forEach(o=>{
       if(!sameDayByDate[o.tanggal]) sameDayByDate[o.tanggal]=[];
@@ -1007,6 +1034,7 @@ function hitungAvgKmJamGoride(filtered){
         totalJam+=dur/60;
         let k=Number(o.km||0); if(k>0&&k<=100) totalKm+=k;
       });
+      if(totalJam<=0.01) return null; // skip kalau jam kosong, jangan estimasi
       let evKm=0;
       (source.filter(ev=>ev.tanggal===tgl)).forEach(ev=>{ try{evKm+=calcEntry(ev).jarak||0;}catch(e){} });
       let muterPct=0.25;
@@ -1015,7 +1043,7 @@ function hitungAvgKmJamGoride(filtered){
       let avg=totalJam>0?kmFinal/totalJam:0;
       let d=parseTglRobust(tgl);
       return {tgl, date:d, totalJam, totalKm:kmFinal, avg};
-    }).filter(x=>x.avg>0&&x.totalJam>0.2).sort((a,b)=>b.date-a.date).slice(0,8);
+    }).filter(x=>x&&x.avg>0&&x.totalJam>0.2).sort((a,b)=>b.date-a.date).slice(0,8);
     
     let weightedSum=0, weightTotal=0, detailSame=[];
     sameDayList.forEach((item, idx)=>{
@@ -1026,23 +1054,38 @@ function hitungAvgKmJamGoride(filtered){
     });
     let avgSameDay=weightTotal>0?weightedSum/weightTotal:0;
     
-    // 3. HYBRID FINAL
+    // 3. HYBRID FINAL - HANYA DATA REAL
     let finalAvg=0;
     let wSame=BATTLOG_CONFIG.hybridWeightSameDay, wRecent=BATTLOG_CONFIG.hybridWeightRecent;
     if(avgSameDay>0 && recent.avg>0){
       finalAvg=avgSameDay*wSame + recent.avg*wRecent;
     } else if(avgSameDay>0){
+      // data recent kosong, pakai 1 hari Selasa lama yang ada
       finalAvg=avgSameDay;
     } else if(recent.avg>0){
       finalAvg=recent.avg;
+    } else {
+      // kalau keduanya kosong, cari ANY day dalam 90 hari terakhir (real data)
+      let cutoffAny=new Date(anchor); cutoffAny.setDate(anchor.getDate()-90);
+      let anyOrders=ordersGoride.filter(o=>{
+        try{ let d=parseTglRobust(o.tanggal); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoffAny && d<anchor; }catch(e){return false;}
+      });
+      if(anyOrders.length>0){
+        // group per tanggal dan hitung avg real
+        let byDate={};
+        anyOrders.forEach(o=>{ if(!byDate[o.tanggal]) byDate[o.tanggal]=[]; byDate[o.tanggal].push(o); });
+        let avgs=[];
+        Object.keys(byDate).forEach(tgl=>{
+          let list=byDate[tgl]; let jam=0, km=0;
+          list.forEach(o=>{ let s=parseJamMenit(o.jam_awal), e=parseJamMenit(o.jam_akhir); if(s===null||e===null) return; let d=e-s; if(d<0) d+=1440; if(d<=0||d>1080) return; jam+=d/60; let k=Number(o.km||0); if(k>0&&k<=100) km+=k; });
+          if(jam>0&&km>0) avgs.push(km/jam);
+        });
+        if(avgs.length>0) finalAvg=avgs.reduce((a,b)=>a+b,0)/avgs.length;
+      }
     }
     finalAvg=Math.min(Math.max(finalAvg,0),60);
-    if(finalAvg<=0.01){
-      if(recent.avg>0) finalAvg=recent.avg;
-      else if(avgSameDay>0) finalAvg=avgSameDay;
-      else if(recent.totalKmMasuk>0) finalAvg=20;
-      else finalAvg=0;
-    }
+    // TIDAK ada default 20, biarin 0 kalau memang tidak ada data sama sekali (akurat)
+    
     
     window._avgDebug={
       recent, sameDayList:detailSame, avgSameDay, finalAvg,
@@ -1063,7 +1106,7 @@ function hitungAvgKmJamGoride(filtered){
       totalKmMasuk: recent.totalKmMasuk,
       totalJam: recent.totalJam,
       isFresh: true,
-      usedDateLabel: 'HYBRID V1.5.4: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recent.avg.toFixed(1) + ' | SameDay(70%,8x)=' + avgSameDay.toFixed(1) + ' | ' + labelSame,
+      usedDateLabel: 'HYBRID V1.5.6: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recent.avg.toFixed(1) + ' | SameDay(70%,8x)=' + avgSameDay.toFixed(1) + ' | ' + labelSame,
       detail: detail,
       jamPerTgl: recent.jamPerTgl,
       is3Hari: false,
