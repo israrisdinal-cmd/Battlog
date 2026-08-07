@@ -1,5 +1,5 @@
 <!--
-BATTLOG v1.5.6 FIXED 2026-07-28 - Full audit & hardening by Grok
+BATTLOG v1.5.7 FIXED 2026-07-28 - Full audit & hardening by Grok
 CHANGES:
 - Version UI disamakan ke V1.5
 - DEFAULT_CHAT_ID dihapus (privasi)
@@ -128,7 +128,7 @@ window.addEventListener('storage', (event) => {
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>BattLog v1.5.6 - EV Vehicle Tracker</title>
+<title>BattLog v1.5.7 - EV Vehicle Tracker</title>
 <meta name="theme-color" content="#0a1328">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@ window.addEventListener('storage', (event) => {
       <!-- Buttons generated dynamically -->
     </div>
     <script>
-    // === MONTHLY FILTER FOR BATTLOG v1.5.61 ===
+    // === MONTHLY FILTER FOR BATTLOG v1.5.71 ===
     function generateEkonomiPeriodButtons(){
         const container = document.getElementById('ekonomiPeriodContainer');
         if(!container) return;
@@ -584,7 +584,7 @@ window.addEventListener('storage', (event) => {
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
 
-  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.6 Hybrid Real Data Only • Layout Tetap</footer>
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.7 Hybrid Debug Real Data • Layout Tetap</footer>
 </div>
 
 <nav class="bottom-nav">
@@ -800,27 +800,34 @@ function parseJamMenit(str){
 }
 function getSiganOrdersWithJam(){
   let orders=[];
+  let debugKeys=[];
   try{
-    let rawFix=localStorage.getItem('lapkeu_cross_goride');
-    if(rawFix){ try{ let p=JSON.parse(rawFix); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }catch(e){} }
-    if(!orders.length){
-      let raw=localStorage.getItem('lapkeuData');
-      if(raw){ let p=JSON.parse(raw); if(Array.isArray(p)) orders=p; else if(p.data&&Array.isArray(p.data)) orders=p.data; }
-    }
-    if(!orders.length){
-      let lakeRaw=localStorage.getItem('UNIVERSAL_LAKE_V1');
-      if(lakeRaw){
-        let lake=JSON.parse(lakeRaw);
-        if(lake.cross&&Array.isArray(lake.cross.maka_cross_sigan_goride) && lake.cross.maka_cross_sigan_goride.length) orders=lake.cross.maka_cross_sigan_goride;
-        else if(lake.sigan&&Array.isArray(lake.sigan.siganData) && lake.sigan.siganData.length) orders=lake.sigan.siganData;
-        else if(lake.cross&&Array.isArray(lake.cross.siganData)) orders=lake.cross.siganData;
-        else if(lake.cross&&lake.cross.sigan_hub_data_from_sigan&&Array.isArray(lake.cross.sigan_hub_data_from_sigan.siganData)) orders=lake.cross.sigan_hub_data_from_sigan.siganData;
-      }
+    const keysToTry=['lapkeu_cross_goride','lapkeuData','siganData','gorideData','lapkeu_goride','UNIVERSAL_LAKE_V1'];
+    for(let key of keysToTry){
+      if(orders.length) break;
+      let raw=localStorage.getItem(key);
+      if(!raw) continue;
+      debugKeys.push(key+':'+raw.slice(0,30));
+      try{
+        let p=JSON.parse(raw);
+        if(Array.isArray(p) && p.length){ orders=p; break; }
+        if(p.data&&Array.isArray(p.data)&&p.data.length){ orders=p.data; break; }
+        if(p.cross&&p.cross.maka_cross_sigan_goride&&Array.isArray(p.cross.maka_cross_sigan_goride)&&p.cross.maka_cross_sigan_goride.length){ orders=p.cross.maka_cross_sigan_goride; break; }
+        if(p.sigan&&Array.isArray(p.sigan.siganData)&&p.sigan.siganData.length){ orders=p.sigan.siganData; break; }
+        if(p.cross&&Array.isArray(p.cross.siganData)&&p.cross.siganData.length){ orders=p.cross.siganData; break; }
+        if(p.cross&&p.cross.sigan_hub_data_from_sigan&&Array.isArray(p.cross.sigan_hub_data_from_sigan.siganData)){ orders=p.cross.sigan_hub_data_from_sigan.siganData; break; }
+        // if object is map of dates
+        if(typeof p==='object' && !Array.isArray(p)){
+          let vals=Object.values(p);
+          if(vals.length && Array.isArray(vals[0])){ orders=vals.flat(); break; }
+        }
+      }catch(e){ debugKeys.push(key+':parse err '+e.message); }
     }
   }catch(e){ orders=[]; }
+  window._siganDebug={keys:debugKeys, count:orders.length, sample:orders.slice(0,2)};
   return orders.map(o=>{
-    const tanggal=o.tanggal||o.date||o.tgl||o.tanggal_ocr||'';
-    let ja=o.jam_awal||o.jam_mulai||o.waktu_mulai||o.start||o.jam_start||o.time||null;
+    const tanggal=o.tanggal||o.date||o.tgl||o.tanggal_ocr||o.created_at||'';
+    let ja=o.jam_awal||o.jam_mulai||o.waktu_mulai||o.start||o.jam_start||o.time||o.jam||null;
     let jk=o.jam_akhir||o.jam_selesai||o.waktu_selesai||o.end||o.jam_end||o.endTime||o.predictedEndTime||null;
     if(!ja&&jk&&String(jk).includes('-')){
       const parts=String(jk).split('-'); if(parts.length>=2){ ja=parts[0].trim(); jk=parts[1].trim(); }
@@ -828,12 +835,13 @@ function getSiganOrdersWithJam(){
     if(o.jam&&String(o.jam).includes('-')&&!ja){
       const parts=String(o.jam).split('-'); if(parts.length>=2){ ja=parts[0].trim(); jk=parts[1].trim(); }
     }
-    // FIX V1.5: hapus km_akhir (odometer) dari jarak trip, cap max 100km biar tidak kehitung odometer nyasar
-    let rawKm = o.km||o.jarak_km||o.jarak||o.dist||o.distance||0;
-    // cari yang masuk akal <100
+    // jika masih null, coba parse dari o.waktu (ex: "08:00 - 09:30")
+    if(!ja && o.waktu && String(o.waktu).includes('-')){
+      const parts=String(o.waktu).split('-'); if(parts.length>=2){ ja=parts[0].trim(); jk=parts[1].trim(); }
+    }
+    let rawKm = o.km||o.jarak_km||o.jarak||o.dist||o.distance||o.km_go||0;
     let km = Number(rawKm)||0;
     if(km>BATTLOG_CONFIG.maxTripKmFromSigan){
-      // coba cari field lain yang lebih kecil
       let candidates=[o.dist,o.jarak,o.jarak_km,o.km,o.distance].map(v=>Number(v)||0).filter(v=>v>0&&v<=100);
       km = candidates.length?candidates[0]:0;
     }
@@ -1101,17 +1109,31 @@ function hitungAvgKmJamGoride(filtered){
     let labelSame=detailSame.length?detailSame.map(d=>d.tgl.slice(5)+'='+d.avg.toFixed(1)).join(', '):'no same-day';
     let labelRecent=recent.commonDates.length?recent.commonDates.join(', ')+'='+recent.avg.toFixed(1):'no recent';
     
+    let isEmpty = finalAvg<=0.01;
+    // jika kosong, coba pakai last saved AVG dari localStorage biar tidak "-"
+    if(isEmpty){
+      try{
+        let saved=localStorage.getItem('battlog_avg_km_jam_go');
+        if(saved){ let p=JSON.parse(saved); if(p.avg_km_jam_go>0) { finalAvg=p.avg_km_jam_go; } }
+      }catch(e){}
+    }
+    // label jujur kalau kosong
+    let labelFinal = isEmpty ? 
+      'HYBRID V1.5.7: NO DATA | ordersGoride='+(ordersGoride.length||0)+' sample='+(window._siganDebug&&window._siganDebug.sample?JSON.stringify(window._siganDebug.sample).slice(0,100):'') + ' | cek console _siganDebug' :
+      'HYBRID V1.5.7: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recent.avg.toFixed(1) + ' | SameDay(70%,8x)=' + avgSameDay.toFixed(1) + ' | ' + labelSame;
+    
     return {
       avg: finalAvg,
       totalKmMasuk: recent.totalKmMasuk,
       totalJam: recent.totalJam,
-      isFresh: true,
-      usedDateLabel: 'HYBRID V1.5.6: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recent.avg.toFixed(1) + ' | SameDay(70%,8x)=' + avgSameDay.toFixed(1) + ' | ' + labelSame,
+      isFresh: !isEmpty,
+      usedDateLabel: labelFinal,
       detail: detail,
       jamPerTgl: recent.jamPerTgl,
       is3Hari: false,
       isHybrid: true,
-      extra: {recentAvg:recent.avg, sameDayAvg:avgSameDay, sameDayDetail:detailSame, recentDetail:recent}
+      isEmpty: isEmpty,
+      extra: {recentAvg:recent.avg, sameDayAvg:avgSameDay, sameDayDetail:detailSame, recentDetail:recent, siganDebug:window._siganDebug}
     };
   }catch(e){ console.log('AVG hybrid err',e.message, e.stack); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'hybrid err',detail:[]}; }
 }
