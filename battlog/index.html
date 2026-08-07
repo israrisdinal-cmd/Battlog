@@ -1,5 +1,5 @@
 <!--
-BATTLOG v1.5.7 FIXED 2026-07-28 - Full audit & hardening by Grok
+BATTLOG v1.5.8 FIXED 2026-07-28 - Full audit & hardening by Grok
 CHANGES:
 - Version UI disamakan ke V1.5
 - DEFAULT_CHAT_ID dihapus (privasi)
@@ -128,7 +128,7 @@ window.addEventListener('storage', (event) => {
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>BattLog v1.5.7 - EV Vehicle Tracker</title>
+<title>BattLog v1.5.8 - EV Vehicle Tracker</title>
 <meta name="theme-color" content="#0a1328">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@ window.addEventListener('storage', (event) => {
       <!-- Buttons generated dynamically -->
     </div>
     <script>
-    // === MONTHLY FILTER FOR BATTLOG v1.5.71 ===
+    // === MONTHLY FILTER FOR BATTLOG v1.5.81 ===
     function generateEkonomiPeriodButtons(){
         const container = document.getElementById('ekonomiPeriodContainer');
         if(!container) return;
@@ -584,7 +584,7 @@ window.addEventListener('storage', (event) => {
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
 
-  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.7 Hybrid Debug Real Data • Layout Tetap</footer>
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.8 Hybrid Include Today • Layout Tetap</footer>
 </div>
 
 <nav class="bottom-nav">
@@ -1004,27 +1004,34 @@ function hitungAvgKmJamGoride(filtered){
     let ordersAll=getSiganOrdersForBattlog();
     let anchor=new Date(); anchor.setHours(0,0,0,0);
     
-    // 1. AVG 3 HARI TERAKHIR (recent) 30%
-    let recent=hitungAvg3HariInternal(source, ordersGoride, ordersAll);
+    // 1. AVG 3 HARI TERAKHIR (recent) 30% - jika Goride kosong pakai All
+    let effectiveGoride = ordersGoride.length>0 ? ordersGoride : ordersAll;
+    let recent=hitungAvg3HariInternal(source, effectiveGoride, ordersAll);
     
     // 2. AVG SAME WEEKDAY 2 BULAN (seasonal) 70% - PURE REAL DATA
     // Kalau hari ini Kamis kosong, cari Kamis-Kamis lama sampai 120 hari ke belakang
     let targetDay=anchor.getDay();
-    let lookbackLong=120; // diperpanjang dari 60 ke 120 hari biar dapat 1 Selasa pun kepake
+    let lookbackLong=120;
     let cutoffSameLong=new Date(anchor); cutoffSameLong.setDate(anchor.getDate()-lookbackLong);
     
+    // include today juga (d <= anchor), bukan < anchor
     let sameDayOrders=ordersGoride.filter(o=>{
       try{
         let d=parseTglRobust(o.tanggal); if(!d) return false;
         d.setHours(0,0,0,0);
-        return d>=cutoffSameLong && d<anchor && d.getDay()===targetDay;
+        return d>=cutoffSameLong && d<=anchor && d.getDay()===targetDay;
       }catch(e){return false;}
     });
-    // Kalau masih kosong di 120 hari, cari sampai 365 hari (setahun) untuk weekday yang sama
     if(sameDayOrders.length===0){
       let cutoff1y=new Date(anchor); cutoff1y.setDate(anchor.getDate()-365);
       sameDayOrders=ordersGoride.filter(o=>{
-        try{ let d=parseTglRobust(o.tanggal); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoff1y && d<anchor && d.getDay()===targetDay; }catch(e){return false;}
+        try{ let d=parseTglRobust(o.tanggal); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoff1y && d<=anchor && d.getDay()===targetDay; }catch(e){return false;}
+      });
+    }
+    // jika Goride kosong, pakai semua layanan (GoFood/Grab) sebagai fallback real
+    if(sameDayOrders.length===0 && ordersAll.length>0){
+      sameDayOrders=ordersAll.filter(o=>{
+        try{ let d=parseTglRobust(o.tanggal||o.date); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoffSameLong && d<=anchor && d.getDay()===targetDay; }catch(e){return false;}
       });
     }
     let sameDayByDate={};
@@ -1075,8 +1082,8 @@ function hitungAvgKmJamGoride(filtered){
     } else {
       // kalau keduanya kosong, cari ANY day dalam 90 hari terakhir (real data)
       let cutoffAny=new Date(anchor); cutoffAny.setDate(anchor.getDate()-90);
-      let anyOrders=ordersGoride.filter(o=>{
-        try{ let d=parseTglRobust(o.tanggal); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoffAny && d<anchor; }catch(e){return false;}
+      let anyOrders=(ordersGoride.length>0?ordersGoride:ordersAll).filter(o=>{
+        try{ let d=parseTglRobust(o.tanggal||o.date); if(!d) return false; d.setHours(0,0,0,0); return d>=cutoffAny && d<=anchor; }catch(e){return false;}
       });
       if(anyOrders.length>0){
         // group per tanggal dan hitung avg real
@@ -1119,8 +1126,8 @@ function hitungAvgKmJamGoride(filtered){
     }
     // label jujur kalau kosong
     let labelFinal = isEmpty ? 
-      'HYBRID V1.5.7: NO DATA | ordersGoride='+(ordersGoride.length||0)+' sample='+(window._siganDebug&&window._siganDebug.sample?JSON.stringify(window._siganDebug.sample).slice(0,100):'') + ' | cek console _siganDebug' :
-      'HYBRID V1.5.7: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recent.avg.toFixed(1) + ' | SameDay(70%,8x)=' + avgSameDay.toFixed(1) + ' | ' + labelSame;
+      'HYBRID V1.5.8: NO DATA | ordersGoride='+(ordersGoride.length||0)+' sample='+(window._siganDebug&&window._siganDebug.sample?JSON.stringify(window._siganDebug.sample).slice(0,100):'') + ' | cek console _siganDebug' :
+      'HYBRID V1.5.8: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recent.avg.toFixed(1) + ' | SameDay(70%,8x)=' + avgSameDay.toFixed(1) + ' | ' + labelSame;
     
     return {
       avg: finalAvg,
