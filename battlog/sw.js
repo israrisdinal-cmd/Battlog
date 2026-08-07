@@ -1,5 +1,5 @@
-/* BattLog SW V1.5.6 CLEAN - 2026-08-06 */
-const CACHE_NAME = 'battlog-v1.5.6-20260806';
+/* BattLog SW V1.5.7 CLEAN - 2026-08-06 */
+const CACHE_NAME = 'battlog-v1.5.7-20260806';
 const CORE_ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
