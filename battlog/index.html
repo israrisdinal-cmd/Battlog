@@ -1,5 +1,5 @@
 <!--
-BATTLOG v1.5.2 FIXED 2026-07-28 - Full audit & hardening by Grok
+BATTLOG v1.5.3 FIXED 2026-07-28 - Full audit & hardening by Grok
 CHANGES:
 - Version UI disamakan ke V1.5
 - DEFAULT_CHAT_ID dihapus (privasi)
@@ -128,7 +128,7 @@ window.addEventListener('storage', (event) => {
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>BattLog v1.5.2 - EV Vehicle Tracker</title>
+<title>BattLog v1.5.3 - EV Vehicle Tracker</title>
 <meta name="theme-color" content="#0a1328">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@ window.addEventListener('storage', (event) => {
       <!-- Buttons generated dynamically -->
     </div>
     <script>
-    // === MONTHLY FILTER FOR BATTLOG v1.5.21 ===
+    // === MONTHLY FILTER FOR BATTLOG v1.5.31 ===
     function generateEkonomiPeriodButtons(){
         const container = document.getElementById('ekonomiPeriodContainer');
         if(!container) return;
@@ -584,7 +584,7 @@ window.addEventListener('storage', (event) => {
     <div id="listBox" class="space-y-3"><div class="maka-card text-sm" style="color:#6b7fa2;">Belum ada catatan.</div></div>
   </div>
 
-  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.2 Fixed SoH • Layout Tetap</footer>
+  <footer style="text-align:center; font-size:11px; color:#4b5d7a; margin-top:2rem; padding-bottom:1rem;">EV Log • BattLog v1.5.3 Hybrid AVG • Layout Tetap</footer>
 </div>
 
 <nav class="bottom-nav">
@@ -844,27 +844,22 @@ function getSiganOrdersWithJam(){
 
 
 
+
 function parseTglRobust(str){
   if(!str) return null;
   str=String(str).trim();
-  // YYYY-MM-DD
   let m=str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
   if(m){ return new Date(Number(m[1]), Number(m[2])-1, Number(m[3])); }
-  // DD-MM-YYYY or DD/MM/YYYY
   let m2=str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
   if(m2){ return new Date(Number(m2[3]), Number(m2[2])-1, Number(m2[1])); }
   let d=new Date(str);
   return isNaN(d.getTime())?null:d;
 }
-function hitungAvgKmJamGoride(filtered){
+
+function hitungAvg3HariInternal(source, ordersGoride, ordersAll){
   try{
-    let source=filtered&&filtered.length?filtered:entries;
-    let ordersGoride=getSiganOrdersWithJam(); // Goride only
-    let ordersAll=getSiganOrdersForBattlog(); // all services
     let anchor=new Date(); anchor.setHours(0,0,0,0);
     let cutoff3=new Date(anchor); cutoff3.setDate(anchor.getDate()-2);
-
-    // FIX V1.5: parsing tanggal robust YYYY-MM-DD & DD-MM-YYYY
     let gorideLast3=ordersGoride.filter(o=>{
       try{
         let d=parseTglRobust(o.tanggal); if(!d) return false;
@@ -873,7 +868,6 @@ function hitungAvgKmJamGoride(filtered){
       }catch(e){return false;}
     });
     if(gorideLast3.length===0 && ordersGoride.length>0){
-      // fallback ambil 3 tanggal terbaru berdasarkan tanggal asli, bukan sort string
       let uniqDates=[...new Set(ordersGoride.map(o=>o.tanggal))].filter(Boolean)
         .map(t=>({raw:t, date:parseTglRobust(t)}))
         .filter(x=>x.date)
@@ -896,8 +890,6 @@ function hitungAvgKmJamGoride(filtered){
       if(uniqDates.length===0) uniqDates=[...new Set(ordersAll.map(o=>o.tanggal||o.date))].sort().reverse().slice(0,3);
       allLast3=ordersAll.filter(o=>uniqDates.includes(o.tanggal||o.date));
     }
-
-    // === WAKTU EFEKTIF GORIDE (Σ jam akhir - jam awal) ===
     let totalJamGoride=0;
     let jamPerTglGoride={};
     gorideLast3.forEach(o=>{
@@ -905,14 +897,11 @@ function hitungAvgKmJamGoride(filtered){
       const eMin=parseJamMenit(o.jam_akhir);
       if(sMin===null||eMin===null) return;
       let dur=eMin-sMin; if(dur<0) dur+=24*60; 
-      // FIX V1.5: naikkan cap 12 jam -> 18 jam (1080 menit) biar shift panjang tidak kebuang
       if(dur<=0||dur>BATTLOG_CONFIG.maxShiftDurationMin) return;
       totalJamGoride+=dur/60;
       if(!jamPerTglGoride[o.tanggal]) jamPerTglGoride[o.tanggal]=0;
       jamPerTglGoride[o.tanggal]+=dur/60;
     });
-
-    // === WAKTU ONLINE TOTAL (semua layanan) 3 hari ===
     let totalJamOnline=0;
     allLast3.forEach(o=>{
       const sMin=parseJamMenit(o.jam_awal);
@@ -922,7 +911,6 @@ function hitungAvgKmJamGoride(filtered){
       if(dur<=0||dur>BATTLOG_CONFIG.maxShiftDurationMin) return;
       totalJamOnline+=dur/60;
     });
-    // fallback online dari shift
     if(totalJamOnline<=0.01){
       try{
         let shiftRaw=localStorage.getItem('lapkeu_shift');
@@ -938,83 +926,150 @@ function hitungAvgKmJamGoride(filtered){
         }
       }catch(e){}
     }
-    // FIX V1.5: jika hanya Goride, online = goride (ratio 1), bukan *1.5
     if(totalJamOnline<=0.01) totalJamOnline = totalJamGoride>0? totalJamGoride : 0;
-
-    // === KM SESI BATTLOG di tanggal yang ada Goride ===
     let evPerTgl={};
     source.forEach(e=>{ if(!e.tanggal) return; if(!evPerTgl[e.tanggal]) evPerTgl[e.tanggal]=[]; evPerTgl[e.tanggal].push(e); });
     let commonDates=Object.keys(jamPerTglGoride);
     if(commonDates.length===0) commonDates=Object.keys(evPerTgl).sort().reverse().slice(0,3);
-
     let totalSesiKm=0;
     commonDates.forEach(tgl=>{
       (evPerTgl[tgl]||[]).forEach(ev=>{ try{ totalSesiKm+=calcEntry(ev).jarak||0; }catch(e){} });
     });
-
-    // Total km Gojek Goride 3 hari
     let totalKmGojekGoride=0;
     gorideLast3.forEach(o=>{ 
       let k=Number(o.km||0);
-      if(k>0 && k<=100) totalKmGojekGoride+=k; // FIX: filter km wajar
+      if(k>0 && k<=100) totalKmGojekGoride+=k;
     });
-
-    // Total km semua Lapkeu 3 hari (untuk hitung muter %)
     let totalKmAllLapkeu=0;
     allLast3.forEach(o=>{ 
       let k=Number(o.km||o.jarak_km||0);
       if(k>0 && k<=100) totalKmAllLapkeu+=k;
     });
-
     let avgMuterPct=0;
     if(totalSesiKm>0 && totalKmAllLapkeu>0){
       avgMuterPct=(totalSesiKm-totalKmAllLapkeu)/totalSesiKm;
       if(avgMuterPct<0) avgMuterPct=0;
-      if(avgMuterPct>BATTLOG_CONFIG.maxMuterPct) avgMuterPct=BATTLOG_CONFIG.fallbackMuterPct; // FIX V1.5: cap 60% dan fallback dinamis 30% bukan 40.7% magic
+      if(avgMuterPct>BATTLOG_CONFIG.maxMuterPct) avgMuterPct=BATTLOG_CONFIG.fallbackMuterPct;
     } else {
-      avgMuterPct=BATTLOG_CONFIG.defaultMuterPct; // dari CONFIG
+      avgMuterPct=BATTLOG_CONFIG.defaultMuterPct;
     }
-
-    // === 2 CARA HITUNG KM REAL GORIDE ===
     let kmGorideRealProp=0;
     if(totalSesiKm>0 && totalJamOnline>0 && totalJamGoride>0){
       kmGorideRealProp=totalSesiKm * (totalJamGoride/totalJamOnline);
     }
     let kmGorideRealMurni=totalKmGojekGoride * (1+avgMuterPct);
-
-    // FIX V1.5: ambil max prop vs murni, jangan lebih kecil dari tagihan
     let kmFinal=0;
     if(kmGorideRealProp>0 && kmGorideRealMurni>0) kmFinal=Math.max(kmGorideRealProp, kmGorideRealMurni);
     else kmFinal=kmGorideRealProp>0?kmGorideRealProp:kmGorideRealMurni;
     if(kmFinal < totalKmGojekGoride) kmFinal=kmGorideRealMurni;
-
     let avg=totalJamGoride>0?kmFinal/totalJamGoride:0;
     avg=Math.min(Math.max(avg,0),60);
     if(avg<=0.01 && kmFinal>0) avg=25;
+    return {avg, totalKmMasuk:kmFinal, totalJam:totalJamGoride, jamPerTgl:jamPerTglGoride, commonDates, avgMuterPct, totalSesiKm, totalKmGojekGoride};
+  }catch(e){ return {avg:0,totalKmMasuk:0,totalJam:0,jamPerTgl:{},commonDates:[],avgMuterPct:0.25,totalSesiKm:0,totalKmGojekGoride:0}; }
+}
 
-    window._avgDebug={totalJamGoride, totalJamOnline, totalSesiKm, totalKmGojekGoride, totalKmAllLapkeu, kmGorideRealProp, kmGorideRealMurni, kmFinal, avg, commonDates, avgMuterPct};
-
-    let detail=commonDates.map(tgl=>{
-      let sesiKm=(evPerTgl[tgl]||[]).reduce((a,ev)=>{ try{return a+(calcEntry(ev).jarak||0);}catch(e){return a;}},0);
-      return {tgl, jarak:sesiKm, jam:jamPerTglGoride[tgl]||0, mode:'PROP'};
+function hitungAvgKmJamGoride(filtered){
+  try{
+    let source=filtered&&filtered.length?filtered:entries;
+    let ordersGoride=getSiganOrdersWithJam();
+    let ordersAll=getSiganOrdersForBattlog();
+    let anchor=new Date(); anchor.setHours(0,0,0,0);
+    
+    // 1. AVG 3 HARI TERAKHIR (recent) 30%
+    let recent=hitungAvg3HariInternal(source, ordersGoride, ordersAll);
+    
+    // 2. AVG SAME WEEKDAY 2 BULAN (seasonal) 70% dengan decay 0.85
+    let sameDayResults=[];
+    let targetDay=anchor.getDay();
+    let lookback=BATTLOG_CONFIG.sameDayLookbackDays||60;
+    let cutoffSame=new Date(anchor); cutoffSame.setDate(anchor.getDate()-lookback);
+    
+    let sameDayOrders=ordersGoride.filter(o=>{
+      try{
+        let d=parseTglRobust(o.tanggal); if(!d) return false;
+        d.setHours(0,0,0,0);
+        return d>=cutoffSame && d<anchor && d.getDay()===targetDay;
+      }catch(e){return false;}
     });
-
-    return {
-      avg, 
-      totalKmMasuk:kmFinal, 
-      totalJam:totalJamGoride, 
-      isFresh:true, 
-      usedDateLabel: commonDates.join(', ')+' (V1.5 FIX: '+kmFinal.toFixed(1)+' km / '+totalJamGoride.toFixed(2)+' jam, muter '+(avgMuterPct*100).toFixed(1)+'%)',
-      detail, 
-      jamPerTgl:jamPerTglGoride, 
-      is3Hari:true, 
-      isStrict:true,
-      extra:{totalJamGoride, totalJamOnline, totalSesiKm, totalKmGojekGoride, kmGorideRealProp, kmGorideRealMurni, avgMuterPct}
+    let sameDayByDate={};
+    sameDayOrders.forEach(o=>{
+      if(!sameDayByDate[o.tanggal]) sameDayByDate[o.tanggal]=[];
+      sameDayByDate[o.tanggal].push(o);
+    });
+    let sameDayList=Object.keys(sameDayByDate).map(tgl=>{
+      let list=sameDayByDate[tgl];
+      let totalJam=0, totalKm=0;
+      list.forEach(o=>{
+        let s=parseJamMenit(o.jam_awal), e=parseJamMenit(o.jam_akhir);
+        if(s===null||e===null) return;
+        let dur=e-s; if(dur<0) dur+=1440; if(dur<=0||dur>1080) return;
+        totalJam+=dur/60;
+        let k=Number(o.km||0); if(k>0&&k<=100) totalKm+=k;
+      });
+      let evKm=0;
+      (source.filter(ev=>ev.tanggal===tgl)).forEach(ev=>{ try{evKm+=calcEntry(ev).jarak||0;}catch(e){} });
+      let muterPct=0.25;
+      if(evKm>0&&totalKm>0){ muterPct=(evKm-totalKm)/evKm; if(muterPct<0) muterPct=0; if(muterPct>0.6) muterPct=0.3; }
+      let kmFinal=totalKm*(1+muterPct);
+      let avg=totalJam>0?kmFinal/totalJam:0;
+      let d=parseTglRobust(tgl);
+      return {tgl, date:d, totalJam, totalKm:kmFinal, avg};
+    }).filter(x=>x.avg>0&&x.totalJam>0.2).sort((a,b)=>b.date-a.date).slice(0,8);
+    
+    let weightedSum=0, weightTotal=0, detailSame=[];
+    sameDayList.forEach((item, idx)=>{
+      let w=Math.pow(BATTLOG_CONFIG.sameDayDecay, idx);
+      weightedSum+=item.avg*w;
+      weightTotal+=w;
+      detailSame.push({...item, weight:w});
+    });
+    let avgSameDay=weightTotal>0?weightedSum/weightTotal:0;
+    
+    // 3. HYBRID FINAL
+    let finalAvg=0;
+    let wSame=BATTLOG_CONFIG.hybridWeightSameDay, wRecent=BATTLOG_CONFIG.hybridWeightRecent;
+    if(avgSameDay>0 && recent.avg>0){
+      finalAvg=avgSameDay*wSame + recent.avg*wRecent;
+    } else if(avgSameDay>0){
+      finalAvg=avgSameDay;
+    } else if(recent.avg>0){
+      finalAvg=recent.avg;
+    }
+    finalAvg=Math.min(Math.max(finalAvg,0),60);
+    if(finalAvg<=0.01 && (recent.totalKmMasuk>0||avgSameDay>0)) finalAvg=recent.avg||avgSameDay||25;
+    
+    window._avgDebug={
+      recent, sameDayList:detailSame, avgSameDay, finalAvg,
+      totalJamGoride:recent.totalJam, totalKmMasuk:recent.totalKmMasuk,
+      commonDates:recent.commonDates, avgMuterPct:recent.avgMuterPct
     };
-  }catch(e){ console.log('AVG baru err',e.message, e.stack); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'-',detail:[]}; }
+    
+    let detail=recent.commonDates.map(tgl=>{
+      let sesiKm=(source.filter(ev=>ev.tanggal===tgl)).reduce((a,ev)=>{ try{return a+(calcEntry(ev).jarak||0);}catch(e){return a;}},0);
+      return {tgl, jarak:sesiKm, jam:recent.jamPerTgl[tgl]||0, mode:'HYBRID'};
+    });
+    
+    let labelSame=detailSame.length?detailSame.map(d=>d.tgl.slice(5)+'='+d.avg.toFixed(1)).join(', '):'no same-day';
+    let labelRecent=recent.commonDates.length?recent.commonDates.join(', ')+'='+recent.avg.toFixed(1):'no recent';
+    
+    return {
+      avg: finalAvg,
+      totalKmMasuk: recent.totalKmMasuk,
+      totalJam: recent.totalJam,
+      isFresh: true,
+      usedDateLabel: 'HYBRID V1.5.3: ' + finalAvg.toFixed(1) + ' km/j | Recent(30%)=' + recent.avg.toFixed(1) + ' | SameDay(70%,8x)=' + avgSameDay.toFixed(1) + ' | ' + labelSame,
+      detail: detail,
+      jamPerTgl: recent.jamPerTgl,
+      is3Hari: false,
+      isHybrid: true,
+      extra: {recentAvg:recent.avg, sameDayAvg:avgSameDay, sameDayDetail:detailSame, recentDetail:recent}
+    };
+  }catch(e){ console.log('AVG hybrid err',e.message, e.stack); return {avg:0,totalKmMasuk:0,totalJam:0,isFresh:false,usedDateLabel:'hybrid err',detail:[]}; }
 }
 
 function hitungPrediksiAIKmJamFixed(filtered){ return hitungAvgKmJamGoride(filtered); }
+
 
 
 
