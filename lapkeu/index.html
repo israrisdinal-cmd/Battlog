@@ -1,13 +1,13 @@
-<!-- LapKeu V1.6.9 FIXED ALL - 2026-08-07
-  CHANGELOG V1.6.9:
+<!-- LapKeu V1.6.10 FIXED ALL - 2026-08-07
+  CHANGELOG V1.6.10:
   - FIX: Hotspot hanya ±30 menit dari jam AKTIVASI GPS (bukan jam sistem bergeser)
   - FIX: Tanpa GPS → tidak tampil ranking (wajib aktifkan GPS)
   - FIX: Hapus fallback "semua jam / 14 hari tanpa filter jam"
-  CHANGELOG V1.6.9:
+  CHANGELOG V1.6.10:
   - FIX: Hotspot menampilkan "Selesai" & "GoPay" sebagai lokasi (teks UI Gojek)
   - FIX: Blacklist garbage area names + purge geocode cache nyasar
   - FIX: Jarak >80km tidak ditampilkan (geocode nyasar ribuan km)
-  CHANGELOG V1.6.9:
+  CHANGELOG V1.6.10:
   - FIX: parseTipText missing (ReferenceError saat OCR tip)
   - FIX: parseDateFromOcrText dukung 2-digit year + format tambahan
   - FIX: Midnight trip validasi longgar (600→720 menit) + safety
@@ -22,7 +22,7 @@
 <!-- Lapkeu v1.0 - SiGan FIXED SYNC - Field kompatibel Battlog v1.0 (tanggal, km, lokasi_jemput, lokasi_antar, jam_awal, jam_akhir) - Locked 2026-07-21 -->
 <!--
 LOCKED CODE - SiGan Analytics Pro
-Version: V1.6.9 FIX_ALL_BUGS - RB/F/MT/GK + Tip - LOCKED
+Version: V1.6.10 FIX_ALL_BUGS - RB/F/MT/GK + Tip - LOCKED
 Locked: 20260728_FULL_PATCH
 Philosophy: OCR Full Data (harga, jam awal/akhir, ID, km, alamat jemput/tujuan, tip) + Auto Jam Online First-Last + Group by ID + Dedup ID Only
 JANGAN EDIT MANUAL KECUALI PATCH TERSTRUKTUR
@@ -83,7 +83,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LapKeu V1.6.9 Monthly Filter - Bulan Ini + 2 Bulan Sebelumnya</title>
+    <title>LapKeu V1.6.10 Monthly Filter - Bulan Ini + 2 Bulan Sebelumnya</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>try{window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand();}catch(e){}</script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -213,7 +213,7 @@ window.ocrSpaceParse=ocrSpaceParse;
 </script>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V1.6.9 GPS Window ±30m</span></div>
+        <div style="font-weight:900; font-size:16px; color:#eaf2ff;">LapKeu <span style="color:#7dffb7">V1.6.10 GPS Window ±30m</span></div>
 
 
         <div id="sigan-sync-status" style="display:flex; align-items:center; gap:6px; font-size:10px;">
@@ -419,7 +419,7 @@ window.ocrSpaceParse=ocrSpaceParse;
     </div>
 
     <div id="tabContentRekap" class="hidden">
-        <!-- V1.6.9 FIX: Insight Presisi V5 dihapus total sesuai request -->
+        <!-- V1.6.10 FIX: Insight Presisi V5 dihapus total sesuai request -->
 
         
         <div class="filter-container" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -983,15 +983,15 @@ function loadData(){
 }
 
 
-// ===== NEW: HOTSPOT JAM INI + GPS V5.24 / V1.6.9 =====
+// ===== NEW: HOTSPOT JAM INI + GPS V5.24 / V1.6.10 =====
 let lastGpsPos = null;
 let currentAreaName = '';
-// V1.6.9: jam aktivasi GPS (menit dari 00:00) — hotspot hanya ±30 menit dari ini
+// V1.6.10: jam aktivasi GPS (menit dari 00:00) — hotspot hanya ±30 menit dari ini
 let gpsActivatedMinutes = null; // 0..1439
 let gpsActivatedLabel = '';     // "18:12"
 let geocodeCache = {};
 try{ geocodeCache = JSON.parse(localStorage.getItem('lapkeu_geocode_cache')||'{}'); }catch(e){ geocodeCache={}; }
-// V1.6.9: bersihkan cache key garbage (Selesai, GoPay, dll) yang sudah tersimpan
+// V1.6.10: bersihkan cache key garbage (Selesai, GoPay, dll) yang sudah tersimpan
 try{
   let purged=0;
   for(let k of Object.keys(geocodeCache)){
@@ -1012,7 +1012,7 @@ function haversine(lat1,lon1,lat2,lon2){
   return R*c;
 }
 
-// ===== V1.6.9: Blacklist teks UI Gojek yang sering lolos ke area hotspot =====
+// ===== V1.6.10: Blacklist teks UI Gojek yang sering lolos ke area hotspot =====
 // Contoh dari screenshot: "Selesai", "GoPay" → geocode ke lokasi ribuan km
 const GARBAGE_AREA_BLACKLIST = new Set([
   'selesai','gopay','go pay','gopay coins','total','bayar','pembayaran','metode',
@@ -1086,7 +1086,7 @@ function buildHotspotByHour(){
     const curM=now.getMinutes();
     const fullTimeStr=String(curH).padStart(2,'0')+':'+String(curM).padStart(2,'0');
 
-    // V1.6.9: anchor = jam aktivasi GPS (±30 menit). Tanpa GPS → minta aktifkan.
+    // V1.6.10: anchor = jam aktivasi GPS (±30 menit). Tanpa GPS → minta aktifkan.
     const TOLERANCE_MIN = 30;
     let anchorMin = gpsActivatedMinutes;
     let windowLabel = '';
@@ -1111,7 +1111,7 @@ function buildHotspotByHour(){
       return;
     }
 
-    // V1.6.9: WAJIB GPS aktif + window ±30 menit dari jam aktivasi. Tanpa GPS = tidak tampilkan ranking.
+    // V1.6.10: WAJIB GPS aktif + window ±30 menit dari jam aktivasi. Tanpa GPS = tidak tampilkan ranking.
     if(anchorMin==null || !lastGpsPos){
       list.innerHTML='<div style="background:#0f1f36; border:1px dashed #1e3a5f; border-radius:10px; padding:12px; font-size:12px; color:#8aa0c6; text-align:center; line-height:1.5;">📡 Aktifkan GPS dulu.<br><span style="font-size:11px; color:#5a7096;">Lokasi ramai hanya dihitung dari jam saat GPS diaktifkan (±30 menit).</span></div>';
       if(status && !status.innerHTML.includes('Kamu di') && !status.innerHTML.includes('GPS Aktif')){
@@ -1141,7 +1141,7 @@ function buildHotspotByHour(){
     filtered.forEach(it=>{
       let rawPickup=it.pickup||it.lokasi_jemput||it.jemput||it.destination||it.lokasi_antar||'';
       if(typeof cleanGojekAddressDeep==='function'){ try{ rawPickup=cleanGojekAddressDeep(rawPickup); }catch(e){} } else if(typeof cleanGojekAddress==='function'){ try{ rawPickup=cleanGojekAddress(rawPickup); }catch(e){} }
-      // V1.6.9: skip garbage UI labels (Selesai, GoPay, dll)
+      // V1.6.10: skip garbage UI labels (Selesai, GoPay, dll)
       if(isGarbageAreaName(rawPickup)) return;
       let area=typeof extractAreaSimple==='function'? extractAreaSimple(rawPickup) : (rawPickup.substring(0,22)||'Unknown');
       if(!area || area.trim()==='') area='Unknown';
@@ -1163,7 +1163,7 @@ function buildHotspotByHour(){
         let entry=areaMap[k];
         let disp = entry.displayArea || displayNameMap[k] || k;
         if(typeof cleanGojekAddressDeep==='function'){ try{ disp=cleanGojekAddressDeep(disp); }catch(e){} }
-        // V1.6.9: filter lagi di tahap merge display name
+        // V1.6.10: filter lagi di tahap merge display name
         if(isGarbageAreaName(disp) || isGarbageAreaName(k)) continue;
         if(!newMap[disp]){
           newMap[disp]={count: entry.count, income: entry.income, samples: entry.samples, lat: entry.lat, lon: entry.lon};
@@ -1182,20 +1182,22 @@ function buildHotspotByHour(){
       .slice(0,6);
     try{
       ranked.forEach(r=>{
-        if(typeof geocodeCache!=='undefined' && geocodeCache[r.area] && geocodeCache[r.area].lat){
-          // V1.6.9: buang cache yang jaraknya absurd (>80km dari GPS sekarang)
+        let tryKeys=[(r.samples && r.samples[0]? r.area+'|'+r.samples[0].substring(0,40) : ''), r.area].filter(Boolean);
+        let hit=null; for(let k of tryKeys){ if(geocodeCache[k] && geocodeCache[k].lat){ hit=geocodeCache[k]; break; } }
+        if(typeof geocodeCache!=='undefined' && hit && hit.lat){
+          // V1.6.10: buang cache yang jaraknya absurd (>80km) atau token tidak match (Pondok vs non-Pondok)
           if(lastGpsPos){
             try{
-              let d=haversine(lastGpsPos.lat, lastGpsPos.lon, geocodeCache[r.area].lat, geocodeCache[r.area].lon);
+              let d=haversine(lastGpsPos.lat, lastGpsPos.lon, hit.lat, hit.lon);
               if(d>80){
                 console.log('[HOTSPOT] buang cache jauh', r.area, d.toFixed(1)+'km');
-                delete geocodeCache[r.area];
+                tryKeys.forEach(k=>{ delete geocodeCache[k]; });
                 try{ saveGeocodeCache(); }catch(_){}
                 return;
               }
             }catch(_){}
           }
-          r.lat=geocodeCache[r.area].lat; r.lon=geocodeCache[r.area].lon;
+          r.lat=hit.lat; r.lon=hit.lon;
         }
       });
     }catch(e){}
@@ -1226,7 +1228,7 @@ function buildHotspotByHour(){
       let distText='';
       if(lastGpsPos){
         if(r.dist!==null && r.dist!==undefined){
-          // V1.6.9: jarak >80km dianggap geocode nyasar, jangan tampilkan angka absurd
+          // V1.6.10: jarak >80km dianggap geocode nyasar, jangan tampilkan angka absurd
           if(r.dist>80){
             distText='Jarak tidak valid (geocode nyasar)';
             r.dist=null; // jangan diurutkan sebagai terdekat
@@ -1323,11 +1325,11 @@ try{ geocodeFailCount = JSON.parse(localStorage.getItem('lapkeu_geocode_fail')||
 function saveGeocodeFailCount(){ try{ localStorage.setItem('lapkeu_geocode_fail', JSON.stringify(geocodeFailCount)); }catch(e){} }
 async function geocodeArea(area, fullSample){
   if(!area || area==='Unknown') return null;
-  // V1.6.9: jangan geocode teks UI
+  // V1.6.10: jangan geocode teks UI
   if(typeof isGarbageAreaName==='function' && isGarbageAreaName(area)) return null;
   if(typeof geocodeCache==='undefined') window.geocodeCache={};
-  // cache key pakai area asli biar tetap nyambung
-  let cacheKey=area;
+  // V1.6.10 FIX: cache key pakai area + sample biar Jl Pala Raya Pondok tidak nyasar ke Jl Pala lain yang dekat
+  let cacheKey=(fullSample? (area+'|'+fullSample.substring(0,40)) : area);
   if(geocodeCache[cacheKey] && geocodeCache[cacheKey].lat){
     // validasi jarak cache lama: kalau jarak >60km dari posisi sekarang, anggap invalid & re-geocode
     if(lastGpsPos && geocodeCache[cacheKey].lat){
@@ -1392,8 +1394,9 @@ async function geocodeArea(area, fullSample){
         if(!res.ok) continue;
         let results=await res.json();
         if(!results || !results.length) continue;
-        // Pilih hasil yang jaraknya paling dekat & <60km
+        // V1.6.10 FIX: pilih hasil dengan skor token match + jarak, bukan jarak doang biar tidak nyasar ke Jl nama sama yang dekat
         let best=null;
+        let bestScore=-1;
         let bestDist=Infinity;
         for(let r of results){
           if(!r.lat || !r.lon) continue;
@@ -1401,9 +1404,16 @@ async function geocodeArea(area, fullSample){
           if(isNaN(lat)||isNaN(lon)) continue;
           if(lastGpsPos){
             let d=haversine(lastGpsPos.lat, lastGpsPos.lon, lat, lon);
-            // Tolak yang >60km karena pasti nyasar (contoh Jl. Kubis di Sulawesi)
             if(d>60) continue;
-            if(d<bestDist){ bestDist=d; best={lat,lon, q:q, dist:d, display_name:r.display_name}; }
+            let dn=(r.display_name||'').toLowerCase();
+            let bs=(baseSample||area||'').toLowerCase();
+            let score=0;
+            if(bs.includes('pondok') && dn.includes('pondok')) score+=10;
+            if(bs.includes('lebak bulus') && dn.includes('lebak bulus')) score+=10;
+            if(bs.includes('kencana') && dn.includes('kencana')) score+=10;
+            score+= (dn.includes('jakarta')?1:0);
+            score-= d*0.01;
+            if(score>bestScore || (score===bestScore && d<bestDist)){ bestScore=score; bestDist=d; best={lat,lon, q:q, dist:d, display_name:r.display_name}; }
           } else {
             // tanpa GPS, ambil yang pertama
             best={lat,lon, q:q, dist:null, display_name:r.display_name};
@@ -1557,7 +1567,7 @@ async function triggerGpsHotspot(){
       setTimeout(buildHotspotByHour, 200);
     }
   };
-  // build awal & restore GPS + jam aktivasi (V1.6.9)
+  // build awal & restore GPS + jam aktivasi (V1.6.10)
   try{
     let last=JSON.parse(localStorage.getItem('lapkeu_last_gps')||'null');
     // GPS session valid 2 jam (bukan 30 menit) agar window jam aktivasi tetap dipakai
@@ -1831,7 +1841,7 @@ function loadRekapData(){
     function extractAreaSimpleOrig(addr){
         if(!addr) return '';
         addr=addr.replace(/\n/g,' ').trim();
-        // V1.6.9: tolak teks UI Gojek
+        // V1.6.10: tolak teks UI Gojek
         if(typeof isGarbageAreaName==='function' && isGarbageAreaName(addr)) return '';
         // Normalisasi OCR error: JIn, Jin, J1n, Jln kebaca salah
         addr=addr.replace(/\bJ[Il1][nN]?\.(?=[A-Za-z])/gi, 'Jl. ');
@@ -1930,7 +1940,7 @@ function loadRekapData(){
         } else if(s&&s.start&&s.end){
             h=getDurationFromShift(s);
         } else if(dailyAgg[dStr].income>0){
-            // V1.6.9: hari ada income tapi jam 0 (Sabtu) -> hitung dari jarak real, bukan 0.5 jam ngarang
+            // V1.6.10: hari ada income tapi jam 0 (Sabtu) -> hitung dari jarak real, bukan 0.5 jam ngarang
             let totDist=0;
             try{ totDist=dailyAgg[dStr].orders.reduce((a,o)=>a+Number(o.dist||0),0); }catch(e){}
             if(totDist===0){
@@ -1949,7 +1959,7 @@ function loadRekapData(){
             let hEff=Math.max(0,h-casInfo.totalJamCas);
             totalHoursPeriod+=hEff;
             daysWithShiftCount++;
-            dayOfWeekData[dayIndex].hours+=h; // V1.6.9 FIX: tren pakai jam real (4.2) bukan hEff (0.1) biar sesuai harian
+            dayOfWeekData[dayIndex].hours+=h; // V1.6.10 FIX: tren pakai jam real (4.2) bukan hEff (0.1) biar sesuai harian
 
             let hForTier=hEff;
             if(hForTier<5){ tiers.short.net+=dayNet; tiers.short.hours+=hForTier; tiers.short.count++; }
@@ -2189,7 +2199,7 @@ function loadRekapData(){
         let pct=Math.round((rpPerJam/maxRpPerJamService)*100);
         let barColor=rpPerJam>=30000?'#00e676':rpPerJam>=15000?'#40c4ff':'#ff8a80';
         let icon=cat==='Goride'?'🏍️':cat==='Gofood'?'🍔':cat==='Gomart'?'🛒':'📦';
-        // Koreksi logika per layanan - V1.6.9 FIX sesuai diskusi
+        // Koreksi logika per layanan - V1.6.10 FIX sesuai diskusi
         let extraLabel='', extraIcon='', badgeColor='';
         if(cat==='Gofood'){
             extraLabel='nunggu resto + nyari alamat + macet';
@@ -2208,7 +2218,7 @@ function loadRekapData(){
             extraIcon='🔍';
             badgeColor='#1f1a33';
         }
-        // V1.6.9 FIX: Tampilkan ideal + extra untuk semua layanan
+        // V1.6.10 FIX: Tampilkan ideal + extra untuk semua layanan
         let waitingBadge='';
         let detailText='';
         if(s.waitingPct>0){
@@ -2282,7 +2292,7 @@ function loadRekapData(){
 
     const daysContainer=document.getElementById('rekapDaysContainer'); daysContainer.innerHTML="";
     dayOfWeekData.forEach(d=>{
-        // V1.6.9: pakai data real tanpa clamp, kalau jam kecil ya memang tinggi
+        // V1.6.10: pakai data real tanpa clamp, kalau jam kecil ya memang tinggi
         d.rpPerHour=d.hours>0?Math.round(d.net/d.hours):0;
     });
     let maxRpPerHour=Math.max(...dayOfWeekData.map(d=>Math.abs(d.rpPerHour)),1);
@@ -2293,7 +2303,7 @@ function loadRekapData(){
         daysContainer.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label"><span>${d.name} <span style="font-size:10px; color:var(--muted);">(Net: Rp ${d.net.toLocaleString('id-ID')})</span>${warn}</span><span style="color:${barColor}; font-weight:bold;">Rp ${d.rpPerHour.toLocaleString('id-ID')}/jam</span></div><div class="breakdown-bg"><div class="breakdown-fill" style="width:${pct}%; background:${barColor};"></div></div><div style="font-size:9px; color:#777; margin-top:2px; text-align:right;">Total: ${d.hours.toFixed(1)} Jam</div></div>`;
     });
 
-    // V1.6.9 FIX: Insight Presisi V5/V6 dihapus total
+    // V1.6.10 FIX: Insight Presisi V5/V6 dihapus total
 }
 
 function exportToCSV()
@@ -2640,7 +2650,7 @@ window.onload=function(){
 function parseGojekText(fullText){
     let txt=fullText.replace(/\r/g,'').replace(/\n+/g,'\n');
     let results=[];
-    // V1.6.9 IMPROVED: pola screenshot Gojek Hari ini - belajar dari 4 screenshot user
+    // V1.6.10 IMPROVED: pola screenshot Gojek Hari ini - belajar dari 4 screenshot user
     // Pola real: Rp29.900 / 15:35 - 16:09 • 11.38 km / ID transaksi: RB-... / Alamat Jemput (biru) / Alamat Antar (oranye)
     // Kadang ada Tunai/GoPay + Selesai di kanan, harus di-skip
     const tripRegex=/Rp\s*[^\d]{0,3}([\d\.\,]{3,})[\s\S]{0,250}?(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})[^\d]{0,15}([\d]+[\.,]?\d*)\s*km/gi;
@@ -2673,7 +2683,7 @@ function parseGojekText(fullText){
         let candidates=[];
         for(let i=idLineIdx+1;i<lines.length&&candidates.length<6;i++){
           let ln=lines[i];
-          // V1.6.9: skip UI Gojek yang sering kebaca saat screenshot geser
+          // V1.6.10: skip UI Gojek yang sering kebaca saat screenshot geser
           if(/Rp/i.test(ln)) continue;
           if(/\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/.test(ln)) continue;
           if(/[\d]+[\.,]?\d*\s*km/i.test(ln)) continue;
@@ -2683,7 +2693,7 @@ function parseGojekText(fullText){
           if(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(ln)) continue;
           if(/^\+100/.test(ln)) continue;
           if(/^\+Tip/i.test(ln)) continue;
-          // V1.6.9: filter Tunai, GoPay, Selesai, Berhasil dll
+          // V1.6.10: filter Tunai, GoPay, Selesai, Berhasil dll
           if(typeof isGarbageAreaName==='function' && isGarbageAreaName(ln)) continue;
           // Pola alamat valid harus mengandung hint alamat atau panjang >10
           let hasHint=/\b(Jl\.?|Jln|Jalan|Gg|Gang|Blok|No\.?|RT|RW|Kel|Kec|Desa|Perum|Komplek|Mall|Ruko|Pasar|Stasiun|Terminal|Bandara|Jl|\+|\b[A-Z]{2,}\d*\+\w+)\b/i.test(ln);
@@ -2694,7 +2704,7 @@ function parseGojekText(fullText){
         }
         if(candidates.length>=1) pickup=cleanGojekAddressDeep(candidates[0]);
         if(candidates.length>=2) destination=cleanGojekAddressDeep(candidates[1]);
-        // V1.6.9: pastikan hasil akhir bukan garbage
+        // V1.6.10: pastikan hasil akhir bukan garbage
         if(typeof isGarbageAreaName==='function'){
           if(isGarbageAreaName(pickup)) pickup='';
           if(isGarbageAreaName(destination)) destination='';
@@ -3090,7 +3100,7 @@ fileInput.addEventListener('change', async (e)=>{
 <script>
 (function(){
   
-// FIX V1.6.9 - Atomic Lake Merge + GPS Persist tanpa ubah layout
+// FIX V1.6.10 - Atomic Lake Merge + GPS Persist tanpa ubah layout
 window.lapkeuAtomicLakeMerge = window.lapkeuAtomicLakeMerge || function(section, key, value){
   try{
     const LAKE_KEY='UNIVERSAL_LAKE_V1';
@@ -3308,7 +3318,7 @@ window.lapkeuAtomicLakeMerge = window.lapkeuAtomicLakeMerge || function(section,
       var biayaEv=safeParse('battlog_ev_cost'); var summaryEv=safeParse('battlog_summary'); if(biayaEv) lake.cross['battlog_ev_cost']=biayaEv; if(summaryEv) lake.cross['battlog_summary']=summaryEv;
       var riwayatEv=safeParse('battlog_riwayat_harian'); if(riwayatEv) lake.cross['battlog_riwayat_harian']=riwayatEv;
       try{ localStorage.setItem('lapkeu_hub_from_lapkeu', JSON.stringify({siganData:siganData,incomeMap:incomeMap,kmMap:kmMap,ts:Date.now()})); }catch(e){}
-      // FIX V1.6.9: atomic merge, jangan timpa section battlog/maka yang baru saja ditulis BattLog
+      // FIX V1.6.10: atomic merge, jangan timpa section battlog/maka yang baru saja ditulis BattLog
       try{
         // baca lake terbaru lagi untuk hindari race
         let latestRaw=localStorage.getItem(LAKE_KEY);
